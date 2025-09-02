@@ -1,0 +1,14 @@
+[project]
+name = "powercontroller"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "astral>=3.2",
+    "flask>=3.1.2",
+    "python-dateutil>=2.9.0.post0",
+    "pytz>=2025.2",
+    "sc-utility>=2.2.3",
+    "werkzeug>=3.1.3",
+]
