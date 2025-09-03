@@ -13,11 +13,75 @@ PRICES_DATA_FILE = "latest_prices.json"
 PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
 
 
+# Mode for Amber API
+class AmberAPIMode(StrEnum):
+    LIVE = "Live"
+    OFFLINE = "Offline"
+    DISABLED = "Disabled"
+
+
+# Mode for Amber API
+class AmberChannel(StrEnum):
+    GENERAL = "general"
+    CONTROLLED_LOAD = "controlledLoad"
+
+
+# Get prices mode
+class PriceFetchMode(StrEnum):
+    NORMAL = "normal"
+    SORTED = "sorted"
+
+
+# Mode for creating run plans
+class RunPlanMode(StrEnum):
+    BEST_PRICE = "BestPrice"
+    SCHEDULE = "Schedule"
+
+
+class RunPlanStatus(StrEnum):
+    NOTHING = "The required_hours were zero, so the run plan is empty."
+    FAILED = "Unable to create the run plan. Could not allocate all required priority hours."
+    PARTIAL = "The run plan was only partially filled, but the priority hours were allocated."
+    READY = "The run plan was filled successfully."
+
+
+# Enumerate the overall system state
+class SystemState(StrEnum):
+    DATE_OFF = "DateOff condition met for today"
+    INPUT_OVERRIDE = "Input has overridden the mode"
+    APP_OVERRIDE = "App has overridden the mode"
+    AUTO = "Automatic control based on schedule or best price"
+
+
 # Override modes for the mobile app
 class AppMode(StrEnum):
     ON = "on"
     OFF = "off"
     AUTO = "auto"
+
+
+class InputMode(StrEnum):
+    IGNORE = "Ignore"
+    TURN_ON = "TurnOn"
+    TURN_OFF = "TurnOff"
+
+
+# Enumerate the reasons why the Output is off
+class StateReasonOff(StrEnum):
+    NO_RUN_PLAN = "No run plan available"
+    RUN_PLAN_COMPLETE = "No more run time required today"
+    INACTIVE_RUN_PLAN = "Run plan dictates that the output should be off"
+    APP_MODE_OFF = "App has overridden the mode to off"
+    INPUT_SWITCH_OFF = "Device input has overridden the mode to off"
+    DATE_OFF = "DateOff condition met for today"
+    PARENT_OFF = "Parent output is off"
+
+
+# Enumerate the reasons why the Output is on
+class StateReasonOn(StrEnum):
+    APP_MODE_ON = "App has overridden the mode to on"
+    INPUT_SWITCH_ON = "Device input has overridden the mode to on"
+    ACTIVE_RUN_PLAN = "Run plan dictates that the output should be on"
 
 
 # To be replaced by the Output state snapshot
@@ -34,38 +98,3 @@ class LightState:
 class Command:
     kind: str
     payload: dict[str, Any]
-
-
-# Mode for Amber API
-class AmberAPIMode(StrEnum):
-    LIVE = "Live"
-    OFFLINE = "Offline"
-    DISABLED = "Disabled"
-
-
-# Mode for creating run plans
-class RunPlanMode(StrEnum):
-    BEST_PRICE = "BestPrice"
-    SCHEDULE = "Schedule"
-
-
-# Enumerate the overall system state
-class SystemState(StrEnum):
-    DATE_OFF = "DateOff condition met for today"
-    SCHEDULED = "Automatic control based on predefined schedule"
-    BEST_PRICE = "Automatic control based on best price"
-
-
-# Enumerate the reasons why the Output is off
-class StateReasonOff(StrEnum):
-    RUN_PLAN_COMPLETE = "No more run time required today"
-    APP_MODE_OFF = "App has overridden the mode to off"
-    INPUT_SWITCH_OFF = "Device input has overridden the mode to off"
-
-
-# Enumerate the reasons why the Output is on
-class StateReasonOn(StrEnum):
-    APP_MODE_ON = "App has overridden the mode to on"
-    INPUT_SWITCH_ON = "Device input has overridden the mode to on"
-    SCHEDULED = "Scheduled run time"
-    BEST_PRICE = "Best price run time"

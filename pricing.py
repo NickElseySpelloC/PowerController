@@ -7,7 +7,14 @@ from zoneinfo import ZoneInfo
 import requests
 from sc_utility import DateHelper, SCCommon, SCConfigManager, SCLogger
 
-from enumerations import PRICE_SLOT_INTERVAL, PRICES_DATA_FILE, AmberAPIMode
+from enumerations import (
+    PRICE_SLOT_INTERVAL,
+    PRICES_DATA_FILE,
+    AmberAPIMode,
+    AmberChannel,
+    PriceFetchMode,
+    RunPlanMode,
+)
 from json_encoder import JSONEncoder
 from run_plan import RunPlanner
 
@@ -333,11 +340,11 @@ class PricingManager:
         else:
             return True
 
-    def is_channel_valid(self, channel_id: str) -> bool:
+    def is_channel_valid(self, channel_id: AmberChannel) -> bool:
         """Checks if the specified channel ID is valid.
 
         Args:
-            channel_id (str): The ID of the channel to check.
+            channel_id (AmberChannel): The ID of the channel to check.
 
         Returns:
             is_valid (bool): True if the channel ID is valid, False otherwise.
@@ -346,12 +353,12 @@ class PricingManager:
             return False
         return any(channel["Name"] == channel_id for channel in self.price_data)
 
-    def _get_channel_prices(self, channel_id: str = "general", which_type: str = "normal") -> list[dict]:
+    def _get_channel_prices(self, channel_id: AmberChannel = AmberChannel.GENERAL, which_type: PriceFetchMode = PriceFetchMode.NORMAL) -> list[dict]:
         """Returns the list of prices for the specified channel.
 
         Args:
-            channel_id (str): The ID of the channel to get the prices for.
-            which_type (str): The type of prices to get (normal or sorted).
+            channel_id (AmberChannel): The ID of the channel to get the prices for.
+            which_type (PriceFetchMode): The type of prices to get (normal or sorted).
 
         Returns:
             prices (list[float]): A list of prices in AUD/kWh for the specified channel, or an empty list if invalid.
@@ -359,18 +366,18 @@ class PricingManager:
         if not self.is_channel_valid(channel_id):
             self.logger.log_message(f"Invalid channel ID '{channel_id}' specified when getting channel prices.", "error")
             return []
-        if which_type not in {"normal", "sorted"}:
+        if which_type not in PriceFetchMode:
             self.logger.log_message(f"Invalid price type '{which_type}' specified when getting channel prices.", "error")
             return []
 
         for channel in self.price_data:
             if channel["Name"] == channel_id:
-                if which_type == "sorted":
+                if which_type == PriceFetchMode.SORTED:
                     return channel["SortedPriceData"]
                 return channel["PriceData"]
         return []
 
-    def get_available_time(self, channel_id: str = "general") -> float:
+    def get_available_time(self, channel_id: AmberChannel = AmberChannel.GENERAL) -> float:
         """Returns the number of hours of price data available for the selected channel.
 
         Args:
@@ -392,11 +399,11 @@ class PricingManager:
         duration = (end_time - start_time).total_seconds() / 3600.0
         return max(0.0, duration)
 
-    def get_current_price(self, channel_id: str = "general") -> float | None:
+    def get_current_price(self, channel_id: AmberChannel = AmberChannel.GENERAL) -> float | None:
         """Fetches the current price from the Amber API.
 
         Args:
-            channel_id (str): The ID of the channel to get the price for.
+            channel_id (AmberChannel): The ID of the channel to get the price for.
 
         Returns:
             price(float): The current price in AUD/kWh, or None if channel is invalid or price data is not available.
@@ -411,7 +418,7 @@ class PricingManager:
 
         return price_data[0]["Price"]
 
-    def get_run_plan(self, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, channel_id: str = "general") -> dict | None:
+    def get_run_plan(self, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, channel_id: AmberChannel = AmberChannel.GENERAL) -> dict | None:
         """Determines when to run based on the best pricing strategy.
 
         Args:
@@ -429,9 +436,9 @@ class PricingManager:
 
         try:
             # Create a run planner instance
-            run_planner = RunPlanner(self.logger, "BestPrice", channel_id)
+            run_planner = RunPlanner(self.logger, RunPlanMode.BEST_PRICE, channel_id)
 
-            sorted_price_data = self._get_channel_prices(channel_id=channel_id, which_type="sorted")
+            sorted_price_data = self._get_channel_prices(channel_id=channel_id, which_type=PriceFetchMode.SORTED)
             run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating best price run plan: {e}", "error")

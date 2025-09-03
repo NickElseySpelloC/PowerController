@@ -157,6 +157,8 @@ class PowerController:
 
         # TO DO: Implement a max concurrent error handler - exit app if # number of concurrent errors exceeds limit
 
+        # TO DO: Reconcile the output's actual state with the output.is_on state.
+
     def _generate_run_plans(self):
         """Generate / refresh the run plan for each output."""
         for output in self.outputs:
@@ -164,5 +166,6 @@ class PowerController:
 
     def _evaluation_conditions(self):
         """Evaluate the conditions for each output."""
+        # TO DO: Make sure call this for any parent outputs first
         for output in self.outputs:
             output.evaluate_conditions()

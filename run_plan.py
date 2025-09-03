@@ -1,45 +1,52 @@
 """RunPlanner module. Calculates a run plan for either Amber pricing or a defined schedule.
 
     Sample format:
-    "Source": "Amber",
-    "Channel": "general",
-    "RequiredHours": 8.0,
-    "PriorityHours": 2.0,
-    "PlannedHours": 8.0,
-    "ForecastAveragePrice": 21.23,
-    "RunPlan": [
-        {
-            "Date": "2024-06-01",
-            "StartTime": "14:00",
-            "EndTime": "15:00",
-            "Minutes": 60,
-            "AveragePrice": 21.03
-        },
-        ...
+    run_plan = {
+        "Source": "Amber",
+        "Channel": "general",
+        "Status": None,
+        "RequiredHours": 8.0,
+        "PriorityHours": 2.0,
+        "PlannedHours": 8.0,
+        "ForecastAveragePrice": 21.23,
+        "NextStartTime": datetime(10, 30),
+        "StartNow": True,
+        "RunPlan": [
+            {
+                "Date": "2024-06-01",
+                "StartTime": "14:00",
+                "EndTime": "15:00",
+                "Minutes": 60,
+                "AveragePrice": 21.03
+            },
+            ...
+        }
 """  # noqa: D208
 import datetime as dt
 import operator
 
 from sc_utility import DateHelper, SCLogger
 
+from enumerations import AmberChannel, RunPlanMode, RunPlanStatus
+
 
 class RunPlanner:
-    def __init__(self, logger: SCLogger, plan_type: str, channel: str | None = None):
+    def __init__(self, logger: SCLogger, plan_type: RunPlanMode, channel: AmberChannel | None = None):
         """Initializes the RunPlanner.
 
         Args:
             logger (SCLogger): The logger for the run planner.
-            plan_type (str): The type of the run plan. Must be BestPrice or Schedule.
-            channel (str): The channel of the run plan, or None if plan_type is Schedule.
+            plan_type (RunPlanMode): The type of the run plan. Must be one of the RunPlanMode enums.
+            channel (AmberChannel | None): The channel of the run plan (one of the AmberChannel enums), or None if plan_type is Schedule.
 
         Raises:
             RuntimeError: If the plan_type is invalid.
         """
-        if plan_type not in {"BestPrice", "Schedule"}:
-            error_msg = f"Invalid plan type: {plan_type}. Must be 'BestPrice' or 'Schedule'."
+        if plan_type not in RunPlanMode:
+            error_msg = f"Invalid plan type: {plan_type}. Must be one of {', '.join([m.value for m in RunPlanMode])}"
             raise RuntimeError(error_msg)
         self.plan_type = plan_type
-        self.channel = channel if plan_type == "BestPrice" else None
+        self.channel = channel if plan_type == RunPlanMode.BEST_PRICE else None
         self.logger = logger
 
     def _create_run_plan_object(self) -> dict:
@@ -47,6 +54,7 @@ class RunPlanner:
         new_run_plan = {
             "Source": self.plan_type,
             "Channel": self.channel,
+            "LastUpdate": DateHelper.now(),
             "Status": None,
             "RequiredHours": 0.0,
             "PriorityHours": 0.0,
@@ -67,11 +75,11 @@ class RunPlanner:
             - Price: The price of the slot (float)
             - Minutes: The duration of the slot in minutes (int)
 
-        The run_plan["Status"] key indicates the outcome of the planning process:
-            Empty: The required_hours were zero, we returned an empty run plan.
-            Complete: The run plan was filled successfully.
-            Partial: The run plan was partially filled, but all the priority hours were allocated.
+        The run_plan["Status"] key indicates the outcome of the planning process. Use the RunPlanStatus enum
+            Nothing: The required_hours were zero. There's nothing to do sowe returned an empty run plan.
             Failed: The run plan could not be filled - could not allocate all required priority hours.
+            Partial: The run plan was partially filled, but all the priority hours were allocated.
+            Ready: The run plan was filled successfully and is ready to be executed.
 
         Args:
             sorted_slot_data (list[dict]): A list of dictionaries containing the price data sorted by best for the selected channel.
@@ -90,7 +98,7 @@ class RunPlanner:
         run_plan = self._create_run_plan_object()
         if required_hours <= 0 and required_hours != -1:
             run_plan["RequiredHours"] = run_plan["PriorityHours"] = run_plan["PlannedHours"] = 0.0
-            run_plan["Status"] = "Empty"
+            run_plan["Status"] = RunPlanStatus.NOTHING
             return run_plan
 
         # Max sure the priority_hours is <= required_hours
@@ -103,7 +111,7 @@ class RunPlanner:
 
         # If we were passed an empty slot list but requested hours, we can't fulfill the request
         if not sorted_slot_data:
-            run_plan["Status"] = "Failed"
+            run_plan["Status"] = RunPlanStatus.FAILED
             run_plan["PlannedHours"] = 0.0
             return run_plan
 
@@ -154,11 +162,11 @@ class RunPlanner:
 
         # We've completed the loop, let's finalise the run plan
         if not run_plan["RunPlan"] or filled_mins < required_priority_mins:
-            run_plan["Status"] = "Failed"
+            run_plan["Status"] = RunPlanStatus.FAILED
         elif remaining_required_mins > 0:
-            run_plan["Status"] = "Partial"
+            run_plan["Status"] = RunPlanStatus.PARTIAL
         else:
-            run_plan["Status"] = "Complete"
+            run_plan["Status"] = RunPlanStatus.READY
 
         return RunPlanner._consolidate_run_plan(run_plan)
 

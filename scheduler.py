@@ -8,7 +8,7 @@ from astral import LocationInfo
 from astral.sun import sun
 from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
 
-from enumerations import DEFAULT_PRICE, WEEKDAY_ABBREVIATIONS
+from enumerations import DEFAULT_PRICE, WEEKDAY_ABBREVIATIONS, RunPlanMode
 from run_plan import RunPlanner
 
 
@@ -91,7 +91,7 @@ class Scheduler:
 
         try:
             # Create a run planner instance
-            run_planner = RunPlanner(self.logger, "Schedule")
+            run_planner = RunPlanner(self.logger, RunPlanMode.SCHEDULE)
             run_plan = run_planner.calculate_run_plan(time_slots, required_hours, priority_hours, max_price, max_priority_price)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating schedule run plan: {e}", "error")
