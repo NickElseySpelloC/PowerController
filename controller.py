@@ -12,6 +12,7 @@ from scheduler import Scheduler
 
 
 class PowerController:
+    """The PowerController class that orchestrates power management."""
     def __init__(self, config: SCConfigManager, logger: SCLogger, wake_event: Event):
         """Initializes the PowerController.
 
@@ -69,8 +70,8 @@ class PowerController:
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")
 
-    # TO DO: Redo to return Output state information
     def get_state_snapshot(self) -> dict[str, Any]:
+        """TO DO: Redo to return Output state information."""  # noqa: DOC201
         return {
             lid: {
                 "light_id": s.light_id,
@@ -81,8 +82,9 @@ class PowerController:
             for lid, s in self.lights.items()
         }
 
-    # TO DO: Update to process commands received from web app
     def post_command(self, cmd: Command) -> None:
+        """Post a command to the controller."""
+        # TO DO: Update to process commands received from web app
         self.cmd_q.put(cmd)
         self.wake_event.set()
 

@@ -75,6 +75,7 @@ class StateReasonOff(StrEnum):
     INPUT_SWITCH_OFF = "Device input has overridden the mode to off"
     DATE_OFF = "DateOff condition met for today"
     PARENT_OFF = "Parent output is off"
+    STATUS_CHANGE = "Mode remains on but the status has changed"
 
 
 # Enumerate the reasons why the Output is on

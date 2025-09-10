@@ -9,6 +9,44 @@ from dateutil.parser import parse
 
 
 class JSONEncoder:
+    """Class to handle encoding and decoding of JSON data with special handling for date and datetime objects."""
+    @staticmethod
+    def serialise_to_json(data) -> str:
+        """Serialises the data to a JSON string, converting as needed.
+
+        Raises:
+            RuntimeError: If the data cannot be serialized.
+
+        Returns:
+            str: The JSON string representation of the data.
+        """
+        try:
+            save_data = copy.deepcopy(data)
+            save_data = JSONEncoder._add_datatype_hints(save_data)
+            json_string = json.dumps(save_data, indent=4, default=JSONEncoder._encode_object)
+        except (TypeError, ValueError) as e:
+            raise RuntimeError from e
+        else:
+            return json_string
+
+    @staticmethod
+    def deserialise_from_json(json_string: str):
+        """Deserialises the JSON string to an object, converting as needed.
+
+        Raises:
+            RuntimeError: If the data cannot be deserialized.
+
+        Returns:
+            The deserialized object.
+        """
+        try:
+            json_data = json.loads(json_string)
+            return_data = JSONEncoder._decode_object(json_data)
+        except (json.JSONDecodeError, ValueError) as e:
+            raise RuntimeError from e
+        else:
+            return return_data
+
     @staticmethod
     def save_to_file(data, file_path: Path) -> bool:
         """Saves the date to a JSON file, converting as needed.
@@ -26,7 +64,6 @@ class JSONEncoder:
                 json.dump(save_data, json_file, indent=4, default=JSONEncoder._encode_object)
         except (TypeError, ValueError, OSError) as e:
             raise RuntimeError from e
-            return False
         return True
 
     @staticmethod

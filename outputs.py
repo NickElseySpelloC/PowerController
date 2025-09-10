@@ -16,6 +16,7 @@ from scheduler import Scheduler
 
 
 class OutputManager:
+    """Manages the state of a single Shelly output device and associated resources."""
     def __init__(self, output_config: dict, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl):
         """Manages the state of a single Shelly output device.
 
@@ -196,7 +197,6 @@ class OutputManager:
 
         self.run_history = []
         # TO DO: Add metering information
-        pass
 
     def generate_run_plan(self) -> bool:
         """Generate / update the run plan for this output.
@@ -217,13 +217,14 @@ class OutputManager:
 
         return bool(self.run_plan)
 
-    def evaluate_conditions(self):  # noqa: PLR0912
+    def evaluate_conditions(self):  # noqa: PLR0912, PLR0915
         """Evaluate the conditions for this output.
 
         Note: calculate_running_totals should be called before this method.
         """
         new_output_state = None  # This is the new state. Once it's set, we are blocked from further checks
         new_system_state = None
+        reason_on = reason_off = None
         # See if the app has overridden our state
         if self.app_mode == AppMode.ON:
             new_output_state = True
@@ -276,9 +277,8 @@ class OutputManager:
                     reason_off = StateReasonOff.INACTIVE_RUN_PLAN
 
         # If we get here and we still haven't determined the new output state, there's a problem.
-        if not new_output_state:
+        if not isinstance(new_output_state, bool):
             self.logger.log_fatal_error(f"Unable to determine new output state for {self.name}.")
-            return
 
         # If we're proposing to turn on and the system_state is AUTO, then make sure our parent output allows this
         if new_system_state == SystemState.AUTO and new_output_state and self.parent_device_output and not self.parent_device_output["State"]:
@@ -286,10 +286,16 @@ class OutputManager:
             new_output_state = False
             reason_off = StateReasonOff.PARENT_OFF
 
+        if new_output_state and reason_on is None:
+            self.logger.log_fatal_error(f"Output {self.name} state evaluates to On but reason_on not set.")
+        elif not new_output_state and reason_off is None:
+            self.logger.log_fatal_error(f"Output {self.name} state evaluates to Off but reason_off not set.")
         # And finally we're ready to apply our changes
         if new_output_state:
+            assert reason_on is not None
             self._turn_on(reason_on)
         else:
+            assert reason_off is not None
             self._turn_off(reason_off)
 
     def _get_input_state(self) -> bool | None:
@@ -302,16 +308,18 @@ class OutputManager:
             return None
         return self.device_input.get("State")
 
-    def _turn_on(self, reason: StateReasonOn):
+    def _turn_on(self, new_system_state: SystemState, reason: StateReasonOn):
         """Turns on the output device."""
         # To DO: Actually change the switch state, or deal with it being offline
         # TO DO: only make a change if the state is changing. Update run history regardless
         self.is_on = True
         self.last_changed = DateHelper.now()
-        self.reason_on = reason
+        self.system_state = new_system_state
+        self.reason = reason
+        print(f"Output {self.name} ON - {reason.value}")
         # TO DO: log this in the run_history
 
-    def _turn_off(self, reason: StateReasonOff):
+    def _turn_off(self, new_system_state: SystemState, reason: StateReasonOff):
         """Turns off the output device.
 
         Args:
@@ -320,7 +328,9 @@ class OutputManager:
         # To DO: Actually change the switch state, or deal with it being offline
         self.is_on = False
         self.last_changed = DateHelper.now()
-        self.reason_off = reason
+        self.system_state = new_system_state
+        self.reason = reason
+        print(f"Output {self.name} OFF - {reason.value}")
         # TO DO: log this in the run_history
 
     def print_info(self) -> str:
