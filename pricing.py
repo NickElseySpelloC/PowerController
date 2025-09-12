@@ -399,18 +399,18 @@ class PricingManager:
         duration = (end_time - start_time).total_seconds() / 3600.0
         return max(0.0, duration)
 
-    def get_current_price(self, channel_id: AmberChannel = AmberChannel.GENERAL) -> float | None:
+    def get_current_price(self, channel_id: AmberChannel = AmberChannel.GENERAL) -> float:
         """Fetches the current price from the Amber API.
 
         Args:
             channel_id (AmberChannel): The ID of the channel to get the price for.
 
         Returns:
-            price(float): The current price in AUD/kWh, or None if channel is invalid or price data is not available.
+            price(float): The current price in AUD/kWh, or 0 if channel is invalid or price data is not available.
         """
         if not self.is_channel_valid(channel_id):
             self.logger.log_message(f"Invalid channel ID '{channel_id}' specified when checking price data duration.", "error")
-            return None
+            return 0.0
 
         price_data = self._get_channel_prices(channel_id)
         if not price_data:

@@ -69,7 +69,7 @@ class Scheduler:
 
         Args:
             operating_schedule_name (str): The name of the operating schedule to use.
-            required_hours (float): The number of hours required for the task. Set to -1 to get all remaining hours that can be filled by price.
+            required_hours (float): The number of hours required for the task. Set to -1 to get all remaining hours that can be filled.
             priority_hours (float): The number of hours that should be prioritized.
             max_price (float): The maximum price to consider for the run plan.
             max_priority_price (float): The maximum price to consider for priority hours in the run plan.
@@ -259,3 +259,26 @@ class Scheduler:
             "dawn": s["dawn"].time(),
             "dusk": s["dusk"].time(),
         }
+
+    def get_current_price(self, schedule: dict) -> float:
+        """Get the current price from the pricing manager.
+
+        Args:
+            schedule (dict): The schedule dictionary.
+
+        Returns:
+            float: The current price in AUD/kWh, or 0 if not available.
+        """
+        # Get the slots for the current time
+        slots = self._get_schedule_slots(schedule)
+        if not slots:
+            return DEFAULT_PRICE
+
+        # See if we have a slot that encompasses the current time
+        current_time = DateHelper.now().time()
+        for slot in slots:
+            if slot["StartTime"] <= current_time <= slot["EndTime"]:
+                # Get the current price from the pricing manager
+                return slot["Price"]
+
+        return DEFAULT_PRICE

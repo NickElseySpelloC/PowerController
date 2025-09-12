@@ -160,9 +160,9 @@ class ConfigSchema:
                         "Mode": {"type": "string", "required": True, "allowed": ["Schedule", "BestPrice"]},
                         "Schedule": {"type": "string", "required": False, "nullable": True},
                         "AmberChannel": {"type": "string", "required": False, "nullable": True, "allowed": ["general", "controlledLoad"]},
-                        "MinHours": {"type": "number", "required": True, "min": 0, "max": 20},
-                        "TargetHours": {"type": "number", "required": True, "min": 1, "max": 20},
-                        "MaxHours": {"type": "number", "required": True, "min": 1, "max": 24},
+                        "TargetHours": {"type": "number", "required": True, "min": -1, "max": 24},
+                        "MinHours": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 20},
+                        "MaxHours": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 24},
                         "MaxBestPrice": {"type": "number", "required": True, "min": 1, "max": 1000},
                         "MaxPriorityPrice": {"type": "number", "required": True, "min": 1, "max": 1000},
                         "DatesOff": {

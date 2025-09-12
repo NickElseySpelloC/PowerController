@@ -8,7 +8,7 @@ CONFIG_FILE = "config.yaml"
 PRICES_DATA_FILE = "latest_prices.json"
 PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
 WEEKDAY_ABBREVIATIONS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-DEFAULT_PRICE = 25.0
+DEFAULT_PRICE = 20.0  # TO DO: Replace with configured default
 PRICES_DATA_FILE = "latest_prices.json"
 PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
 
@@ -36,6 +36,12 @@ class PriceFetchMode(StrEnum):
 class RunPlanMode(StrEnum):
     BEST_PRICE = "BestPrice"
     SCHEDULE = "Schedule"
+
+
+# Mode for run plan target hours
+class RunPlanTargetHours(StrEnum):
+    NORMAL = "run for target hours"
+    ALL_HOURS = "all available hours"
 
 
 class RunPlanStatus(StrEnum):
@@ -76,6 +82,7 @@ class StateReasonOff(StrEnum):
     DATE_OFF = "DateOff condition met for today"
     PARENT_OFF = "Parent output is off"
     STATUS_CHANGE = "Mode remains on but the status has changed"
+    DAY_END = "A new day has started"
 
 
 # Enumerate the reasons why the Output is on
@@ -83,6 +90,14 @@ class StateReasonOn(StrEnum):
     APP_MODE_ON = "App has overridden the mode to on"
     INPUT_SWITCH_ON = "Device input has overridden the mode to on"
     ACTIVE_RUN_PLAN = "Run plan dictates that the output should be on"
+
+
+# Used to pass status data into RunHistory
+@dataclass
+class OutputStatusData:
+    meter_reading: float
+    target_hours: float | None
+    current_price: float
 
 
 # To be replaced by the Output state snapshot

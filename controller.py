@@ -34,7 +34,7 @@ class PowerController:
 
         # Setup the environment
         self.outputs = []   # List of output state managers, each one a OutputStateManager object.
-        self.poll_interval: float = 10.0
+        self.poll_interval: float = 10.0  # TO DO: Lookup via config
 
         # Create an instance of the ShellyControl class
         shelly_settings = self.config.get_shelly_settings()
