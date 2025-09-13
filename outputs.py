@@ -42,6 +42,7 @@ class OutputManager:
         self.system_state: SystemState = SystemState.AUTO  # The overall system state, to be updated
         self.app_mode = AppMode.AUTO  # Defines the override from the mobile app.
         self.name = None
+        self.device = None
         self.device_output_name = None
         self.device_output = None
         self.device_mode = RunPlanMode.SCHEDULE
@@ -54,8 +55,8 @@ class OutputManager:
         self.device_input_name = None
         self.device_input = None
         self.device_input_mode = InputMode.IGNORE
-        self.parent_device_output_name = None
-        self.parent_device_output = None
+        self.parent_output_name = None
+        self.parent_output = None
 
         # Run planning
         self.run_plan = None
@@ -65,7 +66,10 @@ class OutputManager:
         self.dates_off = []
 
         # TO DO: Pass run_history read from json file
-        self.run_history = RunHistory(self.logger, output_config)     # This holds a log of all actual runs
+        try:
+            self.run_history = RunHistory(self.logger, output_config)
+        except RuntimeError as e:
+            self.logger.log_fatal_error(f"Error initializing RunHistory for output {self.name}: {e}")
 
         # The required state of the device
         self.is_on = None
@@ -102,6 +106,8 @@ class OutputManager:
                     self.device_output = self.shelly_control.get_device_component("output", self.device_output_name)
                     if not self.device_output:
                         error_msg = f"DeviceOutput {self.device_output_name} not found for output {self.name}."
+                    else:
+                        self.device = self.shelly_control.get_device(self.device_output["DeviceID"])
 
             # Mode
             if not error_msg:
@@ -187,11 +193,8 @@ class OutputManager:
 
             # ParentDeviceOutput
             if not error_msg:
-                self.parent_device_output_name = output_config.get("ParentDeviceOutput")
-                if self.parent_device_output_name:
-                    self.parent_device_output = self.shelly_control.get_device_component("output", self.parent_device_output_name)
-                    if not self.parent_device_output:
-                        error_msg = f"ParentDeviceOutput {self.parent_device_output_name} not found for output {self.name}."
+                self.parent_output_name = output_config.get("ParentOutput")
+                # Note: We can't lookup the actual parent output here as it may not have been created yet.
 
             # Reinitialise the run_history object
             if not error_msg:
@@ -203,6 +206,38 @@ class OutputManager:
             if error_msg:
                 raise RuntimeError(error_msg)
             self.calculate_running_totals()   # Finally calculate all running totals
+
+    def get_save_object(self) -> dict:
+        """Returns the representation of this output object that can be saved to disk.
+
+        Returns:
+            dict: The representation of the output object.
+        """
+        output_dict = {
+            "Name": self.name,
+            "SystemState": self.system_state,
+            "IsOn": self.is_on,
+            "LastChanged": self.last_changed,
+            "Reason": self.reason,
+            "AppMode": self.app_mode,
+            "DeviceOutputName": self.device_output_name,
+            "DeviceMode": self.device_mode,
+            "ScheduleName": self.schedule_name,
+            "AmberChannel": self.amber_channel,
+            "MaxBestPrice": self.max_best_price,
+            "MaxPriorityPrice": self.max_priority_price,
+            "DeviceMeterName": self.device_meter_name,
+            "DeviceInputName": self.device_input_name,
+            "DeviceInputMode": self.device_input_mode,
+            "ParentOutputName": self.parent_output_name,
+            "RunPlan": self.run_plan,
+            "MinHours": self.min_hours,
+            "MaxHours": self.max_hours,
+            "RunPlanTargetMode": self.run_plan_target_mode,
+            "DatesOff": self.dates_off,
+            "RunHistory": self.run_history.history,
+        }
+        return output_dict
 
     def _is_today_excluded(self) -> bool:
         """Check if today falls within any specified DatesOff range which states that the output should be off.
@@ -326,7 +361,7 @@ class OutputManager:
         assert isinstance(new_output_state, bool)
 
         # If we're proposing to turn on and the system_state is AUTO, then make sure our parent output allows this
-        if new_system_state == SystemState.AUTO and new_output_state and self.parent_device_output and not self.parent_device_output["State"]:
+        if new_system_state == SystemState.AUTO and new_output_state and self.parent_output and not self.parent_output.is_on:
             # The output of the parent device is off, so we have to remain off
             new_output_state = False
             reason_off = StateReasonOff.PARENT_OFF
@@ -397,6 +432,14 @@ class OutputManager:
             current_price=self._get_current_price()
         )
 
+    def set_parent_output(self, parent_output):
+        """Sets the parent output for this output manager.
+
+        Args:
+            parent_output (OutputManager): The parent output manager.
+        """
+        self.parent_output = parent_output
+
     def _turn_on(self, new_system_state: SystemState, reason: StateReasonOn):
         """Turns on the output device.
 
@@ -404,15 +447,36 @@ class OutputManager:
             new_system_state (SystemState): The new system state to set.
             reason (StateReasonOn): The reason for turning on the output device.
         """
-        # To DO: Reconcile required state with switch state and turn on if needed
-        # Deal with it being offline
+        assert self.device_output is not None
+        assert self.device is not None
+
+        # If actual output is off, we need to turn it on.
+        if not self.device_output.get("State"):
+            if self.device["Online"]:
+                try:
+                    self.shelly_control.change_output(self.device_output, True)
+                except TimeoutError:
+                    self.logger.log_message(f"Device {self.device['Name']} is not responding, cannot turn on output {self.device_output_name}.", "warning")
+                except RuntimeError as e:
+                    self.logger.log_message(f"Error turning on output {self.device_output_name}: {e}", "error")
+            else:
+                self.logger.log_message(f"Device {self.device['Name']} is offline, cannot turn on output {self.device_output_name}.", "warning")
+
         self.is_on = True
-        self.last_changed = DateHelper.now()
-        self.system_state = new_system_state
-        self.reason = reason
-        data_block = self._get_status_data()
-        self.run_history.start_run(new_system_state, reason, data_block)
-        print(f"Output {self.name} ON - {reason.value}")
+
+        # If the system_state or reason has changed, update them and log the change
+        if self.system_state != new_system_state or self.reason != reason:
+            self.system_state = new_system_state
+            self.reason = reason
+            self.last_changed = DateHelper.now()
+            data_block = self._get_status_data()
+            self.run_history.start_run(new_system_state, reason, data_block)
+
+        # TO DO: Remove debug
+        print(f"Output {self.name} ON - {reason.value}.")
+        current_run = self.run_history.get_current_run()
+        if current_run:
+            print(f"   - Run started at {current_run['StartTime'].strftime('%H:%M:%S')} EnergyUsed: {current_run['EnergyUsed']} Wh TotalCost: {current_run['TotalCost']}c")
 
     def _turn_off(self, new_system_state: SystemState, reason: StateReasonOff):
         """Turns off the output device.
@@ -421,15 +485,33 @@ class OutputManager:
             new_system_state (SystemState): The new system state to set.
             reason (StateReasonOff): The reason for turning off the output device.
         """
-        # To DO: Actually change the switch state, or deal with it being offline
+        assert self.device_output is not None
+        assert self.device is not None
+
+        # If actual output is off, we need to turn it on.
+        if self.device_output.get("State"):
+            if self.device["Online"]:
+                try:
+                    self.shelly_control.change_output(self.device_output, False)
+                except TimeoutError:
+                    self.logger.log_message(f"Device {self.device['Name']} is not responding, cannot turn off output {self.device_output_name}.", "warning")
+                except RuntimeError as e:
+                    self.logger.log_message(f"Error turning off output {self.device_output_name}: {e}", "error")
+            else:
+                self.logger.log_message(f"Device {self.device['Name']} is offline, cannot turn off output {self.device_output_name}.", "warning")
+
         self.is_on = False
-        self.last_changed = DateHelper.now()
-        self.system_state = new_system_state
-        self.reason = reason
-        data_block = self._get_status_data()
-        self.run_history.stop_run(reason, data_block)
+
+        # If the system_state or reason has changed, update them and log the change
+        if self.system_state != new_system_state or self.reason != reason:
+            self.system_state = new_system_state
+            self.reason = reason
+            self.last_changed = DateHelper.now()
+            data_block = self._get_status_data()
+            self.run_history.stop_run(reason, data_block)
+
+        # TO DO: Remove debug
         print(f"Output {self.name} OFF - {reason.value}")
-        # TO DO: log this in the run_history
 
     def print_info(self) -> str:
         """Print the information of the output.
@@ -451,6 +533,6 @@ class OutputManager:
         #         return_str += f"      - From {date_range.get('StartDate')} to {date_range.get('EndDate')}\n"
         return_str += f"   - Device Meter: {self.device_meter_name}\n"
         return_str += f"   - Device Input: {self.device_input_name} (mode: {self.device_input_mode})\n"
-        return_str += f"   - Parent Device Output: {self.parent_device_output_name}\n"
+        # return_str += f"   - Parent Device Output: {self.parent_device_output_name}\n"
 
         return return_str

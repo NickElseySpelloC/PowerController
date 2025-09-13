@@ -3,9 +3,10 @@ import queue
 from threading import Event
 from typing import Any
 
-from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
+from sc_utility import DateHelper, SCCommon, SCConfigManager, SCLogger, ShellyControl
 
 from enumerations import AppMode, Command, LightState
+from json_encoder import JSONEncoder
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
@@ -58,6 +59,11 @@ class PowerController:
         """(re) initialise the power controller."""
         # Create an instance of a OutputStateManager manager object for each output we're managing
         self.poll_interval: float = 10.0     # TO DO: Lookup via config
+        system_state_file = self.config.get("Files", "SavedStateFile")
+        if system_state_file:
+            self.system_state_path = SCCommon.select_file_location(system_state_file)  # pyright: ignore[reportArgumentType]
+        else:
+            self.system_state_path = None
 
         # Loop through the Outputs configuration and setup each one.
         self.outputs.clear()
@@ -69,6 +75,31 @@ class PowerController:
                 self.outputs.append(output_manager)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")
+
+        # Now link outputs to their parent outputs if needed
+        for output in self.outputs:
+            if output.parent_output_name:
+                parent = next((o for o in self.outputs if o.name == output.parent_output_name), None)
+                if parent:
+                    output.set_parent_output(parent)
+
+    def save_system_state(self):
+        """Saves the system state to disk."""
+        if not self.system_state_path:
+            return
+
+        save_object = {
+            "StateFileType": "PowerController",
+            "Outputs": []
+        }
+        try:
+            for output in self.outputs:
+                output_save_object = output.get_save_object()
+                save_object["Outputs"].append(output_save_object)
+
+            JSONEncoder.save_to_file(save_object, self.system_state_path)
+        except RuntimeError as e:
+            self.logger.log_fatal_error(f"Error saving system state: {e}")
 
     def get_state_snapshot(self) -> dict[str, Any]:
         """TO DO: Redo to return Output state information."""  # noqa: DOC201
@@ -144,6 +175,9 @@ class PowerController:
         self.pricing.refresh_price_data_if_time()
 
         # TO DO: Deal with config changes including downstream objects
+
+        # Save the system state to disk
+        self.save_system_state()
 
         # TO DO: Remove
         print(f"Main tick at {time_now.strftime('%H:%M:%S')}")

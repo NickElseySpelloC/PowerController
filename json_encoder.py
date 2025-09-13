@@ -1,6 +1,8 @@
 """Take any object and serialises it to a json file, converting data types as needed."""
 import copy
 import datetime as dt
+import enum
+import importlib
 import json
 import re
 from pathlib import Path
@@ -101,13 +103,27 @@ class JSONEncoder:
             The object with hints added
         """
         if isinstance(obj, dict):
-            # iterate over a static list of items so we can safely add new keys
-            for k, v in list(obj.items()):
-                if isinstance(v, (dt.date, dt.datetime, dt.time)):
-                    obj[f"{k}__datatype"] = type(v).__name__  # e.g. "date", "datetime", "time"
-                elif isinstance(v, (dict, list)):
-                    obj[k] = JSONEncoder._add_datatype_hints(v)
-        elif isinstance(obj, list):
+            # Build a new dict so we can place hint-keys immediately after their associated key
+            new_obj: dict = {}
+            for k, v in obj.items():
+                # Recurse for nested containers first
+                if isinstance(v, (dict, list)):
+                    v_conv = JSONEncoder._add_datatype_hints(v)
+                else:
+                    v_conv = v
+
+                # Add the original key/value
+                new_obj[k] = v_conv
+
+                # Immediately add any hint key right after
+                if isinstance(v_conv, (dt.date, dt.datetime, dt.time)):
+                    new_obj[f"{k}__datatype"] = type(v_conv).__name__  # e.g. "date", "datetime", "time"
+                elif isinstance(v_conv, enum.Enum):
+                    enum_cls = v_conv.__class__
+                    new_obj[f"{k}__enum"] = f"{enum_cls.__module__}.{enum_cls.__name__}"
+
+            return new_obj
+        if isinstance(obj, list):
             return [JSONEncoder._add_datatype_hints(item) for item in obj]
         return obj
 
@@ -126,11 +142,14 @@ class JSONEncoder:
         """
         if isinstance(obj, (dt.datetime, dt.date, dt.time)):
             return obj.isoformat()
+        if isinstance(obj, enum.Enum):
+            # Store enum by its value; hint added in _add_datatype_hints enables reconstruction
+            return obj.value
         error_msg = f"Type {type(obj)} not serializable"
         raise TypeError(error_msg)
 
     @staticmethod
-    def _decode_object(obj):  # noqa: PLR0912
+    def _decode_object(obj):  # noqa: PLR0912, PLR0915
         """Convert the JSON object back to its original form, including date and datetime objects.
 
         Args:
@@ -139,14 +158,29 @@ class JSONEncoder:
         Returns:
             The original object.
         """
-        if isinstance(obj, dict):
+        if isinstance(obj, dict):  # noqa: PLR1702
             for k, v in list(obj.items()):
                 if isinstance(v, str):
-                    # See if there's a datatype hint for this key
-                    datatype_hint = obj.get(f"{k}__datatype")
+                    # See if there's a enum hint for this key
+                    enum_hint_key = f"{k}__enum"
+                    enum_hint = obj.get(enum_hint_key)
+                    obj.pop(enum_hint_key, None)  # remove the enum hint from the object
+                    if enum_hint:
+                        try:
+                            module_name, class_name = enum_hint.rsplit(".", 1)
+                            enum_module = importlib.import_module(module_name)
+                            enum_cls = getattr(enum_module, class_name)
+                            if issubclass(enum_cls, enum.Enum):
+                                obj[k] = enum_cls(v)
+                                continue
+                        except Exception:  # noqa: BLE001, S110
+                            # If reconstruction fails, leave as-is and fall through
+                            pass
 
-                    # remove the datatype hint from the object
-                    obj.pop(f"{k}__datatype", None)
+                    # See if there's a datatype hint for this key
+                    datatype_hint_key = f"{k}__datatype"
+                    datatype_hint = obj.get(datatype_hint_key)
+                    obj.pop(datatype_hint_key, None)  # remove the datatype hint from the object
                     if datatype_hint == "date":
                         try:
                             obj[k] = dt.date.fromisoformat(v)

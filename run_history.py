@@ -1,6 +1,7 @@
 """RunHistory class is used to manage the history of executed run plans."""
 
 import datetime as dt
+from typing import Any, cast
 
 from sc_utility import DateHelper, SCLogger
 
@@ -11,17 +12,21 @@ from enumerations import (
     StateReasonOn,
     SystemState,
 )
+from json_encoder import JSONEncoder
 
 
 class RunHistory:
     """Manages the history of executed run plans for an output device."""
-    def __init__(self, logger: SCLogger, output_config: dict, history: dict | None = None):
+    def __init__(self, logger: SCLogger, output_config: dict, saved_json: str | None = None):
         """Initializes the RunHistory.
 
         Args:
             logger (SCLogger): The logger for the system.
             output_config (dict): The configuration for the output device.
-            history (list | None): The initial history data read from file. If None, an empty history is created.
+            saved_json (str | None): The history object serialised as json data, used to initialise the RunHistory. If None, an empty history is created.
+
+        Raises:
+            RuntimeError: If the history cannot be initialized from saved_json.
         """
         self.logger = logger
         self.output_config = output_config
@@ -29,10 +34,16 @@ class RunHistory:
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.output_name = output_config.get("Name") or "Unknown"
         self.dates_off = []
-        if history is None:
+        self.history: dict
+        if saved_json is None:
             self.history = self._create_history_object()
         else:
-            self.history = history
+            try:
+                loaded_history = JSONEncoder.deserialise_from_json(saved_json)
+                self.history = cast("dict[str, Any]", loaded_history)
+            except RuntimeError as e:
+                raise RuntimeError(e) from e
+        assert isinstance(self.history, dict)
 
         # Now set the min / max / target hours. May throw runtime error
         self.initialise(output_config)
@@ -40,6 +51,33 @@ class RunHistory:
         # Now do a tick just to make sure everything is in order
         status_data = OutputStatusData(meter_reading=0.0, target_hours=None, current_price=15.0)
         self.tick(status_data)
+
+    def initialise(self, output_config: dict):
+        """Initialise or reinitialise the configured values for this object.
+
+        Args:
+            target_hours (float | None): The target hours for the run plan.
+            output_config (dict): The configuration for the output device.
+        """
+        self.output_config = output_config
+        self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
+        self.output_name = output_config.get("Name") or "Unknown"
+
+    def get_json_representation(self) -> str:
+        """Returns the JSON representation of the run history.
+
+        Raises:
+            RuntimeError: If the history cannot be serialized.
+
+        Returns:
+            str: The JSON representation of the run history.
+        """
+        try:
+            json_string = JSONEncoder.serialise_to_json(self.history)
+        except RuntimeError as e:
+            raise RuntimeError(e) from e
+        else:
+            return json_string
 
     @staticmethod
     def _create_history_object() -> dict:
@@ -71,17 +109,6 @@ class RunHistory:
             "DailyData": []  # List of day objects as created by _create_day_object
         }
         return new_history
-
-    def initialise(self, output_config: dict):
-        """Initialise or reinitialise the configured values for this object.
-
-        Args:
-            target_hours (float | None): The target hours for the run plan.
-            output_config (dict): The configuration for the output device.
-        """
-        self.output_config = output_config
-        self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
-        self.output_name = output_config.get("Name") or "Unknown"
 
     @staticmethod
     def _create_day_object(obj_date: dt.date, status_data: OutputStatusData):
@@ -147,12 +174,12 @@ class RunHistory:
                 # Now remove the oldest day
                 self.history["DailyData"].pop(0)
 
-        # If the last run for the most recent day is still open, create a new entry for today
-        if self.history["DailyData"]:
-            last_day = self.history["DailyData"][-1]
-            if last_day["DeviceRuns"] and last_day["DeviceRuns"][-1]["EndTime"] is None:
-                end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59))
-                self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
+            # If the last run for the most recent day is still open, create a new entry for today
+            if self.history["DailyData"]:
+                last_day = self.history["DailyData"][-1]
+                if last_day["DeviceRuns"] and last_day["DeviceRuns"][-1]["EndTime"] is None:
+                    end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59))
+                    self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
 
         self._update_totals(status_data)
         self.last_tick = DateHelper.now()
@@ -209,12 +236,10 @@ class RunHistory:
 
         # Find or create today's day object and append the new run
         today = DateHelper.today()
-        if self.history["DailyData"] and self.history["DailyData"][-1]["Date"] == today:
-            day_obj = self.history["DailyData"][-1]
-        else:
+        if not self.history["DailyData"] or self.history["DailyData"][-1]["Date"] != today:
             day_obj = self._create_day_object(today, status_data)
             self.history["DailyData"].append(day_obj)
-        day_obj["DeviceRuns"].append(new_run)
+        self.history["DailyData"][-1]["DeviceRuns"].append(new_run)
 
         self._update_totals(status_data)
 
@@ -304,14 +329,12 @@ class RunHistory:
             day["EnergyUsed"] = 0
             day["TotalCost"] = 0.0
             day["AveragePrice"] = 0.0
-            day["DeviceRuns"] = []
 
             # Loop through each device run (including any open run) and update the daily totals
             for run in day["DeviceRuns"]:
                 day["ActualHours"] += run["ActualHours"]
                 day["EnergyUsed"] += run["EnergyUsed"]
                 day["TotalCost"] += run["TotalCost"]
-                day["DeviceRuns"] += 1
 
             # Now calculate average price for this day
             day["AveragePrice"] = day["TotalCost"] / (day["EnergyUsed"] / 1000) if day["EnergyUsed"] > 0 else 0

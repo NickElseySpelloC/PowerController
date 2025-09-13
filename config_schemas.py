@@ -180,7 +180,7 @@ class ConfigSchema:
                         "DeviceMeter": {"type": "string", "required": False, "nullable": True},
                         "DeviceInput": {"type": "string", "required": False, "nullable": True},
                         "DeviceInputMode": {"type": "string", "required": False, "nullable": True, "allowed": ["Ignore", "TurnOn", "TurnOff"]},
-                        "ParentDeviceOutput": {"type": "string", "required": False, "nullable": True},
+                        "ParentOutput": {"type": "string", "required": False, "nullable": True},
                     },
                 },
             },
