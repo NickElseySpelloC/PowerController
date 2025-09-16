@@ -83,6 +83,7 @@ class StateReasonOff(StrEnum):
     PARENT_OFF = "Parent output is off"
     STATUS_CHANGE = "Mode remains on but the status has changed"
     DAY_END = "A new day has started"
+    SHUTDOWN = "System is shutting down"
 
 
 # Enumerate the reasons why the Output is on
@@ -114,3 +115,11 @@ class LightState:
 class Command:
     kind: str
     payload: dict[str, Any]
+
+
+# Lookup mode used for PowerController._find_output()
+class LookupMode(StrEnum):
+    NAME = "name"
+    OUTPUT = "output"
+    METER = "meter"
+    INPUT = "input"

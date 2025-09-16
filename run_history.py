@@ -1,7 +1,6 @@
 """RunHistory class is used to manage the history of executed run plans."""
 
 import datetime as dt
-from typing import Any, cast
 
 from sc_utility import DateHelper, SCLogger
 
@@ -12,21 +11,17 @@ from enumerations import (
     StateReasonOn,
     SystemState,
 )
-from json_encoder import JSONEncoder
 
 
 class RunHistory:
     """Manages the history of executed run plans for an output device."""
-    def __init__(self, logger: SCLogger, output_config: dict, saved_json: str | None = None):
+    def __init__(self, logger: SCLogger, output_config: dict, saved_history: dict | None = None):
         """Initializes the RunHistory.
 
         Args:
             logger (SCLogger): The logger for the system.
             output_config (dict): The configuration for the output device.
-            saved_json (str | None): The history object serialised as json data, used to initialise the RunHistory. If None, an empty history is created.
-
-        Raises:
-            RuntimeError: If the history cannot be initialized from saved_json.
+            saved_history (dict | None): The history object deserialized from json data, used to initialise the RunHistory. If None, an empty history is created.
         """
         self.logger = logger
         self.output_config = output_config
@@ -35,15 +30,10 @@ class RunHistory:
         self.output_name = output_config.get("Name") or "Unknown"
         self.dates_off = []
         self.history: dict
-        if saved_json is None:
+        if saved_history is None:
             self.history = self._create_history_object()
         else:
-            try:
-                loaded_history = JSONEncoder.deserialise_from_json(saved_json)
-                self.history = cast("dict[str, Any]", loaded_history)
-            except RuntimeError as e:
-                raise RuntimeError(e) from e
-        assert isinstance(self.history, dict)
+            self.history = saved_history
 
         # Now set the min / max / target hours. May throw runtime error
         self.initialise(output_config)
@@ -62,22 +52,8 @@ class RunHistory:
         self.output_config = output_config
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.output_name = output_config.get("Name") or "Unknown"
-
-    def get_json_representation(self) -> str:
-        """Returns the JSON representation of the run history.
-
-        Raises:
-            RuntimeError: If the history cannot be serialized.
-
-        Returns:
-            str: The JSON representation of the run history.
-        """
-        try:
-            json_string = JSONEncoder.serialise_to_json(self.history)
-        except RuntimeError as e:
-            raise RuntimeError(e) from e
-        else:
-            return json_string
+        self.max_shortfall_hours = output_config.get("MaxShortfallHours", 12)
+        self.max_history_days = output_config.get("DaysOfHistory", 7)
 
     @staticmethod
     def _create_history_object() -> dict:
@@ -89,19 +65,22 @@ class RunHistory:
             "LastMeterRead": 0,  # Most recently available meter read
             "CurrentPrice": 0.0,  # Most recently available current price
             "CurrentTotals": {    # Totals for all the days in the current history
-                "EnergyUsed": 0,
-                "TotalCost": 0.0,
-                "AveragePrice": 0.0,
+                "EnergyUsed": 0,  # Energy used (in Wh)
+                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
+                "TotalCost": 0.0,  # Total cost in $
+                "AveragePrice": 0.0,  # Average price in c/kWh
                 "ActualHours": 0.0
             },
             "EarlierTotals": {   # Totals for all the days prior to the current history that have rolled off
                 "EnergyUsed": 0,
+                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
                 "TotalCost": 0.0,
                 "AveragePrice": 0.0,
                 "ActualHours": 0.0
             },
             "AlltimeTotals": {   # Sum of CurrentTotals and EarlierTotals
                 "EnergyUsed": 0,
+                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
                 "TotalCost": 0.0,
                 "AveragePrice": 0.0,
                 "ActualHours": 0.0
@@ -127,7 +106,8 @@ class RunHistory:
             "PriorShortfall": 0.0,  # Total shortfall hours carried over from prior days
             "ActualHours": 0.0,  # Total hours actually run on this day
             "EnergyUsed": 0,   # Energy used (in Wh) on this day
-            "TotalCost": 0.0,  # Total cost incurred for the energy used on this day in cents
+            "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
+            "TotalCost": 0.0,  # Total cost incurred for the energy used on this day in $
             "AveragePrice": 0.0,  # Average price paid in c/kWh for the energy on this day
             "DeviceRuns": []  # The individual run instances for this day
         }
@@ -153,9 +133,10 @@ class RunHistory:
             "ActualHours": 0.0,
             "MeterReadAtStart": status_data.meter_reading,
             "PriorMeterRead": status_data.meter_reading,     # This should only be changed by _calculate_values_for_open_run()
-            "EnergyUsed": 0,
-            "TotalCost": 0.0,
-            "AveragePrice": 0.0,
+            "LastActualPrice": 0.0,
+            "EnergyUsed": 0,        # Energy used (in Wh)
+            "TotalCost": 0.0,       # Total cost in $
+            "AveragePrice": 0.0,    # Average price in c/kWh
         }
         return new_run
 
@@ -164,7 +145,7 @@ class RunHistory:
         if self._have_rolled_over_to_new_day():
             # Handle removal of oldest day if beyond threshold
             oldest_day = self.history["DailyData"][0]
-            if self.history["HistoryDays"] > 7:  # TO DO: Make the number of days configurable
+            if self.history["HistoryDays"] > self.max_history_days:
                 # Add totals for rolling off days to EarlierTotals
                 self.history["EarlierTotals"]["EnergyUsed"] += oldest_day["EnergyUsed"]
                 self.history["EarlierTotals"]["TotalCost"] += oldest_day["TotalCost"]
@@ -181,6 +162,9 @@ class RunHistory:
                     end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59))
                     self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
 
+            # Check the energy usage for yesterdat and send email if needed
+            self._check_yesterday_energy_usage()
+
         self._update_totals(status_data)
         self.last_tick = DateHelper.now()
 
@@ -195,6 +179,20 @@ class RunHistory:
         last_date = self.history["DailyData"][-1]["Date"]
         current_date = DateHelper.now().date()
         return current_date > last_date
+
+    def _check_yesterday_energy_usage(self):
+        """Check if the energy used yesterday was more than expected."""
+        prior_energy_used = self.history["DailyData"][-1]["EnergyUsed"] if self.history["DailyData"] else 0
+        threashold = self.output_config.get("MaxDailyEnergyUse", 0) or 0
+        if prior_energy_used == 0 or threashold == 0:
+            return  # No data to check
+
+        if prior_energy_used > threashold:
+            warning_msg = f"{self.output_config.get("Name")} output used on {prior_energy_used:.0f}W, which exceeded the expected limit of {threashold}W."
+            self.logger.log_message(warning_msg, "warning")
+
+            # Send an email notification if configured
+            self.logger.send_email("Energy Usage Alert", warning_msg)
 
     def get_current_run(self) -> dict | None:
         """Get the current active run if there is one.
@@ -277,13 +275,13 @@ class RunHistory:
         current_run["ActualHours"] = (current_time - current_run["StartTime"]).total_seconds() / 3600.0
 
         last_meter_read = current_run["PriorMeterRead"]
+        current_run["LastActualPrice"] = status_data.current_price
         if status_data.meter_reading > 0.0 and last_meter_read > 0.0 and status_data.meter_reading > last_meter_read:
             # We have used some energy since the last call to this func
             energy_used = status_data.meter_reading - last_meter_read
             current_run["EnergyUsed"] += energy_used
-            additional_cost = energy_used / 1000 * status_data.current_price
-            current_run["TotalCost"] += additional_cost
-            current_run["AveragePrice"] = (current_run["TotalCost"] / current_run["EnergyUsed"] / 1000) if current_run["EnergyUsed"] > 0 else 0
+            current_run["TotalCost"] += self.calc_cost(energy_used, status_data.current_price)
+            current_run["AveragePrice"] = self.calc_price(current_run["EnergyUsed"], current_run["TotalCost"])
 
             # Make a note of the most recent read so that we don't re-do this code
             current_run["PriorMeterRead"] = status_data.meter_reading
@@ -310,6 +308,7 @@ class RunHistory:
 
         # Set a default for the AlltimeTotals in case we don't have anything to process
         self.history["AlltimeTotals"]["EnergyUsed"] = self.history["EarlierTotals"]["EnergyUsed"]
+        self.history["AlltimeTotals"]["HourlyEnergyUsed"] = self.history["EarlierTotals"].get("HourlyEnergyUsed", 0.0)
         self.history["AlltimeTotals"]["TotalCost"] = self.history["EarlierTotals"]["TotalCost"]
         self.history["AlltimeTotals"]["ActualHours"] = self.history["EarlierTotals"]["ActualHours"]
         self.history["AlltimeTotals"]["AveragePrice"] = self.history["EarlierTotals"]["AveragePrice"]
@@ -321,12 +320,13 @@ class RunHistory:
 
         for day in self.history["DailyData"]:
             # Calculate the running total for this day
-            day["PriorShortfall"] = running_shortfall
+            day["PriorShortfall"] = max(0, min(self.max_shortfall_hours, running_shortfall))
             # Note: TargetHours will be set when we add the day
 
             # Reset the totals for this day
             day["ActualHours"] = 0.0
             day["EnergyUsed"] = 0
+            day["HourlyEnergyUsed"] = 0.0
             day["TotalCost"] = 0.0
             day["AveragePrice"] = 0.0
 
@@ -336,25 +336,30 @@ class RunHistory:
                 day["EnergyUsed"] += run["EnergyUsed"]
                 day["TotalCost"] += run["TotalCost"]
 
+            # Hourly energy used is simply energy used divided by actual hours
+            day["HourlyEnergyUsed"] = day["EnergyUsed"] / day["ActualHours"] if day["ActualHours"] > 0 else 0.0
+
             # Now calculate average price for this day
-            day["AveragePrice"] = day["TotalCost"] / (day["EnergyUsed"] / 1000) if day["EnergyUsed"] > 0 else 0
+            day["AveragePrice"] = self.calc_price(day["EnergyUsed"], day["TotalCost"])
 
             # Now add the day's totals to the global CurrentTotals
             self.history["CurrentTotals"]["EnergyUsed"] += day["EnergyUsed"]
             self.history["CurrentTotals"]["TotalCost"] += day["TotalCost"]
             self.history["CurrentTotals"]["ActualHours"] += day["ActualHours"]
+            self.history["CurrentTotals"]["HourlyEnergyUsed"] = self.history["CurrentTotals"]["EnergyUsed"] / self.history["CurrentTotals"]["ActualHours"] if self.history["CurrentTotals"]["ActualHours"] > 0 else 0.0
 
             # Adjust running_shortfall for the next day
             running_shortfall += status_data.target_hours - day["ActualHours"] if status_data.target_hours is not None else 0.0
 
         # Calculate the remaining values for CurrentTotals
-        self.history["CurrentTotals"]["AveragePrice"] = self.history["CurrentTotals"]["TotalCost"] / (self.history["CurrentTotals"]["EnergyUsed"] / 1000) if self.history["CurrentTotals"]["EnergyUsed"] > 0 else 0
+        self.history["CurrentTotals"]["AveragePrice"] = self.calc_price(self.history["CurrentTotals"]["EnergyUsed"], self.history["CurrentTotals"]["TotalCost"])
 
         # Finally calculate the values for AlltimeTotals
         self.history["AlltimeTotals"]["EnergyUsed"] = self.history["CurrentTotals"]["EnergyUsed"] + self.history["EarlierTotals"]["EnergyUsed"]
         self.history["AlltimeTotals"]["TotalCost"] = self.history["CurrentTotals"]["TotalCost"] + self.history["EarlierTotals"]["TotalCost"]
         self.history["AlltimeTotals"]["ActualHours"] = self.history["CurrentTotals"]["ActualHours"] + self.history["EarlierTotals"]["ActualHours"]
-        self.history["AlltimeTotals"]["AveragePrice"] = self.history["AlltimeTotals"]["TotalCost"] / (self.history["AlltimeTotals"]["EnergyUsed"] / 1000) if self.history["AlltimeTotals"]["EnergyUsed"] > 0 else 0
+        self.history["AlltimeTotals"]["AveragePrice"] = self.calc_price(self.history["AlltimeTotals"]["EnergyUsed"], self.history["AlltimeTotals"]["TotalCost"])
+        self.history["AlltimeTotals"]["HourlyEnergyUsed"] = self.history["AlltimeTotals"]["EnergyUsed"] / self.history["AlltimeTotals"]["ActualHours"] if self.history["AlltimeTotals"]["ActualHours"] > 0 else 0.0
 
         self.history["LastUpdate"] = DateHelper.now()
         self.history["HistoryDays"] = len(self.history["DailyData"])
@@ -368,3 +373,43 @@ class RunHistory:
         if self.history["DailyData"]:
             return self.history["DailyData"][-1]["ActualHours"]
         return 0.0
+
+    def get_prior_shortfall(self) -> float:
+        """Returns the total prior shortfall from the run history. Amount is adjusted for any maximum shortfall hours configured."""
+        if self.history["DailyData"]:
+            return self.history["DailyData"][-1]["PriorShortfall"]
+        return 0.0
+
+    def get_hourly_energy_used(self) -> float:
+        """Returns the average hourly energy used from the run history. Returns data for the most recent day or prior day if today has only recently started."""
+        if self.history["DailyData"]:
+            for day in reversed(self.history["DailyData"]):
+                if day["ActualHours"] >= 2 and day["HourlyEnergyUsed"] > 0.0:
+                    return day["HourlyEnergyUsed"]
+        return 0.0
+
+    @staticmethod
+    def calc_cost(energy_used: float, price: float) -> float:
+        """Calculate the cost in $ given energy used in Wh and price in c/kWh.
+
+        Args:
+            energy_used (float): The energy used in Wh.
+            price (float): The price in c/kWh.
+
+        Returns:
+            float: Total cost in $.
+        """
+        return (energy_used / 1000) * (price / 100) if energy_used > 0 else 0
+
+    @staticmethod
+    def calc_price(energy_used: float, total_cost: float) -> float:
+        """Calculate the average price in c/kWh given energy used in Wh and total cost in cents.
+
+        Args:
+            energy_used (float): The energy used in Wh.
+            total_cost (float): The total cost in $.
+
+        Returns:
+            float: The average price in c/kWh.
+        """
+        return (total_cost / (energy_used / 1000)) * 100 if energy_used > 0 else 0

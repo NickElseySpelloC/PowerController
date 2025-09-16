@@ -19,6 +19,12 @@ class ConfigSchema:
         }
 
         self.validation = {
+            "General": {
+                "type": "dict",
+                "schema": {
+                    "Label": {"type": "string", "required": False, "nullable": True},
+                },
+            },
             "AmberAPI": {
                 "type": "dict",
                 "schema": {
@@ -160,9 +166,12 @@ class ConfigSchema:
                         "Mode": {"type": "string", "required": True, "allowed": ["Schedule", "BestPrice"]},
                         "Schedule": {"type": "string", "required": False, "nullable": True},
                         "AmberChannel": {"type": "string", "required": False, "nullable": True, "allowed": ["general", "controlledLoad"]},
+                        "DaysOfHistory": {"type": "number", "required": False, "nullable": True, "min": 2, "max": 60},
                         "TargetHours": {"type": "number", "required": True, "min": -1, "max": 24},
+                        "MonthlyTargetHours": {"type": "dict", "required": False, "nullable": True},
                         "MinHours": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 20},
                         "MaxHours": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 24},
+                        "MaxShortfallHours": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 48},
                         "MaxBestPrice": {"type": "number", "required": True, "min": 1, "max": 1000},
                         "MaxPriorityPrice": {"type": "number", "required": True, "min": 1, "max": 1000},
                         "DatesOff": {
@@ -178,9 +187,11 @@ class ConfigSchema:
                             },
                         },
                         "DeviceMeter": {"type": "string", "required": False, "nullable": True},
+                        "MaxDailyEnergyUse": {"type": "number", "required": False, "nullable": True, "min": 100, "max": 50000},
                         "DeviceInput": {"type": "string", "required": False, "nullable": True},
                         "DeviceInputMode": {"type": "string", "required": False, "nullable": True, "allowed": ["Ignore", "TurnOn", "TurnOff"]},
                         "ParentOutput": {"type": "string", "required": False, "nullable": True},
+                        "StopOnExit": {"type": "boolean", "required": False, "nullable": True},
                     },
                 },
             },
@@ -210,8 +221,21 @@ class ConfigSchema:
             "HeartbeatMonitor": {
                 "type": "dict",
                 "schema": {
+                    "Enable": {"type": "boolean", "required": False, "nullable": True},
                     "WebsiteURL": {"type": "string", "required": False, "nullable": True},
                     "HeartbeatTimeout": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 60},
+                    "Frequency": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
+                },
+            },
+            "ViewerWebsite": {
+                "type": "dict",
+                "schema": {
+                    "Enable": {"type": "boolean", "required": False, "nullable": True},
+                    "Label": {"type": "string", "required": False, "nullable": True},
+                    "BaseURL": {"type": "string", "required": False, "nullable": True},
+                    "AccessKey": {"type": "string", "required": False, "nullable": True},
+                    "APITimeout": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 60},
+                    "Frequency": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                 },
             },
         }

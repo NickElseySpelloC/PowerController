@@ -1,4 +1,6 @@
 """Main initialisation module for the PowerController app."""
+
+# Check that Python version is >= 3.13, else exit with error.
 import signal
 import sys
 from threading import Event
@@ -14,6 +16,10 @@ from webapp import FlaskServerThread, create_flask_app
 def main():
     wake_event = Event()    # Wakes the main controller loop from a timed sleep
     stop_event = Event()    # Use to signal the main controller loop that the app is exiting
+
+    if sys.version_info < (3, 13):  # noqa: UP036
+        print(f"ERROR: Python 3.13 or higher is required. You are running {sys.version}", file=sys.stderr)
+        sys.exit(1)
 
     """Get our default schema, validation schema, and placeholders."""
     schemas = ConfigSchema()

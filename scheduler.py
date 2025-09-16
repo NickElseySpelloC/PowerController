@@ -26,9 +26,9 @@ class Scheduler:
         self.shelly_control = shelly_control
         self.schedules = []
 
-        self.initalise()
+        self.initialise()
 
-    def initalise(self):
+    def initialise(self):
         """Initialise the scheduler and load the schedules from config."""
         self.schedules = self.config.get("OperatingSchedules", default=[])
         if not isinstance(self.schedules, list) or not self.schedules:
@@ -43,6 +43,19 @@ class Scheduler:
                     continue
 
         self.dusk_dawn = self._get_dusk_dawn_times()
+
+    def get_save_object(self) -> dict:
+        """Returns the representation of this scheduler object that can be saved to disk.
+
+        Returns:
+            dict: The representation of the scheduler object.
+        """
+        schedule_dict = {
+            "Schedules": self.schedules,
+            "Dawn": self.dusk_dawn.get("dawn") if self.dusk_dawn else None,
+            "Dusk": self.dusk_dawn.get("dusk") if self.dusk_dawn else None,
+        }
+        return schedule_dict
 
     def get_schedule_by_name(self, name: str) -> dict | None:
         """Retrieve a schedule by its name from the configuration.
@@ -61,7 +74,7 @@ class Scheduler:
                 return schedule
         return None
 
-    def get_run_plan(self, operating_schedule_name: str, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float) -> dict | None:
+    def get_run_plan(self, operating_schedule_name: str, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, hourly_energy_usage: float = 0.) -> dict | None:
         """Calculate the best time(s) to run based on the configured schedule.
 
         Work throught the Start/Stop times in preference order.
@@ -73,6 +86,7 @@ class Scheduler:
             priority_hours (float): The number of hours that should be prioritized.
             max_price (float): The maximum price to consider for the run plan.
             max_priority_price (float): The maximum price to consider for priority hours in the run plan.
+            hourly_energy_usage (float): The average hourly energy usage in Wh. Used to estimate cost of the run plan.
 
         Returns:
             dict | None: The run plan if successful, None if failed.
@@ -92,7 +106,7 @@ class Scheduler:
         try:
             # Create a run planner instance
             run_planner = RunPlanner(self.logger, RunPlanMode.SCHEDULE)
-            run_plan = run_planner.calculate_run_plan(time_slots, required_hours, priority_hours, max_price, max_priority_price)
+            run_plan = run_planner.calculate_run_plan(time_slots, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating schedule run plan: {e}", "error")
             return None

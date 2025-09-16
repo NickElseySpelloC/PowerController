@@ -32,12 +32,18 @@ class PricingManager:
         self.next_refresh = DateHelper.now()
 
         # Amber specific information
-        self.mode = self.config.get("AmberAPI", "Mode", default=AmberAPIMode.LIVE)
-        self.site_id = None
-        self.timeout = self.config.get("AmberAPI", "Timeout", default=10)
         self.concurrent_error_count = 0
+        self.site_id = None
         self.raw_price_data = []   # The raw pricing data retrieved from Amber
         self.price_data = []       # The processed pricing data
+
+        self.initialise()
+
+    def initialise(self):
+        """(re) initialise the pricing manager."""
+        # Re-read the configuration settings
+        self.mode = self.config.get("AmberAPI", "Mode", default=AmberAPIMode.LIVE)
+        self.timeout = self.config.get("AmberAPI", "Timeout", default=10)
 
         self.base_url = self.config.get("AmberAPI", "APIURL")
         self.api_key = self.config.get("AmberAPI", "APIKey")
@@ -79,6 +85,7 @@ class PricingManager:
         # Round down to the nearest 5 minutes
         rounded_minute = now.minute - (now.minute % PRICE_SLOT_INTERVAL)
         first_start_time = now.replace(minute=rounded_minute, second=0, microsecond=0)
+        self.price_data.clear()
         for channel in self.raw_price_data:
 
             channel_data = {
@@ -179,6 +186,7 @@ class PricingManager:
         # If we get here but there was a connection error along the way
         if connection_error:
             if max_errors and self.concurrent_error_count >= max_errors:  # pyright: ignore[reportOperatorIssue]
+                # TO DO: Raise an exception and fall back to Offline mode for an hour
                 self.logger.log_fatal_error("Max concurrent errors reached quering Amber API, exiting.")
                 return False
             self.next_refresh = DateHelper.now() + dt.timedelta(minutes=1)  # Shorten the refresh interval if we previously errored
@@ -418,7 +426,7 @@ class PricingManager:
 
         return price_data[0]["Price"]
 
-    def get_run_plan(self, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, channel_id: AmberChannel = AmberChannel.GENERAL) -> dict | None:
+    def get_run_plan(self, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, channel_id: AmberChannel = AmberChannel.GENERAL, hourly_energy_usage: float = 0.0) -> dict | None:
         """Determines when to run based on the best pricing strategy.
 
         Args:
@@ -427,6 +435,7 @@ class PricingManager:
             max_price (float): The maximum price to consider for the run plan.
             max_priority_price (float): The maximum price to consider for priority hours in the run plan.
             channel_id (str | None): The ID of the channel to use for pricing.
+            hourly_energy_usage (float): The average hourly energy usage in Wh. Used to estimate cost of the run plan.
 
         Returns:
             plan (list[dict]): A list of dictionaries containing the run plan.
@@ -439,7 +448,7 @@ class PricingManager:
             run_planner = RunPlanner(self.logger, RunPlanMode.BEST_PRICE, channel_id)
 
             sorted_price_data = self._get_channel_prices(channel_id=channel_id, which_type=PriceFetchMode.SORTED)
-            run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price)
+            run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating best price run plan: {e}", "error")
             return None

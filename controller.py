@@ -1,11 +1,13 @@
 """The PowerController class that orchestrates power management."""
 import queue
+from pathlib import Path
 from threading import Event
 from typing import Any
 
 from sc_utility import DateHelper, SCCommon, SCConfigManager, SCLogger, ShellyControl
 
-from enumerations import AppMode, Command, LightState
+from enumerations import AppMode, Command, LightState, LookupMode
+from external_services import ExternalServiceHelper
 from json_encoder import JSONEncoder
 from outputs import OutputManager
 from pricing import PricingManager
@@ -23,7 +25,9 @@ class PowerController:
             wake_event (Event): The event used to wake the controller.
         """
         self.config = config
+        self.last_config_check = DateHelper.now()
         self.logger = logger
+        self.external_service_helper = ExternalServiceHelper(config, logger)
         self.wake_event = wake_event    # The event used to interrupt the main loop
         self.cmd_q: queue.Queue[Command] = queue.Queue()    # Used to post commands into the controller's loop
 
@@ -53,28 +57,50 @@ class PowerController:
         self.scheduler = Scheduler(self.config, self.logger, self.shelly_control)
         self.pricing = PricingManager(self.config, self.logger)
 
-        self.initialise()
+        # See if we have a system state file to load
+        state_data = self._load_system_state()
 
-    def initialise(self):
+        self.initialise(state_data)
+
+    def initialise(self, saved_state: dict | None = None):
         """(re) initialise the power controller."""
         # Create an instance of a OutputStateManager manager object for each output we're managing
         self.poll_interval: float = 10.0     # TO DO: Lookup via config
-        system_state_file = self.config.get("Files", "SavedStateFile")
-        if system_state_file:
-            self.system_state_path = SCCommon.select_file_location(system_state_file)  # pyright: ignore[reportArgumentType]
-        else:
-            self.system_state_path = None
 
-        # Loop through the Outputs configuration and setup each one.
-        self.outputs.clear()
+        if not saved_state:
+            # Reinitialise the Shelly controller
+            shelly_settings = self.config.get_shelly_settings()
+            self.shelly_control.initialize_settings(shelly_settings, refresh_status=True)
 
+        # Confirm that the configured output names are unique
+        output_names = [o["Name"] for o in self.config.get("Outputs", default=[]) or []]
+        if len(output_names) != len(set(output_names)):
+            self.logger.log_fatal_error("Output names must be unique.")
+            return
+
+        # Loop through each output read from the config file
         outputs_config = self.config.get("Outputs", default=[]) or []
         try:
             for output_cfg in outputs_config:
-                output_manager = OutputManager(output_cfg, self.logger, self.scheduler, self.pricing, self.shelly_control)
+                # Search for an existing output with the same name and update it if found
+                if any(o.name == output_cfg.get("Name") for o in self.outputs):
+                    existing_output = next(o for o in self.outputs if o.name == output_cfg.get("Name"))
+                    existing_output.initialise(output_cfg)
+                    continue
+
+                # See if we can find saved state for this output
+                output_state = None
+                if saved_state and "Outputs" in saved_state:
+                    output_state = next((o for o in saved_state["Outputs"] if o.get("Name") == output_cfg.get("Name")), None)
+
+                # Create a new output manager
+                output_manager = OutputManager(output_cfg, self.logger, self.scheduler, self.pricing, self.shelly_control, output_state)
                 self.outputs.append(output_manager)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")
+
+        # Now remove any outputs that are no longer in the config file
+        self.outputs = [o for o in self.outputs if any(o.name == cfg.get("Name") for cfg in outputs_config)]
 
         # Now link outputs to their parent outputs if needed
         for output in self.outputs:
@@ -83,22 +109,90 @@ class PowerController:
                 if parent:
                     output.set_parent_output(parent)
 
+        # Finally do some cross output validation
+        for output in self.outputs:
+            # Make sure the output's parent is not itself or a child of itself
+            if output.parent_output:
+                parent = output.parent_output
+                while parent:
+                    if parent == output:
+                        self.logger.log_fatal_error(f"Output {output.name} cannot be its own parent or a child of itself.")
+                        break
+                    parent = parent.parent_output
+
+            # Make sure each output device is only used once
+            list_output_devices = self._find_output(LookupMode.OUTPUT, output.device_output_name)
+            if len(list_output_devices) > 1:
+                self.logger.log_fatal_error(f"Output device {output.device_output_name} is used by more than one output.")
+
+            # Display a warning if mutiple outputs use the same meter device
+            list_meter_devices = self._find_output(LookupMode.METER, output.device_meter_name)
+            if len(list_meter_devices) > 1:
+                self.logger.log_message(f"Meter device {output.device_meter_name} is used by {output.name} and at least one other output.", "warning")
+
+        # Reinitialize the scheduler and pricing manager
+        self.scheduler.initialise()
+        self.pricing.initialise()
+
+    def _get_system_state_path(self) -> Path | None:
+        """Get the path to the system state file from the configuration.
+
+        Returns:
+            Path | None: The path to the system state file, or None if not configured.
+        """
+        system_state_file = self.config.get("Files", "SavedStateFile")
+        if system_state_file:
+            return SCCommon.select_file_location(system_state_file)  # pyright: ignore[reportArgumentType]
+        return None
+
+    def _load_system_state(self) -> dict | None:
+        """Loads the system state from disk.
+
+        Returns:
+            dict | None: The loaded system state, or None if not found or error.
+        """
+        system_state_path = self._get_system_state_path()
+        if not system_state_path or not system_state_path.exists():
+            return None
+
+        try:
+            state_data = JSONEncoder.read_from_file(system_state_path)
+            if not state_data:
+                return None
+            assert isinstance(state_data, dict)
+            if state_data.get("StateFileType") != "PowerController":
+                self.logger.log_fatal_error(f"Invalid system state file type {state_data.get('StateFileType')}, cannot load file {system_state_path.name}")
+                return None
+
+        except RuntimeError as e:
+            self.logger.log_fatal_error(f"Error loading system state: {e}")
+        else:
+            return state_data
+
     def save_system_state(self):
         """Saves the system state to disk."""
-        if not self.system_state_path:
+        system_state_path = self._get_system_state_path()
+        if not system_state_path:
             return
 
         save_object = {
             "StateFileType": "PowerController",
-            "Outputs": []
+            "DeviceName": self.config.get("General", "Label", default="PowerController"),
+            "SaveTime": DateHelper.now(),
+            "Outputs": [],
+            "Scheduler": self.scheduler.get_save_object(),
         }
         try:
             for output in self.outputs:
                 output_save_object = output.get_save_object()
                 save_object["Outputs"].append(output_save_object)
 
-            JSONEncoder.save_to_file(save_object, self.system_state_path)
-        except RuntimeError as e:
+            # Save the file
+            JSONEncoder.save_to_file(save_object, system_state_path)
+
+            # Post to the web server if needed - this function takes care of frequency checks
+            self.external_service_helper.post_state_to_web_viewer(save_object)
+        except (TypeError, ValueError, RuntimeError, OSError) as e:
             self.logger.log_fatal_error(f"Error saving system state: {e}")
 
     def get_state_snapshot(self) -> dict[str, Any]:
@@ -159,6 +253,8 @@ class PowerController:
             self.wake_event.wait(timeout=self.poll_interval)
         print("[Main] exiting loop")
 
+        self.shutdown()
+
     def _run_scheduler_tick(self):
         """Do all the control processing of the main loop."""
         time_now = DateHelper.now()
@@ -174,10 +270,17 @@ class PowerController:
         # Refresh the Amber price data if it's time to do so
         self.pricing.refresh_price_data_if_time()
 
-        # TO DO: Deal with config changes including downstream objects
+        # Deal with config changes including downstream objects
+        self._check_for_configuration_changes()
 
         # Save the system state to disk
         self.save_system_state()
+
+        # Ping the heartbeat monitor - this function takes care of frequency checks
+        self.external_service_helper.ping_heatbeat()
+
+        # Check for fatal error recovery
+        self._check_fatal_error_recovery()
 
         # TO DO: Remove
         print(f"Main tick at {time_now.strftime('%H:%M:%S')}")
@@ -205,3 +308,47 @@ class PowerController:
         # TO DO: Make sure call this for any parent outputs first
         for output in self.outputs:
             output.evaluate_conditions()
+
+    def _check_for_configuration_changes(self):
+        """Reload the configuration from disk if it has changed and apply downstream changes."""
+        last_modified = self.config.check_for_config_changes(self.last_config_check)
+        if last_modified:
+            self.last_config_check = last_modified
+            self.logger.log_message("Configuration file has changed, reloading...", "debug")
+            self.initialise()
+
+    def _check_fatal_error_recovery(self):
+        """Check for fatal errors in the system and handle them."""
+        # If the prior run fails, send email that this run worked OK
+        device_name = self.config.get("General", "Label", default="PowerController")
+        if self.logger.get_fatal_error():
+            self.logger.log_message(f"{device_name} started successfully after a prior failure.", "summary")
+            self.logger.clear_fatal_error()
+            self.logger.send_email(f"{device_name} recovery", "Application was successfully started after a prior critical failure.")
+
+    def _find_output(self, mode: LookupMode, identity: str) -> list[OutputManager]:
+        """Return a list of all outputs that match the given criteria.
+
+        Args:
+            mode (LookupMode): The lookup mode to use.
+            identity (str): The ID or name of the output to find.
+
+        Returns:
+            list[OutputManager]: The found output managers, or an empty list if not found.
+        """
+        if mode == LookupMode.NAME:
+            return [o for o in self.outputs if o.name == identity]
+        if mode == LookupMode.OUTPUT:
+            return [o for o in self.outputs if o.device_output_name == identity]
+        if mode == LookupMode.METER:
+            return [o for o in self.outputs if o.device_meter_name == identity]
+        if mode == LookupMode.INPUT:
+            return [o for o in self.outputs if o.device_input_name == identity]
+        return []
+
+    def shutdown(self):
+        """Shutdown the power controller, turning off outputs if configured to do so."""
+        for output in self.outputs:
+            output.shutdown()
+
+        self.save_system_state()

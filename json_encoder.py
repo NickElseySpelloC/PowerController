@@ -13,6 +13,34 @@ from dateutil.parser import parse
 class JSONEncoder:
     """Class to handle encoding and decoding of JSON data with special handling for date and datetime objects."""
     @staticmethod
+    def ready_dict_for_json(data: object) -> object:
+        """Prepares a dict or list for JSON serialization.
+
+        Raises:
+            RuntimeError: If the data cannot be prepared.
+
+        Returns:
+            object: A dict or list ready for json.dump/json.dumps.
+        """
+        def convert(obj):
+            if isinstance(obj, dict):
+                return {k: convert(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [convert(item) for item in obj]
+            # Use the same logic as _encode_object for special types
+            try:
+                return JSONEncoder._encode_object(obj)
+            except TypeError:
+                return obj
+
+        try:
+            save_data = copy.deepcopy(data)
+            save_data = JSONEncoder._add_datatype_hints(save_data)
+        except (TypeError, ValueError) as e:
+            raise RuntimeError from e
+        return convert(save_data)
+
+    @staticmethod
     def serialise_to_json(data) -> str:
         """Serialises the data to a JSON string, converting as needed.
 

@@ -8,9 +8,11 @@
         "RequiredHours": 8.0,
         "PriorityHours": 2.0,
         "PlannedHours": 8.0,
-        "ForecastAveragePrice": 21.23,
         "NextStartTime": datetime(10, 30),
         "StartNow": True,
+        "ForecastAveragePrice": 15.3,
+        "ForecastEnergyUsage": 123.4,
+        "EstimatedCost": 0.0188802,
         "RunPlan": [
             {
                 "Date": "2024-06-01",
@@ -62,11 +64,14 @@ class RunPlanner:
             "NextStartTime": None,
             "StartNow": False,
             "ForecastAveragePrice": 0.0,
+            "ForecastEnergyUsage": 0.0,
+            "EstimatedCost": 0.0,
+
             "RunPlan": []
         }
         return new_run_plan
 
-    def calculate_run_plan(self, sorted_slot_data: list[dict], required_hours: float, priority_hours: float, max_price: float, max_priority_price: float) -> dict:
+    def calculate_run_plan(self, sorted_slot_data: list[dict], required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, hourly_energy_usage: float = 0.0) -> dict:
         """Determines when to run based on the best pricing strategy.
 
         The time_slots[] list must contain the following keys:
@@ -87,6 +92,7 @@ class RunPlanner:
             priority_hours (float): The number of hours that should be prioritized.
             max_price (float): The maximum price to consider for normal hours.
             max_priority_price (float): The maximum price to consider for the priority hours.
+            hourly_energy_usage (float): The average hourly energy usage in Wh. Used to estimate cost of the run plan.
 
         Raises:
             RuntimeError: If the parameters are invalid.
@@ -152,6 +158,8 @@ class RunPlanner:
                 "EndTime": slot["EndTime"],
                 "Minutes": duration_mins,
                 "Price": slot["Price"],
+                "ForecastEnergyUsage": (hourly_energy_usage / 60) * duration_mins if hourly_energy_usage > 0 else 0.0,
+                "EstimatedCost": (hourly_energy_usage / (60 * 1000)) * duration_mins * (slot["Price"] / 100) if hourly_energy_usage > 0 else 0.0,
                 "SlotCount": 1   # Used to count the number of slots merged together so that we can calculate the average price
             }
             run_plan["RunPlan"].append(run_entry)
@@ -197,6 +205,8 @@ class RunPlanner:
                     last_slot["Minutes"] += slot["Minutes"]
                     last_slot["SlotCount"] += 1
                     last_slot["Price"] += slot["Price"]
+                    last_slot["ForecastEnergyUsage"] += slot["ForecastEnergyUsage"]
+                    last_slot["EstimatedCost"] += slot["EstimatedCost"]
                 else:
                     merged_slots.append(slot)
 
@@ -204,6 +214,9 @@ class RunPlanner:
         price_total = 0
         slot_total = 0
         total_minutes = 0
+        total_energy_used = 0.0
+        total_cost = 0.0
+
         for slot in merged_slots:
             total_minutes += slot["Minutes"]
             price_total += slot["Price"]
@@ -211,8 +224,12 @@ class RunPlanner:
             if slot["SlotCount"] > 1:
                 slot["Price"] /= slot["SlotCount"]
             slot["Price"] = round(slot["Price"], 2)
-        run_plan["ForecastAveragePrice"] = round(price_total / slot_total, 2) if slot_total > 0 else 0.0
+            total_energy_used += slot["ForecastEnergyUsage"]
+            total_cost += slot["EstimatedCost"]
         run_plan["PlannedHours"] = total_minutes / 60.0
+        run_plan["ForecastAveragePrice"] = round(price_total / slot_total, 2) if slot_total > 0 else 0.0
+        run_plan["ForecastEnergyUsage"] = total_energy_used
+        run_plan["EstimatedCost"] = total_cost
 
         run_plan["RunPlan"] = merged_slots
 

@@ -22,7 +22,7 @@ from scheduler import Scheduler
 
 class OutputManager:
     """Manages the state of a single Shelly output device and associated resources."""
-    def __init__(self, output_config: dict, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl):
+    def __init__(self, output_config: dict, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl, saved_state: dict | None = None):
         """Manages the state of a single Shelly output device.
 
         Args:
@@ -31,6 +31,7 @@ class OutputManager:
             scheduler (Scheduler): The scheduler for managing time-based operations.
             pricing (PricingManager): The pricing manager for handling pricing-related tasks.
             shelly_control (ShellyControl): The Shelly control interface.
+            saved_state (dict | None): The previously saved state of the output manager, if any.
         """
         self.output_config = output_config
         self.logger = logger
@@ -65,22 +66,27 @@ class OutputManager:
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.dates_off = []
 
-        # TO DO: Pass run_history read from json file
         try:
-            self.run_history = RunHistory(self.logger, output_config)
+            saved_run_history = None
+            if saved_state and "RunHistory" in saved_state:
+                saved_run_history = saved_state.get("RunHistory")
+            self.run_history = RunHistory(self.logger, output_config, saved_run_history)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing RunHistory for output {self.name}: {e}")
 
         # The required state of the device
-        self.is_on = None
+        self.is_on = saved_state.get("IsOn") if saved_state else None
         self.last_changed = None
         self.reason = None
 
-        self.initialize(output_config)
+        self.initialise(output_config)
 
-        # TO DO: Read state information from disk.
+        # See if the output's saved state matches the actual device state
+        assert self.device_output is not None
+        if saved_state and self.device_output.get("State") != self.is_on:
+            self.logger.log_message(f"Output {self.name} saved state does not match actual device state. Saved: {'On' if self.is_on else 'Off'}, Actual: {'On' if self.device_output.get('State') else 'Off'}. Output relay may have been changed by another application.", "warning")
 
-    def initialize(self, output_config: dict):  # noqa: PLR0912, PLR0915
+    def initialise(self, output_config: dict):  # noqa: PLR0912, PLR0915
         """Initializes the output manager with the given configuration.
 
         Args:
@@ -220,21 +226,22 @@ class OutputManager:
             "LastChanged": self.last_changed,
             "Reason": self.reason,
             "AppMode": self.app_mode,
-            "DeviceOutputName": self.device_output_name,
             "DeviceMode": self.device_mode,
+            "ParentOutputName": self.parent_output_name,
+            "DeviceOutputName": self.device_output_name,
+            "DeviceMeterName": self.device_meter_name,
+            "DeviceInputName": self.device_input_name,
+            "DeviceInputMode": self.device_input_mode,
             "ScheduleName": self.schedule_name,
             "AmberChannel": self.amber_channel,
             "MaxBestPrice": self.max_best_price,
             "MaxPriorityPrice": self.max_priority_price,
-            "DeviceMeterName": self.device_meter_name,
-            "DeviceInputName": self.device_input_name,
-            "DeviceInputMode": self.device_input_mode,
-            "ParentOutputName": self.parent_output_name,
-            "RunPlan": self.run_plan,
             "MinHours": self.min_hours,
             "MaxHours": self.max_hours,
+            "TargetHours": self._get_target_hours(),
             "RunPlanTargetMode": self.run_plan_target_mode,
             "DatesOff": self.dates_off,
+            "RunPlan": self.run_plan,
             "RunHistory": self.run_history.history,
         }
         return output_dict
@@ -265,9 +272,9 @@ class OutputManager:
         """
         self.calculate_running_totals()   # Update all the running totals including actual hours from the run history
         self.run_plan = None
+        hourly_energy_used = self.run_history.get_hourly_energy_used()
 
         # Finally calculate the hours remaining for today
-        actual_hours = self.run_history.get_actual_hours()
         if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS:
             required_hours = -1
             priority_hours = self.min_hours
@@ -275,18 +282,19 @@ class OutputManager:
             target_hours = self._get_target_hours()  # Should not be None
             assert target_hours is not None
             actual_hours = self.run_history.get_actual_hours()
-            hours_remaining = target_hours - actual_hours
+            prior_shortfall = self.run_history.get_prior_shortfall()
+            hours_remaining = target_hours - actual_hours + prior_shortfall
             required_hours = max(0.0, hours_remaining)
             required_hours = min(self.max_hours, required_hours)
             priority_hours = min(self.min_hours, required_hours)
 
         # If we're in the Best Price mode, get a best price run plan
         if self.device_mode == RunPlanMode.BEST_PRICE:
-            self.run_plan = self.pricing.get_run_plan(required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price)  # pyright: ignore[reportArgumentType]
+            self.run_plan = self.pricing.get_run_plan(required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, channel_id=self.amber_channel, hourly_energy_usage=hourly_energy_used)  # pyright: ignore[reportArgumentType]
 
         # If we're in Schedule mode or we get nothing back from Best Price, generate a Schedule
         if self.device_mode == RunPlanMode.SCHEDULE or not self.run_plan:
-            self.run_plan = self.scheduler.get_run_plan(self.schedule_name, required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price)  # pyright: ignore[reportArgumentType]
+            self.run_plan = self.scheduler.get_run_plan(self.schedule_name, required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, hourly_energy_usage=hourly_energy_used)  # pyright: ignore[reportArgumentType]
 
         return bool(self.run_plan)
 
@@ -401,9 +409,19 @@ class OutputManager:
             return None
         if not for_date:
             for_date = DateHelper.today()
-        # TO DO: Add support for different targets each month
-        # Make sure within Min / Max range
-        return self.output_config.get("TargetHours", 8.0)
+
+        month = for_date.strftime("%B")
+
+        monthly_target_hours = self.output_config.get("MonthlyTargetHours")
+        if monthly_target_hours is not None and month in monthly_target_hours:
+            target_hours = monthly_target_hours.get(month)
+        else:
+            target_hours = self.output_config.get("TargetHours", 8.0)
+
+        # Make sure we haven't exceeded our max hours
+        target_hours = min(target_hours, self.max_hours)
+
+        return target_hours
 
     def _get_current_price(self) -> float:
         """Get the current price from either PricingManager or ScheduleManager depending on the context.
@@ -438,6 +456,21 @@ class OutputManager:
         Args:
             parent_output (OutputManager): The parent output manager.
         """
+        if not parent_output:
+            self.parent_output = None
+            return
+
+        # First make sure we're not setting ourselves as our own parent
+        if parent_output.name == self.name:
+            self.logger.log_fatal_error(f"Output {self.name} cannot be its own parent.")
+            return
+
+        # Log warnings if the threshold values don't make sense
+        if self.min_hours > parent_output.min_hours:
+            self.logger.log_message(f"Output {self.name} has MinHours greater than its parent output {parent_output.name}.", "warning")
+        if self.max_hours > parent_output.max_hours:
+            self.logger.log_message(f"Output {self.name} has MaxHours greater than its parent output {parent_output.name}.", "warning")
+
         self.parent_output = parent_output
 
     def _turn_on(self, new_system_state: SystemState, reason: StateReasonOn):
@@ -476,7 +509,7 @@ class OutputManager:
         print(f"Output {self.name} ON - {reason.value}.")
         current_run = self.run_history.get_current_run()
         if current_run:
-            print(f"   - Run started at {current_run['StartTime'].strftime('%H:%M:%S')} EnergyUsed: {current_run['EnergyUsed']} Wh TotalCost: {current_run['TotalCost']}c")
+            print(f"   - Run started at {current_run['StartTime'].strftime('%H:%M:%S')} EnergyUsed: {current_run['EnergyUsed']:.2f}Wh AveragePrice: ${current_run['AveragePrice']:.2f}c/kWh TotalCost: ${current_run['TotalCost']:.4f}")
 
     def _turn_off(self, new_system_state: SystemState, reason: StateReasonOff):
         """Turns off the output device.
@@ -502,16 +535,19 @@ class OutputManager:
 
         self.is_on = False
 
-        # If the system_state or reason has changed, update them and log the change
-        if self.system_state != new_system_state or self.reason != reason:
-            self.system_state = new_system_state
-            self.reason = reason
-            self.last_changed = DateHelper.now()
-            data_block = self._get_status_data()
-            self.run_history.stop_run(reason, data_block)
+        self.system_state = new_system_state
+        self.reason = reason
+        self.last_changed = DateHelper.now()
+        data_block = self._get_status_data()
+        self.run_history.stop_run(reason, data_block)
 
         # TO DO: Remove debug
         print(f"Output {self.name} OFF - {reason.value}")
+
+    def shutdown(self):
+        """Shutdown the output manager, turning off the output if it is on."""
+        if self.output_config.get("StopOnExit", False) and self.is_on:
+            self._turn_off(SystemState.AUTO, StateReasonOff.SHUTDOWN)
 
     def print_info(self) -> str:
         """Print the information of the output.
