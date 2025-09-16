@@ -5,7 +5,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
-from sc_utility import DateHelper, SCCommon, SCConfigManager, SCLogger
+from sc_utility import DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
 
 from enumerations import (
     PRICE_SLOT_INTERVAL,
@@ -15,7 +15,6 @@ from enumerations import (
     PriceFetchMode,
     RunPlanMode,
 )
-from json_encoder import JSONEncoder
 from run_plan import RunPlanner
 
 
@@ -52,7 +51,11 @@ class PricingManager:
                 self.logger.log_message("Amber API is not properly configured, disabling Amber pricing.", "error")
             self.mode = AmberAPIMode.DISABLED
             return
-
+        self.report_critical_errors_delay = self.config.get("General", "ReportCriticalErrorsDelay", default=None)
+        if isinstance(self.report_critical_errors_delay, (int, float)):
+            self.report_critical_errors_delay = round(self.report_critical_errors_delay, 0)
+        else:
+            self.report_critical_errors_delay = None
         self.refresh_price_data()
 
     def refresh_price_data_if_time(self) -> bool:
@@ -185,10 +188,9 @@ class PricingManager:
 
         # If we get here but there was a connection error along the way
         if connection_error:
-            if max_errors and self.concurrent_error_count >= max_errors:  # pyright: ignore[reportOperatorIssue]
-                # TO DO: Raise an exception and fall back to Offline mode for an hour
-                self.logger.log_fatal_error("Max concurrent errors reached quering Amber API, exiting.")
-                return False
+            if max_errors and self.concurrent_error_count >= max_errors and self.report_critical_errors_delay:  # pyright: ignore[reportOperatorIssue]
+                assert isinstance(self.report_critical_errors_delay, int)
+                self.logger.report_notifiable_issue(entity="Amber API", issue_type="Connection Error", send_delay=self.report_critical_errors_delay * 60, message=f"API is still not responding after {max_errors} connection attempts.")
             self.next_refresh = DateHelper.now() + dt.timedelta(minutes=1)  # Shorten the refresh interval if we previously errored
             self.logger.log_message(f"Amber unavailable, reverting to default pricing / schedules. Next attempt at {self.next_refresh.strftime('%H:%M:%S')}", "warning")
 

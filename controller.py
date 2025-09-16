@@ -4,11 +4,17 @@ from pathlib import Path
 from threading import Event
 from typing import Any
 
-from sc_utility import DateHelper, SCCommon, SCConfigManager, SCLogger, ShellyControl
+from sc_utility import (
+    DateHelper,
+    JSONEncoder,
+    SCCommon,
+    SCConfigManager,
+    SCLogger,
+    ShellyControl,
+)
 
 from enumerations import AppMode, Command, LightState, LookupMode
 from external_services import ExternalServiceHelper
-from json_encoder import JSONEncoder
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
@@ -94,7 +100,7 @@ class PowerController:
                     output_state = next((o for o in saved_state["Outputs"] if o.get("Name") == output_cfg.get("Name")), None)
 
                 # Create a new output manager
-                output_manager = OutputManager(output_cfg, self.logger, self.scheduler, self.pricing, self.shelly_control, output_state)
+                output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.shelly_control, output_state)
                 self.outputs.append(output_manager)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")

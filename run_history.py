@@ -52,7 +52,7 @@ class RunHistory:
         self.output_config = output_config
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.output_name = output_config.get("Name") or "Unknown"
-        self.max_shortfall_hours = output_config.get("MaxShortfallHours", 12)
+        self.max_shortfall_hours = output_config.get("MaxShortfallHours", 12) or 12
         self.max_history_days = output_config.get("DaysOfHistory", 7)
 
     @staticmethod
@@ -374,11 +374,15 @@ class RunHistory:
             return self.history["DailyData"][-1]["ActualHours"]
         return 0.0
 
-    def get_prior_shortfall(self) -> float:
-        """Returns the total prior shortfall from the run history. Amount is adjusted for any maximum shortfall hours configured."""
+    def get_prior_shortfall(self) -> tuple[float, float]:
+        """Returns the total prior shortfall from the run history. Amount is adjusted for any maximum shortfall hours configured.
+
+        Returns:
+            tuple[float, float]: The prior shortfall hours and the maximum shortfall hours.
+        """
         if self.history["DailyData"]:
-            return self.history["DailyData"][-1]["PriorShortfall"]
-        return 0.0
+            return self.history["DailyData"][-1]["PriorShortfall"], self.max_shortfall_hours
+        return 0.0, self.max_shortfall_hours
 
     def get_hourly_energy_used(self) -> float:
         """Returns the average hourly energy used from the run history. Returns data for the most recent day or prior day if today has only recently started."""

@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 
 [[package]]
@@ -258,7 +258,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.1.2" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "pytz", specifier = ">=2025.2" },
-    { name = "sc-utility", specifier = ">=2.2.3" },
+    { name = "sc-utility", specifier = ">=2.3.0" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
 
@@ -317,7 +317,7 @@ wheels = [
 
 [[package]]
 name = "sc-utility"
-version = "2.2.3"
+version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cerberus" },
@@ -328,9 +328,9 @@ dependencies = [
     { name = "tzdata" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/1b/84b8c9de1ee435606b21871545c5082f2aa3c39c239263a2856358f8c510/sc_utility-2.2.3.tar.gz", hash = "sha256:57f5aa94b8f26bfc92a4ae3c06ec2b698a146bfb5f168cea1010dcbe7488e13f", size = 38598, upload-time = "2025-09-01T07:58:06.541Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/8b/750f967da9957e798919fe180999abcb1ce9a7f61062cfda05246a01e648/sc_utility-2.3.0.tar.gz", hash = "sha256:da0e670a4cfdee508fe8ad5695619538ecf8950aff0ee910c33245948754d488", size = 41814, upload-time = "2025-09-16T16:12:41.431Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/f0/91da5de9a12e24866846ace9dbd2994d526147b9cff8cef2e7a340f6b9b4/sc_utility-2.2.3-py3-none-any.whl", hash = "sha256:ddf3e59c6f23698b90729c67a2b350f84c1cde7d98c74ea6b63b440c19c1df2b", size = 42017, upload-time = "2025-09-01T07:58:05.259Z" },
+    { url = "https://files.pythonhosted.org/packages/86/bb/5076d231f515ce051c650b0238a39e6f6e0b4229fb6abc153db0d5c5c927/sc_utility-2.3.0-py3-none-any.whl", hash = "sha256:f890e42fb58cb4d69d305e28055edb588c3232e0873c4d739e73124104aea300", size = 45742, upload-time = "2025-09-16T16:12:39.881Z" },
 ]
 
 [[package]]

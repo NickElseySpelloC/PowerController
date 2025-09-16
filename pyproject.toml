@@ -9,6 +9,6 @@ dependencies = [
     "flask>=3.1.2",
     "python-dateutil>=2.9.0.post0",
     "pytz>=2025.2",
-    "sc-utility>=2.2.3",
+    "sc-utility>=2.3.0",
     "werkzeug>=3.1.3",
 ]

@@ -1,7 +1,7 @@
 """Manages the system state of a specific output device and associated resources."""
 import datetime as dt
 
-from sc_utility import DateHelper, SCLogger, ShellyControl
+from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
 
 from enumerations import (
     AmberChannel,
@@ -22,11 +22,12 @@ from scheduler import Scheduler
 
 class OutputManager:
     """Manages the state of a single Shelly output device and associated resources."""
-    def __init__(self, output_config: dict, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl, saved_state: dict | None = None):
+    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl, saved_state: dict | None = None):
         """Manages the state of a single Shelly output device.
 
         Args:
             output_config (dict): The configuration for the output device - the config file's OutputConfiguration list entry.
+            config (SCConfigManager): The configuration manager for the system.
             logger (SCLogger): The logger for the system.
             scheduler (Scheduler): The scheduler for managing time-based operations.
             pricing (PricingManager): The pricing manager for handling pricing-related tasks.
@@ -35,6 +36,11 @@ class OutputManager:
         """
         self.output_config = output_config
         self.logger = logger
+        self.report_critical_errors_delay = config.get("General", "ReportCriticalErrorsDelay", default=None)
+        if isinstance(self.report_critical_errors_delay, (int, float)):
+            self.report_critical_errors_delay = round(self.report_critical_errors_delay, 0)
+        else:
+            self.report_critical_errors_delay = None
         self.scheduler = scheduler
         self.pricing = pricing
         self.shelly_control = shelly_control
@@ -282,7 +288,10 @@ class OutputManager:
             target_hours = self._get_target_hours()  # Should not be None
             assert target_hours is not None
             actual_hours = self.run_history.get_actual_hours()
-            prior_shortfall = self.run_history.get_prior_shortfall()
+            prior_shortfall, max_shortfall = self.run_history.get_prior_shortfall()
+            if prior_shortfall >= max_shortfall and self.report_critical_errors_delay:
+                assert isinstance(self.report_critical_errors_delay, int)
+                self.logger.report_notifiable_issue(entity=f"Output {self.name}", issue_type="Reached MaxShortfall", send_delay=self.report_critical_errors_delay * 60, message=f"This output has reached the maximum shortfall of {max_shortfall} hours. Please review the configuration to make sure it's possible to run for sufficient hours each day.")  # pyright: ignore[reportArgumentType]
             hours_remaining = target_hours - actual_hours + prior_shortfall
             required_hours = max(0.0, hours_remaining)
             required_hours = min(self.max_hours, required_hours)
@@ -494,6 +503,9 @@ class OutputManager:
                     self.logger.log_message(f"Error turning on output {self.device_output_name}: {e}", "error")
             else:
                 self.logger.log_message(f"Device {self.device['Name']} is offline, cannot turn on output {self.device_output_name}.", "warning")
+                if self.report_critical_errors_delay:
+                    assert isinstance(self.report_critical_errors_delay, int)
+                    self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} on.")  # pyright: ignore[reportArgumentType]
 
         self.is_on = True
 
@@ -532,6 +544,9 @@ class OutputManager:
                     self.logger.log_message(f"Error turning off output {self.device_output_name}: {e}", "error")
             else:
                 self.logger.log_message(f"Device {self.device['Name']} is offline, cannot turn off output {self.device_output_name}.", "warning")
+                if self.report_critical_errors_delay:
+                    assert isinstance(self.report_critical_errors_delay, int)
+                    self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} off.")  # pyright: ignore[reportArgumentType]
 
         self.is_on = False
 

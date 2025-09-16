@@ -23,12 +23,13 @@ class ConfigSchema:
                 "type": "dict",
                 "schema": {
                     "Label": {"type": "string", "required": False, "nullable": True},
+                    "ReportCriticalErrorsDelay": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                 },
             },
             "AmberAPI": {
                 "type": "dict",
                 "schema": {
-                    "Mode": {"type": "string", "required": False, "nullable": True},
+                    "Mode": {"type": "string", "required": False, "nullable": True, "allowed": ["Live", "Offline", "Disabled"]},
                     "APIURL": {"type": "string", "required": False, "nullable": True},
                     "APIKey": {"type": "string", "required": False, "nullable": True},
                     "Timeout": {"type": "number", "required": False, "nullable": True, "min": 5, "max": 60},

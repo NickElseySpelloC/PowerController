@@ -1,9 +1,7 @@
 """Support functions for integration with external services."""
 
 import requests
-from sc_utility import DateHelper, SCConfigManager, SCLogger
-
-from json_encoder import JSONEncoder
+from sc_utility import DateHelper, JSONEncoder, SCConfigManager, SCLogger
 
 HTTP_STATUS_FORBIDDEN = 403
 
