@@ -99,6 +99,7 @@ class ConfigSchema:
                                         "schema": {
                                             "Name": {"type": "string", "required": False, "nullable": True},
                                             "ID": {"type": "number", "required": False, "nullable": True},
+                                            "MockRate": {"type": "number", "required": False, "nullable": True},
                                         },
                                     },
                                 },
