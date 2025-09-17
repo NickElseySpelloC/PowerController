@@ -43,6 +43,8 @@ class Scheduler:
                     continue
 
         self.dusk_dawn = self._get_dusk_dawn_times()
+        self.default_price = self.config.get("General", "DefaultPrice", default=DEFAULT_PRICE) or DEFAULT_PRICE
+        assert isinstance(self.default_price, (int, float)) and self.default_price >= 0, "DefaultPrice must be a non-negative number"  # noqa: PT018
 
     def get_save_object(self) -> dict:
         """Returns the representation of this scheduler object that can be saved to disk.
@@ -155,7 +157,7 @@ class Scheduler:
                 "StartTime": start_time,
                 "EndTime": end_time,
                 "Minutes": int((end_dt - start_dt).total_seconds() // 60),
-                "Price": window.get("Price", DEFAULT_PRICE) or DEFAULT_PRICE
+                "Price": window.get("Price", self.default_price) or self.default_price
             }
 
             if time_slot["StartTime"] is None or time_slot["EndTime"] is None:
@@ -286,7 +288,7 @@ class Scheduler:
         # Get the slots for the current time
         slots = self._get_schedule_slots(schedule)
         if not slots:
-            return DEFAULT_PRICE
+            return self.default_price  # pyright: ignore[reportReturnType]
 
         # See if we have a slot that encompasses the current time
         current_time = DateHelper.now().time()
@@ -295,4 +297,4 @@ class Scheduler:
                 # Get the current price from the pricing manager
                 return slot["Price"]
 
-        return DEFAULT_PRICE
+        return self.default_price  # pyright: ignore[reportReturnType]

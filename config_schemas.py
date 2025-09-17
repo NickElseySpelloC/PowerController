@@ -23,7 +23,10 @@ class ConfigSchema:
                 "type": "dict",
                 "schema": {
                     "Label": {"type": "string", "required": False, "nullable": True},
+                    "PollingInterval": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 600},
                     "ReportCriticalErrorsDelay": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
+                    "PrintToConsole": {"type": "boolean", "required": False, "nullable": True},
+                    "DefaultPrice": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 1000},
                 },
             },
             "AmberAPI": {
@@ -45,6 +48,7 @@ class ConfigSchema:
                     "RetryCount": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 10},
                     "RetryDelay": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 10},
                     "PingAllowed": {"type": "boolean", "required": False, "nullable": True},
+                    "MaxConcurrentErrors": {"type": "number", "required": False, "nullable": True, "min": 0},
                     "WebhooksEnabled": {"type": "boolean", "required": False, "nullable": True},
                     "WebhookHost": {"type": "string", "required": False, "nullable": True},
                     "WebhookPort": {"type": "number", "required": False, "nullable": True},

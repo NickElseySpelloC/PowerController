@@ -140,9 +140,18 @@ class RunHistory:
         }
         return new_run
 
-    def tick(self, status_data: OutputStatusData):
-        """Perform periodic updates to the run history."""
+    def tick(self, status_data: OutputStatusData) -> bool:
+        """Perform periodic updates to the run history.
+
+        Args:
+            status_data (OutputStatusData): The status data for the associated output.
+
+        Returns:
+            bool: True if we rolled over to a new day, False otherwise.
+        """
+        have_rolled = False
         if self._have_rolled_over_to_new_day():
+            have_rolled = True
             # Handle removal of oldest day if beyond threshold
             oldest_day = self.history["DailyData"][0]
             if self.history["HistoryDays"] > self.max_history_days:
@@ -167,6 +176,8 @@ class RunHistory:
 
         self._update_totals(status_data)
         self.last_tick = DateHelper.now()
+
+        return have_rolled
 
     def _have_rolled_over_to_new_day(self) -> bool:
         """Check if the current date has rolled over to a new day compared to the last update.

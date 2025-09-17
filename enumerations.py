@@ -8,7 +8,7 @@ CONFIG_FILE = "config.yaml"
 PRICES_DATA_FILE = "latest_prices.json"
 PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
 WEEKDAY_ABBREVIATIONS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-DEFAULT_PRICE = 20.0  # TO DO: Replace with configured default
+DEFAULT_PRICE = 30.0
 PRICES_DATA_FILE = "latest_prices.json"
 PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
 

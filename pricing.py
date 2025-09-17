@@ -135,7 +135,7 @@ class PricingManager:
             self.next_refresh = DateHelper.now() + dt.timedelta(minutes=refresh_interval)  # pyright: ignore[reportArgumentType]
             return True
         if self.mode == AmberAPIMode.LIVE:
-            # Maximum number of API query errors before we exit the app
+            # Maximum number of API query errors before we send an email notification
             max_errors = self.config.get("AmberAPI", "MaxConcurrentErrors", default=10)
 
             # By default, our next refresh is 5 mins from now
@@ -193,6 +193,8 @@ class PricingManager:
                 self.logger.report_notifiable_issue(entity="Amber API", issue_type="Connection Error", send_delay=self.report_critical_errors_delay * 60, message=f"API is still not responding after {max_errors} connection attempts.")
             self.next_refresh = DateHelper.now() + dt.timedelta(minutes=1)  # Shorten the refresh interval if we previously errored
             self.logger.log_message(f"Amber unavailable, reverting to default pricing / schedules. Next attempt at {self.next_refresh.strftime('%H:%M:%S')}", "warning")
+        else:
+            self.logger.clear_notifiable_issue(entity="Amber API", issue_type="Connection Error")
 
         if connection_error or self.mode == AmberAPIMode.OFFLINE:
             # If we had an error but still within limits, revert to default pricing
@@ -228,6 +230,7 @@ class PricingManager:
 
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:  # Trap connection and timeout errors
             self.logger.log_message(f"Connection error or timeout while authenticating to Amber: {e}", "warning")
+            self.concurrent_error_count += 1
             return False
 
         except requests.exceptions.RequestException as e:
@@ -274,6 +277,7 @@ class PricingManager:
 
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:  # Trap connection and timeout errors
             self.logger.log_message(f"Connection error or timeout while authenticating to Amber: {e}", "warning")
+            self.concurrent_error_count += 1
             return None
 
         except requests.exceptions.RequestException as e:

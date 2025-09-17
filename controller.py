@@ -36,6 +36,12 @@ class PowerController:
         self.external_service_helper = ExternalServiceHelper(config, logger)
         self.wake_event = wake_event    # The event used to interrupt the main loop
         self.cmd_q: queue.Queue[Command] = queue.Queue()    # Used to post commands into the controller's loop
+        self.shelly_device_concurrent_error_count = 0
+        self.report_critical_errors_delay = config.get("General", "ReportCriticalErrorsDelay", default=None)
+        if isinstance(self.report_critical_errors_delay, (int, float)):
+            self.report_critical_errors_delay = round(self.report_critical_errors_delay, 0)
+        else:
+            self.report_critical_errors_delay = None
 
         # TO DO: Remove
         self.lights: dict[str, LightState] = {
@@ -45,7 +51,7 @@ class PowerController:
 
         # Setup the environment
         self.outputs = []   # List of output state managers, each one a OutputStateManager object.
-        self.poll_interval: float = 10.0  # TO DO: Lookup via config
+        self.poll_interval = 10.0
 
         # Create an instance of the ShellyControl class
         shelly_settings = self.config.get_shelly_settings()
@@ -67,11 +73,12 @@ class PowerController:
         state_data = self._load_system_state()
 
         self.initialise(state_data)
+        self.logger.log_message("Power controller startup complete.", "summary")
 
     def initialise(self, saved_state: dict | None = None):
         """(re) initialise the power controller."""
         # Create an instance of a OutputStateManager manager object for each output we're managing
-        self.poll_interval: float = 10.0     # TO DO: Lookup via config
+        self.poll_interval = int(self.config.get("General", "PollingInterval", default=30) or 30)  # pyright: ignore[reportArgumentType]
 
         if not saved_state:
             # Reinitialise the Shelly controller
@@ -120,6 +127,7 @@ class PowerController:
             # Make sure the output's parent is not itself or a child of itself
             if output.parent_output:
                 parent = output.parent_output
+                parent.is_parent = True
                 while parent:
                     if parent == output:
                         self.logger.log_fatal_error(f"Output {output.name} cannot be its own parent or a child of itself.")
@@ -175,8 +183,12 @@ class PowerController:
         else:
             return state_data
 
-    def save_system_state(self):
-        """Saves the system state to disk."""
+    def save_system_state(self, force_post: bool = False):  # noqa: FBT001, FBT002
+        """Saves the system state to disk.
+
+        Args:
+            force_post (bool): If True, force posting the state to the web viewer.
+        """
         system_state_path = self._get_system_state_path()
         if not system_state_path:
             return
@@ -197,7 +209,7 @@ class PowerController:
             JSONEncoder.save_to_file(save_object, system_state_path)
 
             # Post to the web server if needed - this function takes care of frequency checks
-            self.external_service_helper.post_state_to_web_viewer(save_object)
+            self.external_service_helper.post_state_to_web_viewer(save_object, force_post=force_post)
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             self.logger.log_fatal_error(f"Error saving system state: {e}")
 
@@ -217,6 +229,7 @@ class PowerController:
         """Post a command to the controller."""
         # TO DO: Update to process commands received from web app
         self.cmd_q.put(cmd)
+        self.logger.log_message(f"Posted command {cmd.kind} to controller.", "debug")
         self.wake_event.set()
 
     # TO DO: Update
@@ -246,9 +259,9 @@ class PowerController:
         Args:
             stop_event (Event): The event used to stop the controller.
         """
-        print("[Main] starting loop")
         while not stop_event.is_set():
             while True:
+                print(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
                 try:
                     cmd = self.cmd_q.get_nowait()
                 except queue.Empty:
@@ -257,13 +270,11 @@ class PowerController:
             self._run_scheduler_tick()
             self.wake_event.clear()
             self.wake_event.wait(timeout=self.poll_interval)
-        print("[Main] exiting loop")
 
         self.shutdown()
 
     def _run_scheduler_tick(self):
         """Do all the control processing of the main loop."""
-        time_now = DateHelper.now()
         # Tell each device to update its physical state
         self._refresh_device_statuses()
 
@@ -288,21 +299,21 @@ class PowerController:
         # Check for fatal error recovery
         self._check_fatal_error_recovery()
 
-        # TO DO: Remove
-        print(f"Main tick at {time_now.strftime('%H:%M:%S')}")
-
     def _refresh_device_statuses(self):
         """Refresh the status of all devices."""
+        max_errors = int(self.config.get("ShellyDevices", "MaxConcurrentErrors", default=4) or 4)  # pyright: ignore[reportArgumentType]
         for device in self.shelly_control.devices:
             try:
                 if not self.shelly_control.get_device_status(device):
                     self.logger.log_message(f"Failed to refresh status for device {device['Label']} - device offline.")
             except RuntimeError as e:
-                self.logger.log_message(f"Error refreshing status for device {device['Label']}: {e}")
+                self.logger.log_message(f"Error refreshing status for device {device['Label']}: {e}", "error")
+                self.shelly_device_concurrent_error_count += 1
 
-        # TO DO: Implement a max concurrent error handler - exit app if # number of concurrent errors exceeds limit
-
-        # TO DO: Reconcile the output's actual state with the output.is_on state.
+                # Log an issue if we exceed the max allowed errors
+                if self.shelly_device_concurrent_error_count > max_errors and self.report_critical_errors_delay:
+                    assert isinstance(self.report_critical_errors_delay, int)
+                    self.logger.report_notifiable_issue(entity=f"Shelly Device {device['Label']}", issue_type="States Refresh Error", send_delay=self.report_critical_errors_delay * 60, message="Unable to get the status for this This Shelly device.")
 
     def _generate_run_plans(self):
         """Generate / refresh the run plan for each output."""
@@ -311,9 +322,15 @@ class PowerController:
 
     def _evaluation_conditions(self):
         """Evaluate the conditions for each output."""
-        # TO DO: Make sure call this for any parent outputs first
+        # Do the parents first
         for output in self.outputs:
-            output.evaluate_conditions()
+            if output.is_parent:
+                output.evaluate_conditions()
+
+        # Now do the children
+        for output in self.outputs:
+            if not output.is_parent:
+                output.evaluate_conditions()
 
     def _check_for_configuration_changes(self):
         """Reload the configuration from disk if it has changed and apply downstream changes."""
@@ -354,7 +371,17 @@ class PowerController:
 
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
+        self.logger.log_message("Interrupt received, shutting down power controller...", "summary")
         for output in self.outputs:
             output.shutdown()
 
-        self.save_system_state()
+        self.save_system_state(force_post=True)
+
+    def print_to_console(self, message: str):
+        """Print a message to the console if PrintToConsole is enabled.
+
+        Args:
+            message (str): The message to print.
+        """
+        if self.config.get("General", "PrintToConsole", default=False):
+            print(message)

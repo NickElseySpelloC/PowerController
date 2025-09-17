@@ -102,7 +102,8 @@ class RunPlanner:
         """
         # First check to see if an empty plan was requested
         run_plan = self._create_run_plan_object()
-        if required_hours <= 0 and required_hours != -1:
+        remaining_required_mins = RunPlanner._calculate_required_minutes(required_hours)
+        if remaining_required_mins == 0:
             run_plan["RequiredHours"] = run_plan["PriorityHours"] = run_plan["PlannedHours"] = 0.0
             run_plan["Status"] = RunPlanStatus.NOTHING
             return run_plan
@@ -128,7 +129,6 @@ class RunPlanner:
 
         # Initialise our countdowns
         filled_mins = 0
-        remaining_required_mins = RunPlanner._calculate_required_minutes(required_hours)
         required_priority_mins = int(priority_hours * 60)
         required_priority_mins = min(required_priority_mins, remaining_required_mins)
 
@@ -262,6 +262,7 @@ class RunPlanner:
                 remaining_required_mins -= 5 - (remaining_required_mins % 5)
         else:
             remaining_required_mins = required_hours * 60
+        remaining_required_mins = max(0, remaining_required_mins)
 
         return int(remaining_required_mins)
 

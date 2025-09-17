@@ -61,11 +61,12 @@ class ExternalServiceHelper:
             self.logger.log_message(f"Heartbeat ping failed with status code: {response.status_code}", "error")
             return False
 
-    def post_state_to_web_viewer(self, system_state: dict):
+    def post_state_to_web_viewer(self, system_state: dict, force_post: bool = False) -> None:  # noqa: FBT001, FBT002
         """Post the LightingController state to the web server if WebsiteBaseURL is set in config.
 
         Args:
             system_state (dict): The state data to be posted, json friendly
+            force_post (bool): If True, post the state regardless of frequency settings.
         """
         is_enabled = self.config.get("ViewerWebsite", "Enable", default=False)
         base_url = self.config.get("ViewerWebsite", "BaseURL", default=None)
@@ -76,7 +77,7 @@ class ExternalServiceHelper:
         if not is_enabled or base_url is None:
             return
 
-        if self.viewer_website_last_post is not None:
+        if self.viewer_website_last_post is not None and not force_post:
             time_since_last_post = (DateHelper.now() - self.viewer_website_last_post).total_seconds()
             if time_since_last_post < frequency:  # pyright: ignore[reportOperatorIssue]
                 return

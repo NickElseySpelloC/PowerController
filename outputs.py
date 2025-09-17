@@ -35,6 +35,7 @@ class OutputManager:
             saved_state (dict | None): The previously saved state of the output manager, if any.
         """
         self.output_config = output_config
+        self.config = config
         self.logger = logger
         self.report_critical_errors_delay = config.get("General", "ReportCriticalErrorsDelay", default=None)
         if isinstance(self.report_critical_errors_delay, (int, float)):
@@ -64,6 +65,7 @@ class OutputManager:
         self.device_input_mode = InputMode.IGNORE
         self.parent_output_name = None
         self.parent_output = None
+        self.is_parent = False
 
         # Run planning
         self.run_plan = None
@@ -264,11 +266,15 @@ class OutputManager:
                 return True
         return False
 
-    def calculate_running_totals(self):
-        # Update running totals in run_history object
+    def calculate_running_totals(self) -> bool:
+        """Update running totals in run_history object.
 
+        Returns:
+            bool: True if we rolled over to a new day, False otherwise.
+        """
         data_block = self._get_status_data()
-        self.run_history.tick(data_block)
+
+        return self.run_history.tick(data_block)
 
     def generate_run_plan(self) -> bool:
         """Generate / update the run plan for this output.
@@ -276,7 +282,7 @@ class OutputManager:
         Returns:
             bool: True if the run plan was successfully generated or updated, False otherwise.
         """
-        self.calculate_running_totals()   # Update all the running totals including actual hours from the run history
+        day_roll_over = self.calculate_running_totals()   # Update all the running totals including actual hours from the run history
         self.run_plan = None
         hourly_energy_used = self.run_history.get_hourly_energy_used()
 
@@ -289,9 +295,13 @@ class OutputManager:
             assert target_hours is not None
             actual_hours = self.run_history.get_actual_hours()
             prior_shortfall, max_shortfall = self.run_history.get_prior_shortfall()
-            if prior_shortfall >= max_shortfall and self.report_critical_errors_delay:
-                assert isinstance(self.report_critical_errors_delay, int)
-                self.logger.report_notifiable_issue(entity=f"Output {self.name}", issue_type="Reached MaxShortfall", send_delay=self.report_critical_errors_delay * 60, message=f"This output has reached the maximum shortfall of {max_shortfall} hours. Please review the configuration to make sure it's possible to run for sufficient hours each day.")  # pyright: ignore[reportArgumentType]
+            if self.report_critical_errors_delay:
+                if prior_shortfall >= max_shortfall:
+                    assert isinstance(self.report_critical_errors_delay, int)
+                    self.logger.report_notifiable_issue(entity=f"Output {self.name}", issue_type="Reached MaxShortfall", send_delay=self.report_critical_errors_delay * 60, message=f"This output has reached the maximum shortfall of {max_shortfall} hours. Please review the configuration to make sure it's possible to run for sufficient hours each day.")  # pyright: ignore[reportArgumentType]
+                else:
+                    self.logger.clear_notifiable_issue(entity=f"Output {self.name}", issue_type="Reached MaxShortfall")
+
             hours_remaining = target_hours - actual_hours + prior_shortfall
             required_hours = max(0.0, hours_remaining)
             required_hours = min(self.max_hours, required_hours)
@@ -304,6 +314,11 @@ class OutputManager:
         # If we're in Schedule mode or we get nothing back from Best Price, generate a Schedule
         if self.device_mode == RunPlanMode.SCHEDULE or not self.run_plan:
             self.run_plan = self.scheduler.get_run_plan(self.schedule_name, required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, hourly_energy_usage=hourly_energy_used)  # pyright: ignore[reportArgumentType]
+
+        if day_roll_over:
+            # We rolled over to a new day, log the state of the output
+            output_info = self.get_info()
+            self.logger.log_message(output_info, "detailed")
 
         return bool(self.run_plan)
 
@@ -438,7 +453,6 @@ class OutputManager:
         Returns:
             float: The current price.
         """
-        # TO DO: Use PricingManager.get_current_price(self.amber_channel) or ScheduleManager.get_current_price()
         if self.device_mode == RunPlanMode.BEST_PRICE:
             price = self.pricing.get_current_price(self.amber_channel)
 
@@ -506,6 +520,8 @@ class OutputManager:
                 if self.report_critical_errors_delay:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} on.")  # pyright: ignore[reportArgumentType]
+        else:
+            self.logger.clear_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline")
 
         self.is_on = True
 
@@ -515,13 +531,12 @@ class OutputManager:
             self.reason = reason
             self.last_changed = DateHelper.now()
             data_block = self._get_status_data()
+            self.logger.log_message(f"Output {self.name} state changed to ON - {reason.value}.", "detailed")
             self.run_history.start_run(new_system_state, reason, data_block)
 
-        # TO DO: Remove debug
-        print(f"Output {self.name} ON - {reason.value}.")
         current_run = self.run_history.get_current_run()
         if current_run:
-            print(f"   - Run started at {current_run['StartTime'].strftime('%H:%M:%S')} EnergyUsed: {current_run['EnergyUsed']:.2f}Wh AveragePrice: ${current_run['AveragePrice']:.2f}c/kWh TotalCost: ${current_run['TotalCost']:.4f}")
+            self.print_to_console(f"Output {self.name} ON - {reason.value}. Started at {current_run['StartTime'].strftime('%H:%M:%S')} Energy Used: {current_run['EnergyUsed']:.2f}Wh Average Price: ${current_run['AveragePrice']:.2f}c/kWh Total Cost: ${current_run['TotalCost']:.4f}")
 
     def _turn_off(self, new_system_state: SystemState, reason: StateReasonOff):
         """Turns off the output device.
@@ -547,7 +562,11 @@ class OutputManager:
                 if self.report_critical_errors_delay:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} off.")  # pyright: ignore[reportArgumentType]
+        else:
+            self.logger.clear_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline")
 
+        if self.is_on:
+            self.logger.log_message(f"Output {self.name} state changed to OFF - {reason.value}.", "detailed")
         self.is_on = False
 
         self.system_state = new_system_state
@@ -556,34 +575,48 @@ class OutputManager:
         data_block = self._get_status_data()
         self.run_history.stop_run(reason, data_block)
 
-        # TO DO: Remove debug
-        print(f"Output {self.name} OFF - {reason.value}")
+        self.print_to_console(f"Output {self.name} OFF - {reason.value}")
 
     def shutdown(self):
         """Shutdown the output manager, turning off the output if it is on."""
         if self.output_config.get("StopOnExit", False) and self.is_on:
             self._turn_off(SystemState.AUTO, StateReasonOff.SHUTDOWN)
 
-    def print_info(self) -> str:
+    def get_info(self) -> str:
         """Print the information of the output.
 
         Returns:
             str: The formatted output information.
         """
-        # TO DO: Update this function with new attributes
         return_str = f"{self.name} Output Information:\n"
-        return_str += f"   - DeviceOutput: {self.device_output_name}\n"
-        return_str += f"   - Mode: {self.device_mode}\n"
+        return_str += f"   - System State: {self.system_state}, reason: {self.reason} (since {self.last_changed.strftime('%H:%M:%S') if self.last_changed else 'N/A'})\n"
+        return_str += f"   - Device Output: {self.device_output_name}, currently {'ON' if self.is_on else 'OFF'}\n"
+        return_str += f"   - Device Scheduling Mode: {self.device_mode}\n"
         return_str += f"   - Schedule: {self.schedule_name}\n"
         return_str += f"   - Amber Channel: {self.amber_channel}\n"
-        # return_str += f"   - Min Hours: {self.min_hours}, Max Hours: {self.max_hours}, Target Hours: {self.target_hours}\n"
-        # return_str += f"   - Max Best Price: {self.max_best_price}, Max Priority Price: {self.max_priority_price}\n"
-        # if self.dates_off:
-        #     return_str += "   - Dates Off:\n"
-        #     for date_range in self.dates_off:
-        #         return_str += f"      - From {date_range.get('StartDate')} to {date_range.get('EndDate')}\n"
+        return_str += f"   - Min Hours: {self.min_hours}, Max Hours: {self.max_hours}, Target Hours: {self._get_target_hours()}\n"
+        return_str += f"   - Max Best Price: {self.max_best_price}c/kWh, Max Priority Price: {self.max_priority_price}c/kWh\n"
+        return_str += f"   - Actual hours today: {self.run_history.get_actual_hours():.2f}\n"
+        if self.run_plan:
+            return_str += f"   - Today's run plan requires {self.run_plan.get('RequiredHours', 0):.2f} hours:\n"
+            for entry in self.run_plan.get("RunPlan", []):
+                return_str += f"      - From {entry['StartTime'].strftime('%H:%M')} to {entry['EndTime'].strftime('%H:%M')}. Price: {entry['Price']:.2f}c/kWh), Cost: ${entry['EstimatedCost']:.2f}\n"
+            return_str += f"      - Planned Hours: {self.run_plan.get('PlannedHours', 0):.2f}, Estimated Cost: ${self.run_plan.get('EstimatedCost', 0):.2f}\n"
+        if self.dates_off:
+            return_str += "   - Dates off:\n"
+            for date_range in self.dates_off:
+                return_str += f"      - From {date_range.get('StartDate')} to {date_range.get('EndDate')}\n"
         return_str += f"   - Device Meter: {self.device_meter_name}\n"
         return_str += f"   - Device Input: {self.device_input_name} (mode: {self.device_input_mode})\n"
-        # return_str += f"   - Parent Device Output: {self.parent_device_output_name}\n"
+        return_str += f"   - Parent Output: {self.parent_output_name}\n"
 
         return return_str
+
+    def print_to_console(self, message: str):
+        """Print a message to the console if PrintToConsole is enabled.
+
+        Args:
+            message (str): The message to print.
+        """
+        if self.config.get("General", "PrintToConsole", default=False):
+            print(message)
