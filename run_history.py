@@ -205,6 +205,19 @@ class RunHistory:
             # Send an email notification if configured
             self.logger.send_email("Energy Usage Alert", warning_msg)
 
+    def get_current_day(self) -> dict | None:
+        """Get the current day object if there is one.
+
+        Returns:
+            dict | None: The current day object or None if there is no current day.
+        """
+        if not self.history["DailyData"]:
+            return None
+        last_day = self.history["DailyData"][-1]
+        if last_day["Date"] == DateHelper.today():
+            return last_day
+        return None
+
     def get_current_run(self) -> dict | None:
         """Get the current active run if there is one.
 
@@ -220,6 +233,20 @@ class RunHistory:
         if last_run["EndTime"] is None:
             return last_run
         return None
+
+    def get_last_run(self) -> dict | None:
+        """Get the current active run if there is one, or the prior run if not.
+
+        Returns:
+            dict | None: The current active run or prior object. None if there have been no runs today.
+        """
+        if not self.history["DailyData"]:
+            return None
+        last_day = self.history["DailyData"][-1]
+        if not last_day["DeviceRuns"]:
+            return None
+        last_run = last_day["DeviceRuns"][-1]
+        return last_run
 
     def start_run(self, new_system_state: SystemState, reason: StateReasonOn, status_data: OutputStatusData):
         """Add a new run instance to the history.

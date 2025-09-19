@@ -2,7 +2,6 @@
 import queue
 from pathlib import Path
 from threading import Event
-from typing import Any
 
 from sc_utility import (
     DateHelper,
@@ -77,8 +76,9 @@ class PowerController:
 
     def initialise(self, saved_state: dict | None = None):
         """(re) initialise the power controller."""
-        # Create an instance of a OutputStateManager manager object for each output we're managing
         self.poll_interval = int(self.config.get("General", "PollingInterval", default=30) or 30)  # pyright: ignore[reportArgumentType]
+        self.webapp_refresh = int(self.config.get("Website", "PageAutoRefresh", default=10) or 10)  # pyright: ignore[reportArgumentType]
+        self.app_label = self.config.get("General", "Label", default="PowerController")
 
         if not saved_state:
             # Reinitialise the Shelly controller
@@ -92,6 +92,7 @@ class PowerController:
             return
 
         # Loop through each output read from the config file
+        # Create an instance of a OutputStateManager manager object for each output we're managing
         outputs_config = self.config.get("Outputs", default=[]) or []
         try:
             for output_cfg in outputs_config:
@@ -195,7 +196,7 @@ class PowerController:
 
         save_object = {
             "StateFileType": "PowerController",
-            "DeviceName": self.config.get("General", "Label", default="PowerController"),
+            "DeviceName": self.app_label,
             "SaveTime": DateHelper.now(),
             "Outputs": [],
             "Scheduler": self.scheduler.get_save_object(),
@@ -213,45 +214,53 @@ class PowerController:
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             self.logger.log_fatal_error(f"Error saving system state: {e}")
 
-    def get_state_snapshot(self) -> dict[str, Any]:
-        """TO DO: Redo to return Output state information."""  # noqa: DOC201
-        return {
-            lid: {
-                "light_id": s.light_id,
-                "name": s.name or s.light_id,
-                "mode": s.mode.value,
-                "is_on": s.is_on,
-            }
-            for lid, s in self.lights.items()
+    def get_webapp_data(self) -> dict:
+        """Returns a dict object with a snapshot of the current state of all outputs.
+
+        Returns:
+            dict: The state snapshot containing theoutputs.
+        """
+        global_data = {
+            "AppLabel": self.app_label,
+            "PollInterval": self.webapp_refresh,
         }
 
+        outputs_data = {
+            output.id: output.get_webapp_data()
+            for output in self.outputs
+        }
+
+        return_dict = {
+            "global": global_data,
+            "outputs": outputs_data,
+        }
+
+        self.logger.log_message(f"get_output_snapshot() is returning:\n {return_dict}", "debug")
+
+        return return_dict
+
     def post_command(self, cmd: Command) -> None:
-        """Post a command to the controller."""
-        # TO DO: Update to process commands received from web app
+        """Post a command to the controller from the web app."""
         self.cmd_q.put(cmd)
-        self.logger.log_message(f"Posted command {cmd.kind} to controller.", "debug")
+        self.logger.log_message(f"Posted command to controller:\n {cmd}", "debug")
         self.wake_event.set()
 
-    # TO DO: Update
     def _apply_command(self, cmd: Command) -> None:
+        """Apply a command posted to the controller."""
         if cmd.kind == "set_mode":
             # To DO: Push new mode into relevant Output, deal with this in the evaluation_conditions() func
-            light_id = cmd.payload["light_id"]
+            output_id = cmd.payload["output_id"]
             new_mode = AppMode(cmd.payload["mode"])
-            state = self.lights.get(light_id)
-            if not state:
+            output = self._find_output(LookupMode.ID, output_id)
+            output = output[0] if output else None
+            if not output:
                 return
-            state.mode = new_mode
-            if new_mode == AppMode.ON:
-                self._set_physical(light_id, True)
-                state.is_on = True
-            elif new_mode == AppMode.OFF:
-                self._set_physical(light_id, False)
-                state.is_on = False
 
-    # TO DO: Remove
-    def _set_physical(self, light_id: str, on: bool) -> None:  # noqa: FBT001, PLR6301
-        print(f"[Shelly] set {light_id} to {'ON' if on else 'OFF'}")
+            # Set the new mode, the output will deal with it in the next tick
+            output.app_mode = new_mode
+
+            # And evaluate the conditions immediately
+            output.evaluate_conditions()
 
     def run(self, stop_event: Event):
         """The main loop of the power controller.
@@ -343,11 +352,10 @@ class PowerController:
     def _check_fatal_error_recovery(self):
         """Check for fatal errors in the system and handle them."""
         # If the prior run fails, send email that this run worked OK
-        device_name = self.config.get("General", "Label", default="PowerController")
         if self.logger.get_fatal_error():
-            self.logger.log_message(f"{device_name} started successfully after a prior failure.", "summary")
+            self.logger.log_message(f"{self.app_label} started successfully after a prior failure.", "summary")
             self.logger.clear_fatal_error()
-            self.logger.send_email(f"{device_name} recovery", "Application was successfully started after a prior critical failure.")
+            self.logger.send_email(f"{self.app_label} recovery", "Application was successfully started after a prior critical failure.")
 
     def _find_output(self, mode: LookupMode, identity: str) -> list[OutputManager]:
         """Return a list of all outputs that match the given criteria.
@@ -359,6 +367,8 @@ class PowerController:
         Returns:
             list[OutputManager]: The found output managers, or an empty list if not found.
         """
+        if mode == LookupMode.ID:
+            return [o for o in self.outputs if o.id == identity]
         if mode == LookupMode.NAME:
             return [o for o in self.outputs if o.name == identity]
         if mode == LookupMode.OUTPUT:

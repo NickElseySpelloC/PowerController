@@ -29,6 +29,16 @@ class ConfigSchema:
                     "DefaultPrice": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 1000},
                 },
             },
+            "Website": {
+                "type": "dict",
+                "schema": {
+                    "HostingIP": {"type": "string", "required": False, "nullable": True},
+                    "Port": {"type": "number", "required": False, "nullable": True, "min": 80, "max": 65535},
+                    "PageAutoRefresh": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 3600},
+                    "DebugMode": {"type": "boolean", "required": False, "nullable": True},
+                    "AccessKey": {"type": "string", "required": False, "nullable": True},
+                },
+            },
             "AmberAPI": {
                 "type": "dict",
                 "schema": {

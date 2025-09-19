@@ -43,6 +43,8 @@ class PricingManager:
         # Re-read the configuration settings
         self.mode = self.config.get("AmberAPI", "Mode", default=AmberAPIMode.LIVE)
         self.timeout = self.config.get("AmberAPI", "Timeout", default=10)
+        self.refresh_interval = self.config.get("AmberAPI", "RefreshInterval", default=5) or 5
+        assert isinstance(self.refresh_interval, (int, float))
 
         self.base_url = self.config.get("AmberAPI", "APIURL")
         self.api_key = self.config.get("AmberAPI", "APIKey")
@@ -56,7 +58,14 @@ class PricingManager:
             self.report_critical_errors_delay = round(self.report_critical_errors_delay, 0)
         else:
             self.report_critical_errors_delay = None
-        self.refresh_price_data()
+
+        # If the price cache file exists, read from it rather than live prices to save time
+        _, mod_time = self._get_price_cache_file_info()
+        if self.mode == AmberAPIMode.LIVE and mod_time is not None and (DateHelper.now() - mod_time).total_seconds() < (self.refresh_interval * 60):
+            self.refresh_price_data(load_from_file=True)
+            self.next_refresh = mod_time + dt.timedelta(minutes=self.refresh_interval)
+        else:
+            self.refresh_price_data()
 
     def refresh_price_data_if_time(self) -> bool:
         """Refresh the pricing data if the refresh interval has passed.
@@ -69,8 +78,11 @@ class PricingManager:
             return True
         return False
 
-    def refresh_price_data(self) -> bool:
+    def refresh_price_data(self, load_from_file: bool = False) -> bool:  # noqa: FBT001, FBT002
         """Refreshes the pricing data from Amber.
+
+        Args:
+            load_from_file (bool): If True, load the pricing data from the local cache file instead of Amber.
 
         Returns:
             result(bool): True if the refresh was successful or AmberPricing disabled, False if there was an error.
@@ -78,7 +90,7 @@ class PricingManager:
         if self.mode == AmberAPIMode.DISABLED:
             return True
 
-        if not self._refresh_amber_prices():
+        if not self._refresh_amber_prices(load_from_file):
             return False
         assert isinstance(self.raw_price_data, list)
 
@@ -122,24 +134,23 @@ class PricingManager:
 
         return True
 
-    def _refresh_amber_prices(self) -> bool:
+    def _refresh_amber_prices(self, load_from_file: bool = False) -> bool:  # noqa: FBT001, FBT002
         """Retrieves the current raw pricing data from Amber.
 
         Returns:
             result(bool): True if the refresh was successful or AmberPricing disabled, False if there was an error.
         """
         connection_error = False
-        refresh_interval = self.config.get("AmberAPI", "RefreshInterval", default=5)
         # If Amber pricing is disabled, nothing to do
         if self.mode == AmberAPIMode.DISABLED:
-            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=refresh_interval)  # pyright: ignore[reportArgumentType]
+            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=self.refresh_interval)  # pyright: ignore[reportArgumentType]
             return True
-        if self.mode == AmberAPIMode.LIVE:
+        if self.mode == AmberAPIMode.LIVE and not load_from_file:
             # Maximum number of API query errors before we send an email notification
             max_errors = self.config.get("AmberAPI", "MaxConcurrentErrors", default=10)
 
             # By default, our next refresh is 5 mins from now
-            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=refresh_interval)  # pyright: ignore[reportArgumentType]
+            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=self.refresh_interval)  # pyright: ignore[reportArgumentType]
 
             # Authenticate to Amber
             assert isinstance(self.raw_price_data, list)
@@ -182,7 +193,7 @@ class PricingManager:
 
                 # And finally save the lot to file
                 self._save_prices()
-                self.next_refresh = DateHelper.now() + dt.timedelta(minutes=refresh_interval)  # pyright: ignore[reportArgumentType]
+                self.next_refresh = DateHelper.now() + dt.timedelta(minutes=self.refresh_interval)  # pyright: ignore[reportArgumentType]
                 self.logger.log_message(f"Refreshed Amber pricing. Next refresh at {self.next_refresh.strftime('%H:%M:%S')}", "debug")
                 break
 
@@ -196,7 +207,7 @@ class PricingManager:
         else:
             self.logger.clear_notifiable_issue(entity="Amber API", issue_type="Connection Error")
 
-        if connection_error or self.mode == AmberAPIMode.OFFLINE:
+        if connection_error or self.mode == AmberAPIMode.OFFLINE or load_from_file:
             # If we had an error but still within limits, revert to default pricing
             self.next_refresh = DateHelper.now() + dt.timedelta(minutes=1)  # Shorten the refresh interval if we previously errored
             self._import_prices()
@@ -308,14 +319,32 @@ class PricingManager:
 
         return channel_list, price_data
 
+    def _get_price_cache_file_info(self) -> tuple[Path, dt.datetime | None]:
+        """Returns the path and last modified time of the pricing cache file.
+
+        Returns:
+            tuple(Path, dt.datetime) | None: The path to the pricing cache file and its last modified time, or None if not found.
+        """
+        local_tz = dt.datetime.now().astimezone().tzinfo
+        file_path = SCCommon.select_file_location(PRICES_DATA_FILE)
+        assert isinstance(file_path, Path)
+        if not file_path.exists():
+            return file_path, None
+        try:
+            mod_time = dt.datetime.fromtimestamp(file_path.stat().st_mtime, tz=local_tz)
+        except OSError as e:
+            self.logger.log_message(f"Error getting pricing cache file info: {e}", "error")
+            return file_path, None
+        else:
+            return file_path, mod_time
+
     def _save_prices(self) -> bool:
         """Saves the raw pricing data to disk.
 
         Returns:
             result (bool): True if the pricing data was saved, False if not.
         """
-        file_path = SCCommon.select_file_location(PRICES_DATA_FILE)
-        assert isinstance(file_path, Path)
+        file_path, _ = self._get_price_cache_file_info()
         try:
             return JSONEncoder.save_to_file(self.raw_price_data, file_path)
         except RuntimeError as e:
@@ -328,8 +357,7 @@ class PricingManager:
         Returns:
             result (bool): True if the pricing data was loaded, False if not.
         """
-        file_path = SCCommon.select_file_location(PRICES_DATA_FILE)
-        assert isinstance(file_path, Path)
+        file_path, _ = self._get_price_cache_file_info()
         assert isinstance(self.raw_price_data, list)
         if not file_path.exists():
             return False

@@ -119,6 +119,7 @@ class Command:
 
 # Lookup mode used for PowerController._find_output()
 class LookupMode(StrEnum):
+    ID = "id"
     NAME = "name"
     OUTPUT = "output"
     METER = "meter"

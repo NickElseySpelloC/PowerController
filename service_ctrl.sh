@@ -1,5 +1,3 @@
-sudo systemctl stop LightingControl
-
 #!/usr/bin/env bash
 
 SERVICE="PowerController"

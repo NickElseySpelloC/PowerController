@@ -1,5 +1,6 @@
 """Manages the system state of a specific output device and associated resources."""
 import datetime as dt
+import urllib.parse
 
 from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
 
@@ -22,7 +23,7 @@ from scheduler import Scheduler
 
 class OutputManager:
     """Manages the state of a single Shelly output device and associated resources."""
-    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl, saved_state: dict | None = None):
+    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl, saved_state: dict | None = None):  # noqa: PLR0915
         """Manages the state of a single Shelly output device.
 
         Args:
@@ -50,6 +51,8 @@ class OutputManager:
         self.system_state: SystemState = SystemState.AUTO  # The overall system state, to be updated
         self.app_mode = AppMode.AUTO  # Defines the override from the mobile app.
         self.name = None
+        self.id = None  # Lower case, url-safe version of the name
+        self.output_config = output_config
         self.device = None
         self.device_output_name = None
         self.device_output = None
@@ -110,6 +113,9 @@ class OutputManager:
             self.name = output_config.get("Name")
             if not self.name:
                 error_msg = "Name is not set for an Output configuration."
+            else:
+                # self.id is url encoded version of name
+                self.id = urllib.parse.quote(self.name.lower().replace(" ", "_"))
 
             # DeviceOutput
             if not error_msg:
@@ -341,7 +347,7 @@ class OutputManager:
             reason_off = StateReasonOff.INPUT_SWITCH_OFF
 
         # Otherwise see if the Input switch has overridden our state
-        if not new_output_state:
+        if new_output_state is None:
             input_state = self._get_input_state()
             if isinstance(input_state, bool):
                 if input_state and self.device_input_mode == InputMode.TURN_ON:
@@ -354,13 +360,13 @@ class OutputManager:
                     reason_off = StateReasonOff.INPUT_SWITCH_OFF
 
         # No overrides set, now see if no run today
-        if not new_output_state and self._is_today_excluded():
+        if new_output_state is None and self._is_today_excluded():
             new_output_state = False
             new_system_state = SystemState.DATE_OFF
             reason_off = StateReasonOff.DATE_OFF
 
         # If new_output_state hasn't been set at this point, we're in auto mode
-        if not new_output_state:
+        if new_output_state is None:
             new_system_state = SystemState.AUTO
             if not self.run_plan or self.run_plan["Status"] == RunPlanStatus.FAILED:
                 # We don't have a run plan, generally an error condition
@@ -588,6 +594,7 @@ class OutputManager:
         Returns:
             str: The formatted output information.
         """
+        current_day = self.run_history.get_current_day()
         return_str = f"{self.name} Output Information:\n"
         return_str += f"   - System State: {self.system_state}, reason: {self.reason} (since {self.last_changed.strftime('%H:%M:%S') if self.last_changed else 'N/A'})\n"
         return_str += f"   - Device Output: {self.device_output_name}, currently {'ON' if self.is_on else 'OFF'}\n"
@@ -606,11 +613,70 @@ class OutputManager:
             return_str += "   - Dates off:\n"
             for date_range in self.dates_off:
                 return_str += f"      - From {date_range.get('StartDate')} to {date_range.get('EndDate')}\n"
-        return_str += f"   - Device Meter: {self.device_meter_name}\n"
+        return_str += f"   - Device Meter: {self.device_meter_name}, Energy Used today: {current_day['EnergyUsed'] if current_day else 0:.2f} kWh\n"
         return_str += f"   - Device Input: {self.device_input_name} (mode: {self.device_input_mode})\n"
         return_str += f"   - Parent Output: {self.parent_output_name}\n"
 
         return return_str
+
+    def get_webapp_data(self) -> dict:
+        """Get the data for the web application.
+
+        Returns:
+            dict: The web application data.
+        """
+        target_hours = self._get_target_hours()
+        current_day = self.run_history.get_current_day()
+        actual_cost = current_day["TotalCost"] if current_day else 0
+        forecast_cost = self.run_plan.get("EstimatedCost", 0) if self.run_plan else 0
+        actual_energy_used = current_day["EnergyUsed"] / 1000 if current_day else 0
+        forcast_energy_used = self.run_plan.get("ForecastEnergyUsage", 0) if self.run_plan else 0
+
+        next_start_dt = self.run_plan.get("NextStartTime") if self.run_plan else None
+        if next_start_dt and not self.is_on:
+            next_start = next_start_dt.strftime("%H:%M")
+        else:
+            next_start = None
+        stopping_at_dt = self.run_plan.get("NextStopTime") if self.run_plan else None
+        if stopping_at_dt and self.is_on:
+            stopping_at = stopping_at_dt.strftime("%H:%M")
+        else:
+            stopping_at = None
+        power_draw = self.device_meter.get("Power", 0) if self.device_meter else 0
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "is_on": self.is_on,
+            "mode": self.app_mode.value,
+
+            # Information on the run history and plan
+            "target_hours": f"{target_hours:.1f}" if target_hours is not None else "Rest of Day",
+            "actual_hours": f"{self.run_history.get_actual_hours():.1f}",
+            "planned_hours": f"{(self.run_plan.get("RequiredHours", 0) if self.run_plan else 0):.1f}",
+            "actual_energy_used": f"{actual_energy_used:.3f}kWh",
+            "actual_cost": f"${actual_cost:.2f}",
+            "forcast_energy_used": f"{forcast_energy_used:.3f}kWh",
+            "forcast_cost": f"${forecast_cost:.2f}",
+
+            # These are calculated below
+            "total_energy_used": 0,
+            "total_cost": 0,
+            "average_price": 0,
+
+            # Information on the current run
+            "next_start_time": next_start,
+            "stopping_at": stopping_at,
+            "reason": self.reason.value if self.reason else "Unknown",
+            "power_draw": f"{power_draw:.0f}W" if power_draw else "None",
+            "current_price": f"{self._get_current_price():.1f} c/kWh",
+        }
+        total_cost = actual_cost + forecast_cost
+        data["total_cost"] = f"${total_cost:.2f}"
+        total_energy_used = actual_energy_used + forcast_energy_used
+        data["total_energy_used"] = f"{total_energy_used:.3f}kWh"
+        average_price = RunHistory.calc_price(total_energy_used, total_cost)
+        data["average_price"] = f"{average_price:.2f} c/kWh" if average_price > 0 else "N/A"
+        return data
 
     def print_to_console(self, message: str):
         """Print a message to the console if PrintToConsole is enabled.

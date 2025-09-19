@@ -1,29 +1,4 @@
-"""RunPlanner module. Calculates a run plan for either Amber pricing or a defined schedule.
-
-    Sample format:
-    run_plan = {
-        "Source": "Amber",
-        "Channel": "general",
-        "Status": None,
-        "RequiredHours": 8.0,
-        "PriorityHours": 2.0,
-        "PlannedHours": 8.0,
-        "NextStartTime": datetime(10, 30),
-        "StartNow": True,
-        "ForecastAveragePrice": 15.3,
-        "ForecastEnergyUsage": 123.4,
-        "EstimatedCost": 0.0188802,
-        "RunPlan": [
-            {
-                "Date": "2024-06-01",
-                "StartTime": "14:00",
-                "EndTime": "15:00",
-                "Minutes": 60,
-                "AveragePrice": 21.03
-            },
-            ...
-        }
-"""  # noqa: D208
+"""RunPlanner module. Calculates a run plan for either Amber pricing or a defined schedule."""
 import datetime as dt
 import operator
 
@@ -62,6 +37,7 @@ class RunPlanner:
             "PriorityHours": 0.0,
             "PlannedHours": 0.0,
             "NextStartTime": None,
+            "NextStopTime": None,
             "StartNow": False,
             "ForecastAveragePrice": 0.0,
             "ForecastEnergyUsage": 0.0,
@@ -237,6 +213,7 @@ class RunPlanner:
         run_plan["StartNow"] = False
         if run_plan["RunPlan"]:
             run_plan["NextStartTime"] = run_plan["RunPlan"][0]["StartTime"]
+            run_plan["NextStopTime"] = run_plan["RunPlan"][0]["EndTime"]
             time_now = DateHelper.now().replace(tzinfo=None).time()
             run_plan["StartNow"] = run_plan["NextStartTime"] <= time_now
 
@@ -287,6 +264,7 @@ class RunPlanner:
         return_str += f"  - PriorityHours: {run_plan['PriorityHours']}\n"
         return_str += f"  - PlannedHours: {run_plan['PlannedHours']}\n"
         return_str += f"  - NextStartTime: {run_plan['NextStartTime']}\n"
+        return_str += f"  - NextStopTime: {run_plan['NextStopTime']}\n"
         return_str += f"  - StartNow: {run_plan['StartNow']}\n"
         return_str += f"  - ForecastAveragePrice: {run_plan['ForecastAveragePrice']}\n"
         return_str += "   - Run Plan Slots:\n"
