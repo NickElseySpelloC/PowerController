@@ -1,0 +1,161 @@
+body {
+  font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif;
+  margin: 16px;
+}
+
+.card {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.output-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 150px; /* Reduced from 200px for mobile */
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  opacity: 0.7;
+  flex-wrap: wrap;
+}
+
+.reason-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reason-text {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.button-group {
+  display: flex;
+  gap: 6px; /* Reduced gap for mobile */
+  flex-shrink: 0;
+}
+
+button {
+  padding: 8px 10px; /* Slightly smaller padding for mobile */
+  border: none;
+  border-radius: 999px;
+  background: #eee;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 14px; /* Explicit font size */
+}
+
+button.active {
+  background: #2ecc71;
+  color: #fff;
+}
+
+.pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eee;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.on {
+  background: #2ecc71;
+  color: #fff;
+}
+
+.off {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.info_table {
+  border-collapse: separate;
+  border-spacing: 0 3px;
+  margin-top: 12px;
+}
+
+.info_td_label {
+  text-align: left; 
+  padding-right:4px; 
+  font-size:12px; 
+  opacity:0.7
+}
+
+.info_td_value {
+  padding-left:0px; 
+  padding-right:30px; 
+  font-size:13px; 
+  opacity:0.9
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 480px) {
+  .output-info {
+    min-width: 120px;
+  }
+  
+  .button-group {
+    gap: 4px;
+  }
+  
+  button {
+    padding: 8px 8px;
+    font-size: 13px;
+  }
+  
+  .status-line {
+    font-size: 11px;
+  }
+
+  /* Hide the full table on mobile */
+  .info_table.full {
+    display: none;
+  }
+
+  /* Show compact table on mobile */
+  .info_table.compact {
+    display: table;
+  }
+
+  .info_td_value {
+    padding-right: 15px; /* Reduced spacing for mobile */
+  }
+}
+
+/* Hide compact table on desktop */
+@media (min-width: 481px) {
+  .info_table.compact {
+    display: none;
+  }
+  
+  .info_table.full {
+    display: table;
+  }
+}

@@ -4,56 +4,8 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ global_data.AppLabel }}</title>
-  <style>
-    body {
-      font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif;
-      margin: 16px;
-    }
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 
-    .card {
-      border: 1px solid #ddd;
-      border-radius: 12px;
-      padding: 12px 14px;
-      margin-bottom: 12px;
-    }
-
-    .row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-
-    button {
-      padding: 10px 12px;
-      border: none;
-      border-radius: 999px;
-      background: #eee;
-      cursor: pointer;
-    }
-
-    button.active {
-      background: #2ecc71;
-      color: #fff;
-    }
-
-    .pill {
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: #eee;
-      font-size: 12px;
-    }
-
-    .on {
-      background: #2ecc71;
-      color: #fff;
-    }
-
-    .off {
-      background: #e74c3c;
-      color: #fff;
-    }
-  </style>
 </head>
 <body>
   <script id="global-data-json" type="application/json">
@@ -62,20 +14,22 @@
   <div id="output-list">
     {% for output_id, output in outputs.items() %}
     <div class="card" data-output-id="{{ output.id }}">
-      <div class="row">
-        <div>
-          <div style="font-weight:600; margin-bottom:4px">{{ output.name }}</div>
-          <div style="opacity:0.7;font-size:12px">
-            Mode: <span class="mode-display">{{ output.mode.upper() }}</span>
-            &nbsp;
-            <span class="pill status-pill {{ 'on' if output.is_on else 'off' }}">
-              {{ 'ON' if output.is_on else 'OFF' }}
-            </span>
-            &nbsp;
-            {{ output.reason if output.reason else '' }}
+      <div class="main-row">
+        <div class="output-info">
+          <div style="font-weight:600">{{ output.name }}</div>
+          <div class="status-line">
+            <span>Mode: <span class="mode-display">{{ output.mode.upper() }}</span></span>
+            <div class="reason-wrapper">
+              <span class="pill status-pill {{ 'on' if output.is_on else 'off' }}">
+                {{ 'ON' if output.is_on else 'OFF' }}
+              </span>
+              <span class="reason-text">
+                {{ output.reason if output.reason else '' }}
+              </span>
+            </div>
           </div>
         </div>
-        <div class="row">
+        <div class="button-group">
           <button class="mode-btn {{ 'active' if output.mode == 'on' else '' }}" 
                   data-mode="on" 
                   onclick="setMode('{{ output.id }}', 'on')">On</button>
@@ -87,86 +41,180 @@
                   onclick="setMode('{{ output.id }}', 'auto')">Auto</button>
         </div>
       </div>
+      <div class="row">
+        <!-- Full table for desktop -->
+        <table class="info_table full">
+          <!-- Column 1: Hours. Col 2: Energy, Col 3: Costs -->
+          <tr>
+            <td class="info_td_label">{{ 'Stop At:' if output.is_on else 'Start At:' }}</td>
+            <td class="info_td_value">{{ output.stopping_at if output.is_on else output.next_start_time }}</td>
+
+            <td class="info_td_label">Energy Used:</td>
+            <td class="info_td_value">{{ output.actual_energy_used }}</td>
+
+            <td class="info_td_label">Current Price:</td>
+            <td class="info_td_value">{{ output.current_price }}</td>
+          </tr>
+
+          <tr>
+            <td class="info_td_label">Target Hours:</td>
+            <td class="info_td_value">{{ output.target_hours }}</td>
+
+            <td class="info_td_label">Planned Energy:</td>
+            <td class="info_td_value">{{ output.forecast_energy_used }}</td>
+
+            <td class="info_td_label">Forecast Price:</td>
+            <td class="info_td_value">{{ output.forcast_price }}</td>
+          </tr>
+
+          <tr>
+            <td class="info_td_label">Actual Hours:</td>
+            <td class="info_td_value">{{ output.actual_hours }}</td>
+
+            <td class="info_td_label">Total Energy:</td>
+            <td class="info_td_value">{{ output.total_energy_used }}</td>
+
+            <td class="info_td_label">Average Price:</td>
+            <td class="info_td_value">{{ output.average_price }}</td>
+          </tr>
+          <tr>
+            <td class="info_td_label">Planned Hours:</td>
+            <td class="info_td_value">{{ output.planned_hours }}</td>
+
+            <td class="info_td_label">Power Draw:</td>
+            <td class="info_td_value">{{ output.power_draw }}</td>
+          </tr>
+        </table>
+
+        <!-- Compact table for mobile -->
+        <table class="info_table compact">
+          <tr>
+            <td class="info_td_label">{{ 'Stop At:' if output.is_on else 'Start At:' }}</td>
+            <td class="info_td_value">{{ output.stopping_at if output.is_on else output.next_start_time }}</td>
+
+            <td class="info_td_label">Current Price:</td>
+            <td class="info_td_value">{{ output.current_price }}</td>
+          </tr>
+
+          <tr>
+            <td class="info_td_label">Target Hours:</td>
+            <td class="info_td_value">{{ output.target_hours }}</td>
+
+            <td class="info_td_label">Forecast Price:</td>
+            <td class="info_td_value">{{ output.forcast_price }}</td>
+          </tr>
+
+          <tr>
+            <td class="info_td_label">Actual Hours:</td>
+            <td class="info_td_value">{{ output.actual_hours }}</td>
+
+            <td class="info_td_label">Average Price:</td>
+            <td class="info_td_value">{{ output.average_price }}</td>
+          </tr>
+
+          <tr>
+            <td class="info_td_label">Planned Hours:</td>
+            <td class="info_td_value">{{ output.planned_hours }}</td>
+
+            <td class="info_td_label">Power Draw:</td>
+            <td class="info_td_value">{{ output.power_draw }}</td>
+          </tr>
+        </table>
+      </div>
     </div>
     {% endfor %}
+  </div>
   <script>
     // Store global data from server
     const globalData = JSON.parse(document.getElementById('global-data-json').textContent);
     
+    // Helper function to build URL with access key if needed
+    function buildApiUrl(path) {
+      if (globalData.access_key) {
+        const separator = path.includes('?') ? '&' : '?';
+        return `${path}${separator}key=${encodeURIComponent(globalData.access_key)}`;
+      }
+      return path;
+    }
+    
     async function fetchOutputs() {
-      const res = await fetch('/api/outputs');
+      const res = await fetch(buildApiUrl('/api/outputs'));
       return await res.json();
     }
-
+   
     async function setMode(id, mode) {
       try {
-        await fetch(`/api/outputs/${id}/mode`, {
+        const response = await fetch(buildApiUrl(`/api/outputs/${id}/mode`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode })
         });
-        // Update the UI immediately after successful API call
-        updateOutputDisplay(id, mode);
+        
+        if (response.ok) {
+          // Update the button state immediately for user feedback
+          updateOutputDisplay(id, { mode });
+          
+          // Force an immediate refresh to get the updated server state
+          await refreshAllOutputs();
+        } else {
+          console.error('Failed to set mode:', response.statusText);
+        }
       } catch (error) {
         console.error('Failed to set mode:', error);
       }
     }
-
-    function updateOutputDisplay(outputId, newMode) {
+    
+    function updateOutputDisplay(outputId, outputData) {
       // Find the card for this output
       const card = document.querySelector(`[data-output-id="${outputId}"]`);
       if (!card) return;
 
-      // Update mode display
-      const modeDisplay = card.querySelector('.mode-display');
-      if (modeDisplay) {
-        modeDisplay.textContent = newMode.toUpperCase();
+      // Update mode display if provided
+      if (outputData.mode) {
+        const modeDisplay = card.querySelector('.mode-display');
+        if (modeDisplay) {
+          modeDisplay.textContent = outputData.mode.toUpperCase();
+        }
       }
 
-      // Update button states
-      const buttons = card.querySelectorAll('.mode-btn');
-      buttons.forEach(btn => {
-        const btnMode = btn.getAttribute('data-mode');
-        if (btnMode === newMode) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
+      // Update status pill if is_on is provided
+      if (outputData.is_on !== undefined) {
+        const statusPill = card.querySelector('.status-pill');
+        if (statusPill) {
+          statusPill.className = `pill status-pill ${outputData.is_on ? 'on' : 'off'}`;
+          statusPill.textContent = outputData.is_on ? 'ON' : 'OFF';
         }
-      });
+      }
+
+      // Update reason text if provided
+      if (outputData.reason !== undefined) {
+        const reasonSpan = card.querySelector('.reason-text');
+        if (reasonSpan) {
+          reasonSpan.textContent = outputData.reason || '';
+        }
+      }
+
+      // Update button states if mode is provided
+      if (outputData.mode) {
+        const buttons = card.querySelectorAll('.mode-btn');
+        buttons.forEach(btn => {
+          const btnMode = btn.getAttribute('data-mode');
+          if (btnMode === outputData.mode) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        });
+      }
     }
 
     async function refreshAllOutputs() {
       try {
         const data = await fetchOutputs();
         
-        // Update each output's display (data.outputs now contains the outputs)
+        // Update each output's display using updateOutputDisplay
         Object.values(data.outputs).forEach(output => {
-          const card = document.querySelector(`[data-output-id="${output.id}"]`);
-          if (!card) return;
-
-          // Update mode display
-          const modeDisplay = card.querySelector('.mode-display');
-          if (modeDisplay) {
-            modeDisplay.textContent = output.mode.toUpperCase();
-          }
-
-          // Update status pill
-          const statusPill = card.querySelector('.status-pill');
-          if (statusPill) {
-            statusPill.className = `pill status-pill ${output.is_on ? 'on' : 'off'}`;
-            statusPill.textContent = output.is_on ? 'ON' : 'OFF';
-          }
-
-          // Update button states
-          const buttons = card.querySelectorAll('.mode-btn');
-          buttons.forEach(btn => {
-            const btnMode = btn.getAttribute('data-mode');
-            if (btnMode === output.mode) {
-              btn.classList.add('active');
-            } else {
-              btn.classList.remove('active');
-            }
-          });
+          updateOutputDisplay(output.id, output);
         });
       } catch (error) {
         console.error('Failed to refresh outputs:', error);
@@ -176,6 +224,6 @@
     // Use the poll interval from global data
     const refreshInterval = (globalData.PollInterval || 4) * 1000;
     setInterval(refreshAllOutputs, refreshInterval);
-  </script>
+</script>
 </body>
 </html>

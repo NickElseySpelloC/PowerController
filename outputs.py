@@ -619,7 +619,7 @@ class OutputManager:
 
         return return_str
 
-    def get_webapp_data(self) -> dict:
+    def get_webapp_data(self) -> dict:  # noqa: PLR0914
         """Get the data for the web application.
 
         Returns:
@@ -631,6 +631,7 @@ class OutputManager:
         forecast_cost = self.run_plan.get("EstimatedCost", 0) if self.run_plan else 0
         actual_energy_used = current_day["EnergyUsed"] / 1000 if current_day else 0
         forcast_energy_used = self.run_plan.get("ForecastEnergyUsage", 0) if self.run_plan else 0
+        forcast_price = self.run_plan.get("ForecastAveragePrice", 0) if self.run_plan else 0
 
         next_start_dt = self.run_plan.get("NextStartTime") if self.run_plan else None
         if next_start_dt and not self.is_on:
@@ -657,6 +658,7 @@ class OutputManager:
             "actual_cost": f"${actual_cost:.2f}",
             "forcast_energy_used": f"{forcast_energy_used:.3f}kWh",
             "forcast_cost": f"${forecast_cost:.2f}",
+            "forcast_price": f"{forcast_price:.2f} c/kWh" if forcast_price > 0 else "N/A",
 
             # These are calculated below
             "total_energy_used": 0,
@@ -666,7 +668,8 @@ class OutputManager:
             # Information on the current run
             "next_start_time": next_start,
             "stopping_at": stopping_at,
-            "reason": self.reason.value if self.reason else "Unknown",
+            # "reason": self.reason.value if self.reason else "Unknown",
+            "reason": " ",
             "power_draw": f"{power_draw:.0f}W" if power_draw else "None",
             "current_price": f"{self._get_current_price():.1f} c/kWh",
         }

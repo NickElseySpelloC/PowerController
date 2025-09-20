@@ -101,15 +101,6 @@ class OutputStatusData:
     current_price: float
 
 
-# To be replaced by the Output state snapshot
-@dataclass
-class LightState:
-    light_id: str
-    mode: AppMode = AppMode.AUTO
-    is_on: bool = False
-    name: str = ""
-
-
 # Define the structure for commands to be posted to Controller
 @dataclass
 class Command:

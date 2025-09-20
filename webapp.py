@@ -2,31 +2,64 @@ from threading import Thread
 
 from flask import Flask, jsonify, render_template, request
 from sc_utility import SCConfigManager, SCLogger
+from werkzeug.datastructures import MultiDict
 from werkzeug.serving import make_server
 
 from controller import AppMode, Command, PowerController
 
 
-def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:  # noqa: ARG001
-    app = Flask(__name__, static_folder=None)
-    app.config["DEBUG"] = True  # TO DO: Make configurable
+def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:
+    app = Flask(__name__)
+    app.config["DEBUG"] = config.get("Website", "DebugMode", default=False) or False
 
-    # TO DO: Add support for access key
+    def validate_access_key(args: MultiDict[str, str]) -> bool:
+        """Validate the access key from the request arguments.
+
+        Args:
+            args (dict): The request arguments containing the access key.
+
+        Returns:
+            bool: True if the access key is valid, False otherwise.
+        """
+        assert config is not None, "Config instance is not initialized."
+        assert logger is not None, "Logger instance is not initialized."
+
+        if config.get("Website", "AccessKey") is not None:
+            access_key = args.get("key", default=None, type=str)
+            if access_key != config.get("Website", "AccessKey"):
+                logger.log_message(f"Invalid access key {access_key} used.", "warning")
+                return False
+        return True
 
     @app.get("/api/outputs")
     def list_outputs():
-        return jsonify(controller.get_webapp_data())
+        # Validate the access key if provided
+        print(request.args)
+        if not validate_access_key(request.args):
+            return "Access forbidden.", 403
+
+        json_data = jsonify(controller.get_webapp_data())
+        return json_data
 
     @app.get("/api/outputs/<output_id>")
     def get_output(output_id):
+        # Validate the access key if provided
+        if not validate_access_key(request.args):
+            return "Access forbidden.", 403
+
         snapshot = controller.get_webapp_data()
         if output_id not in snapshot["outputs"]:
             logger.log_message(f"Output ID {output_id} not found", "warning")
             return jsonify({"error": "not found"}), 404
-        return jsonify(snapshot["outputs"][output_id])
+        json_data = jsonify(snapshot["outputs"][output_id])
+        return json_data
 
     @app.post("/api/outputs/<output_id>/mode")
     def set_mode(output_id):
+        # Validate the access key if provided
+        if not validate_access_key(request.args):
+            return "Access forbidden.", 403
+
         data = request.get_json(silent=True) or {}
         mode = (data.get("mode") or "").lower()
         if mode not in {m.value for m in AppMode}:
@@ -36,6 +69,10 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
 
     @app.get("/")
     def index():
+        # Validate the access key if provided
+        if not validate_access_key(request.args):
+            return "Access forbidden.", 403
+
         snapshot = controller.get_webapp_data()
         return render_template("index.html",
                              global_data=snapshot["global"],

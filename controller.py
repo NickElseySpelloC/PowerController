@@ -12,7 +12,7 @@ from sc_utility import (
     ShellyControl,
 )
 
-from enumerations import AppMode, Command, LightState, LookupMode
+from enumerations import AppMode, Command, LookupMode
 from external_services import ExternalServiceHelper
 from outputs import OutputManager
 from pricing import PricingManager
@@ -41,12 +41,6 @@ class PowerController:
             self.report_critical_errors_delay = round(self.report_critical_errors_delay, 0)
         else:
             self.report_critical_errors_delay = None
-
-        # TO DO: Remove
-        self.lights: dict[str, LightState] = {
-            "porch": LightState("porch", AppMode.AUTO, False, "Porch"),
-            "drive": LightState("drive", AppMode.AUTO, False, "Driveway"),
-        }
 
         # Setup the environment
         self.outputs = []   # List of output state managers, each one a OutputStateManager object.
@@ -221,6 +215,7 @@ class PowerController:
             dict: The state snapshot containing theoutputs.
         """
         global_data = {
+            "access_key": self.config.get("Website", "AccessKey"),
             "AppLabel": self.app_label,
             "PollInterval": self.webapp_refresh,
         }
