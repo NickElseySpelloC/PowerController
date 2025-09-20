@@ -34,7 +34,6 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
     @app.get("/api/outputs")
     def list_outputs():
         # Validate the access key if provided
-        print(request.args)
         if not validate_access_key(request.args):
             return "Access forbidden.", 403
 

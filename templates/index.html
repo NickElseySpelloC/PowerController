@@ -54,6 +54,9 @@
 
             <td class="info_td_label">Current Price:</td>
             <td class="info_td_value">{{ output.current_price }}</td>
+
+            <td class="info_td_label">Actual Cost:</td>
+            <td class="info_td_value">{{ output.actual_cost }}</td>
           </tr>
 
           <tr>
@@ -64,7 +67,10 @@
             <td class="info_td_value">{{ output.forecast_energy_used }}</td>
 
             <td class="info_td_label">Forecast Price:</td>
-            <td class="info_td_value">{{ output.forcast_price }}</td>
+            <td class="info_td_value">{{ output.forecast_price }}</td>
+
+            <td class="info_td_label">Forecast Cost:</td>
+            <td class="info_td_value">{{ output.forecast_cost }}</td>
           </tr>
 
           <tr>
@@ -76,6 +82,9 @@
 
             <td class="info_td_label">Average Price:</td>
             <td class="info_td_value">{{ output.average_price }}</td>
+
+            <td class="info_td_label">Total Cost:</td>
+            <td class="info_td_value">{{ output.total_cost }}</td>
           </tr>
           <tr>
             <td class="info_td_label">Planned Hours:</td>
@@ -83,6 +92,12 @@
 
             <td class="info_td_label">Power Draw:</td>
             <td class="info_td_value">{{ output.power_draw }}</td>
+
+            <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td>
+
+            <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td>
           </tr>
         </table>
 
@@ -101,7 +116,7 @@
             <td class="info_td_value">{{ output.target_hours }}</td>
 
             <td class="info_td_label">Forecast Price:</td>
-            <td class="info_td_value">{{ output.forcast_price }}</td>
+            <td class="info_td_value">{{ output.forecast_price }}</td>
           </tr>
 
           <tr>

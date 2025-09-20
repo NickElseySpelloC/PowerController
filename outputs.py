@@ -629,9 +629,9 @@ class OutputManager:
         current_day = self.run_history.get_current_day()
         actual_cost = current_day["TotalCost"] if current_day else 0
         forecast_cost = self.run_plan.get("EstimatedCost", 0) if self.run_plan else 0
-        actual_energy_used = current_day["EnergyUsed"] / 1000 if current_day else 0
-        forcast_energy_used = self.run_plan.get("ForecastEnergyUsage", 0) if self.run_plan else 0
-        forcast_price = self.run_plan.get("ForecastAveragePrice", 0) if self.run_plan else 0
+        actual_energy_used = current_day["EnergyUsed"] if current_day else 0
+        forecast_energy_used = self.run_plan.get("ForecastEnergyUsage", 0) if self.run_plan else 0
+        forecast_price = self.run_plan.get("ForecastAveragePrice", 0) if self.run_plan else 0
 
         next_start_dt = self.run_plan.get("NextStartTime") if self.run_plan else None
         if next_start_dt and not self.is_on:
@@ -654,11 +654,11 @@ class OutputManager:
             "target_hours": f"{target_hours:.1f}" if target_hours is not None else "Rest of Day",
             "actual_hours": f"{self.run_history.get_actual_hours():.1f}",
             "planned_hours": f"{(self.run_plan.get("RequiredHours", 0) if self.run_plan else 0):.1f}",
-            "actual_energy_used": f"{actual_energy_used:.3f}kWh",
+            "actual_energy_used": f"{actual_energy_used / 1000:.3f}kWh",
             "actual_cost": f"${actual_cost:.2f}",
-            "forcast_energy_used": f"{forcast_energy_used:.3f}kWh",
-            "forcast_cost": f"${forecast_cost:.2f}",
-            "forcast_price": f"{forcast_price:.2f} c/kWh" if forcast_price > 0 else "N/A",
+            "forecast_energy_used": f"{forecast_energy_used / 1000:.3f}kWh",
+            "forecast_cost": f"${forecast_cost:.2f}",
+            "forecast_price": f"{forecast_price:.2f} c/kWh" if forecast_price > 0 else "N/A",
 
             # These are calculated below
             "total_energy_used": 0,
@@ -675,8 +675,8 @@ class OutputManager:
         }
         total_cost = actual_cost + forecast_cost
         data["total_cost"] = f"${total_cost:.2f}"
-        total_energy_used = actual_energy_used + forcast_energy_used
-        data["total_energy_used"] = f"{total_energy_used:.3f}kWh"
+        total_energy_used = actual_energy_used + forecast_energy_used
+        data["total_energy_used"] = f"{total_energy_used / 1000:.3f}kWh"
         average_price = RunHistory.calc_price(total_energy_used, total_cost)
         data["average_price"] = f"{average_price:.2f} c/kWh" if average_price > 0 else "N/A"
         return data
