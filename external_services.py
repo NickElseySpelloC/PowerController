@@ -1,5 +1,8 @@
 """Support functions for integration with external services."""
 
+import gzip
+import json
+
 import requests
 from sc_utility import DateHelper, JSONEncoder, SCConfigManager, SCLogger
 
@@ -88,6 +91,8 @@ class ExternalServiceHelper:
             return
         try:
             json_data = JSONEncoder.ready_dict_for_json(system_state)
+            json_str = json.dumps(json_data)
+            compressed_data = gzip.compress(json_str.encode("utf-8"))
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Failed to prepare system state for JSON: {e}")
 
@@ -96,9 +101,10 @@ class ExternalServiceHelper:
             api_url += f"?key={access_key}"
         headers = {
             "Content-Type": "application/json",
+            "Content-Encoding": "gzip",
         }
         try:
-            response = requests.post(api_url, headers=headers, json=json_data, timeout=timeout_wait)  # type: ignore[call-arg]
+            response = requests.post(api_url, headers=headers, data=compressed_data, timeout=timeout_wait)  # type: ignore[call-arg]
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
             try:

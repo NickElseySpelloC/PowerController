@@ -668,8 +668,7 @@ class OutputManager:
             # Information on the current run
             "next_start_time": next_start,
             "stopping_at": stopping_at,
-            # "reason": self.reason.value if self.reason else "Unknown",
-            "reason": " ",
+            "reason": self.reason.value if self.reason else "Unknown",
             "power_draw": f"{power_draw:.0f}W" if power_draw else "None",
             "current_price": f"{self._get_current_price():.1f} c/kWh",
         }

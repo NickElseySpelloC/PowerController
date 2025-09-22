@@ -188,25 +188,34 @@ class PowerController:
         if not system_state_path:
             return
 
-        save_object = {
-            "StateFileType": "PowerController",
-            "DeviceName": self.app_label,
-            "SaveTime": DateHelper.now(),
-            "Outputs": [],
-            "Scheduler": self.scheduler.get_save_object(),
-        }
         try:
+            save_object = {
+                "StateFileType": "PowerController",
+                "DeviceName": self.app_label,
+                "SaveTime": DateHelper.now(),
+                "Outputs": [],
+                "Scheduler": self.scheduler.get_save_object(),
+            }
             for output in self.outputs:
                 output_save_object = output.get_save_object()
                 save_object["Outputs"].append(output_save_object)
 
             # Save the file
             JSONEncoder.save_to_file(save_object, system_state_path)
-
-            # Post to the web server if needed - this function takes care of frequency checks
-            self.external_service_helper.post_state_to_web_viewer(save_object, force_post=force_post)
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             self.logger.log_fatal_error(f"Error saving system state: {e}")
+
+        # Post to the web server if needed - this function takes care of frequency checks
+        # Break each output into a seperate post to reduce the size of each post
+        for output in self.outputs:
+            post_object = {
+                "StateFileType": "PowerController",
+                "DeviceName": f"{self.app_label} - {output.name}",
+                "SaveTime": DateHelper.now(),
+                "Output": output.get_save_object(),
+                "Scheduler": self.scheduler.get_save_object(output.schedule),
+            }
+            self.external_service_helper.post_state_to_web_viewer(post_object, force_post=force_post)
 
     def get_webapp_data(self) -> dict:
         """Returns a dict object with a snapshot of the current state of all outputs.

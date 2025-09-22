@@ -46,12 +46,23 @@ class Scheduler:
         self.default_price = self.config.get("General", "DefaultPrice", default=DEFAULT_PRICE) or DEFAULT_PRICE
         assert isinstance(self.default_price, (int, float)) and self.default_price >= 0, "DefaultPrice must be a non-negative number"  # noqa: PT018
 
-    def get_save_object(self) -> dict:
+    def get_save_object(self, schedule: dict | None = None) -> dict:
         """Returns the representation of this scheduler object that can be saved to disk.
+
+        Args:
+            schedule (dict | None): The schedule to include in the save object.
 
         Returns:
             dict: The representation of the scheduler object.
         """
+        if schedule:
+            schedule_dict = {
+                "Schedule": schedule,
+                "Dawn": self.dusk_dawn.get("dawn") if self.dusk_dawn else None,
+                "Dusk": self.dusk_dawn.get("dusk") if self.dusk_dawn else None,
+            }
+            return schedule_dict
+
         schedule_dict = {
             "Schedules": self.schedules,
             "Dawn": self.dusk_dawn.get("dawn") if self.dusk_dawn else None,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ global_data.AppLabel }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
 <body>
   <script id="global-data-json" type="application/json">
@@ -23,6 +23,7 @@
               <span class="pill status-pill {{ 'on' if output.is_on else 'off' }}">
                 {{ 'ON' if output.is_on else 'OFF' }}
               </span>
+              <!-- TO DO: Put reason text on new line -->
               <span class="reason-text">
                 {{ output.reason if output.reason else '' }}
               </span>

@@ -53,7 +53,7 @@ def main():
     web_thread.start()
 
     # Handle the SIGINT signal (Ctrl-C) so that we can gracefull shut down when this is received.
-    def handle_sigint(sig, frame):
+    def handle_sigint(sig, frame):  # noqa: ARG001
         """Handle the SIGINT signal.
 
         Args:
@@ -67,6 +67,8 @@ def main():
 
     try:
         controller.run(stop_event=stop_event)
+    except Exception as e:  # noqa: BLE001  # Final catch all for any unexpected errors
+        logger.log_fatal_error(f"Unexpected error in main loop: {e}", report_stack=True)
     finally:
         web_thread.shutdown()
 

@@ -69,7 +69,9 @@ class RunHistory:
                 "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
                 "TotalCost": 0.0,  # Total cost in $
                 "AveragePrice": 0.0,  # Average price in c/kWh
-                "ActualHours": 0.0
+                "ActualHours": 0.0,
+                "ActualHoursPerDay": 0.0
+
             },
             "EarlierTotals": {   # Totals for all the days prior to the current history that have rolled off
                 "EnergyUsed": 0,
@@ -341,8 +343,9 @@ class RunHistory:
         # Reset the CurrentTotals
         self.history["CurrentTotals"]["EnergyUsed"] = 0
         self.history["CurrentTotals"]["TotalCost"] = 0.0
-        self.history["CurrentTotals"]["ActualHours"] = 0.0
         self.history["CurrentTotals"]["AveragePrice"] = 0.0
+        self.history["CurrentTotals"]["ActualHours"] = 0.0
+        self.history["CurrentTotals"]["ActualHoursPerDay"] = 0.0
 
         # Set a default for the AlltimeTotals in case we don't have anything to process
         self.history["AlltimeTotals"]["EnergyUsed"] = self.history["EarlierTotals"]["EnergyUsed"]
@@ -390,7 +393,9 @@ class RunHistory:
             running_shortfall += status_data.target_hours - day["ActualHours"] if status_data.target_hours is not None else 0.0
 
         # Calculate the remaining values for CurrentTotals
+        self.history["HistoryDays"] = len(self.history["DailyData"])
         self.history["CurrentTotals"]["AveragePrice"] = self.calc_price(self.history["CurrentTotals"]["EnergyUsed"], self.history["CurrentTotals"]["TotalCost"])
+        self.history["CurrentTotals"]["ActualHoursPerDay"] = self.history["CurrentTotals"]["ActualHours"] / self.history["HistoryDays"] if self.history["HistoryDays"] > 0 else 0.0
 
         # Finally calculate the values for AlltimeTotals
         self.history["AlltimeTotals"]["EnergyUsed"] = self.history["CurrentTotals"]["EnergyUsed"] + self.history["EarlierTotals"]["EnergyUsed"]
@@ -400,7 +405,6 @@ class RunHistory:
         self.history["AlltimeTotals"]["HourlyEnergyUsed"] = self.history["AlltimeTotals"]["EnergyUsed"] / self.history["AlltimeTotals"]["ActualHours"] if self.history["AlltimeTotals"]["ActualHours"] > 0 else 0.0
 
         self.history["LastUpdate"] = DateHelper.now()
-        self.history["HistoryDays"] = len(self.history["DailyData"])
         current_run = self.get_current_run()
         self.history["LastStartTime"] = current_run["StartTime"] if current_run else None
         self.history["LastMeterRead"] = status_data.meter_reading
