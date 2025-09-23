@@ -59,6 +59,7 @@ class ExternalServiceHelper:
             return False
         else:
             if response.status_code == 200:
+                self.logger.log_message(f"Heartbeat ping posted to {heartbeat_url}", "debug")
                 return True
             self.logger.log_message(f"Heartbeat ping failed with status code: {response.status_code}", "error")
             return False
@@ -117,6 +118,6 @@ class ExternalServiceHelper:
             except (ValueError, requests.exceptions.JSONDecodeError, UnboundLocalError):
                 returned_json = response.text if hasattr(response, "text") else "No response content"
             self.logger.log_fatal_error(f"Error saving state to web server at {api_url}: Error: {e}, Response: {returned_json}")
-
-        # Record the time of the last post even if it failed so that we don't keep retrying on errors
-        self.logger.log_message(f"Posted state for {system_state.get('DeviceName')} to {api_url}.", "debug")
+        else:
+            # Record the time of the last post even if it failed so that we don't keep retrying on errors
+            self.logger.log_message(f"Posted state for {system_state.get('DeviceName')} to {api_url}.", "debug")

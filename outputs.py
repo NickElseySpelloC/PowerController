@@ -93,6 +93,7 @@ class OutputManager:
         self.reason = None
 
         self.initialise(output_config)
+        self.logger.log_message(f"Output {self.name} initialised.", "debug")
 
         # See if the output's saved state matches the actual device state
         assert self.device_output is not None

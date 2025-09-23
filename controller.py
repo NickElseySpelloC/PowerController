@@ -178,6 +178,7 @@ class PowerController:
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error loading system state: {e}")
         else:
+            self.logger.log_message(f"Loaded system state from {system_state_path}", "debug")
             return state_data
 
     def save_system_state(self, force_post: bool = False):  # noqa: FBT001, FBT002
@@ -206,11 +207,11 @@ class PowerController:
             JSONEncoder.save_to_file(save_object, system_state_path)
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             self.logger.log_fatal_error(f"Error saving system state: {e}")
+        else:
+            self.logger.log_message(f"System state saved to {system_state_path}", "debug")
 
         # Post to the web server if needed - this function takes care of frequency checks
         # Break each output into a seperate post to reduce the size of each post
-
-        # TO DO: Move to parent so that post for all instances
         frequency = self.config.get("ViewerWebsite", "Frequency", default=30) or 30
         if self.config.get("ViewerWebsite", "Enable", default=False):
             if self.viewer_website_last_post:
@@ -273,6 +274,7 @@ class PowerController:
                 return
 
             # Set the new mode, the output will deal with it in the next tick
+            self.logger.log_message(f"Applying new mode {new_mode} to output {output_id}", "debug")
             output.app_mode = new_mode
 
             # And evaluate the conditions immediately
@@ -284,6 +286,8 @@ class PowerController:
         Args:
             stop_event (Event): The event used to stop the controller.
         """
+        self.logger.log_message("Power controller starting main control loop.", "detailed")
+
         while not stop_event.is_set():
             while True:
                 print(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")

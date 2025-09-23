@@ -60,7 +60,6 @@ def main():
             sig (signal.Signals): The signal number.
             frame (frame): The current stack frame.
         """
-        # print(f"\n[Sys] SIGINT -> stopping. Received signal {sig} in frame {frame}")
         stop_event.set()
         wake_event.set()
     signal.signal(signal.SIGINT, handle_sigint)

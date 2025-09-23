@@ -37,6 +37,7 @@ class PricingManager:
         self.price_data = []       # The processed pricing data
 
         self.initialise()
+        self.logger.log_message("Pricing manager initialised.", "debug")
 
     def initialise(self):
         """(re) initialise the pricing manager."""
