@@ -34,6 +34,7 @@ class PowerController:
         self.last_config_check = DateHelper.now()
         self.logger = logger
         self.external_service_helper = ExternalServiceHelper(config, logger)
+        self.viewer_website_last_post = None
         self.wake_event = wake_event    # The event used to interrupt the main loop
         self.cmd_q: queue.Queue[Command] = queue.Queue()    # Used to post commands into the controller's loop
         self.shelly_device_concurrent_error_count = 0
@@ -208,15 +209,25 @@ class PowerController:
 
         # Post to the web server if needed - this function takes care of frequency checks
         # Break each output into a seperate post to reduce the size of each post
-        for output in self.outputs:
-            post_object = {
-                "StateFileType": "PowerController",
-                "DeviceName": f"{self.app_label} - {output.name}",
-                "SaveTime": DateHelper.now(),
-                "Output": output.get_save_object(),
-                "Scheduler": self.scheduler.get_save_object(output.schedule),
-            }
-            self.external_service_helper.post_state_to_web_viewer(post_object, force_post=force_post)
+
+        # TO DO: Move to parent so that post for all instances
+        frequency = self.config.get("ViewerWebsite", "Frequency", default=30) or 30
+        if self.config.get("ViewerWebsite", "Enable", default=False):
+            if self.viewer_website_last_post:
+                time_since_last_post = (DateHelper.now() - self.viewer_website_last_post).total_seconds()
+            else:
+                time_since_last_post = frequency + 1   # pyright: ignore[reportOperatorIssue]
+            if time_since_last_post >= frequency or force_post:  # pyright: ignore[reportOperatorIssue]
+                for output in self.outputs:
+                    post_object = {
+                        "StateFileType": "PowerController",
+                        "DeviceName": f"{self.app_label} - {output.name}",
+                        "SaveTime": DateHelper.now(),
+                        "Output": output.get_save_object(),
+                        "Scheduler": self.scheduler.get_save_object(output.schedule),
+                    }
+                    self.external_service_helper.post_state_to_web_viewer(post_object)
+                self.viewer_website_last_post = DateHelper.now()
 
     def get_webapp_data(self) -> dict:
         """Returns a dict object with a snapshot of the current state of all outputs.

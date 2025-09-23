@@ -1,7 +1,7 @@
 [project]
 name = "powercontroller"
 version = "0.1.0"
-description = "Add your description here"
+description = "App to control and monitor devices via Shelly smart switches"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -10,7 +10,7 @@ dependencies = [
     "org-enums",
     "python-dateutil>=2.9.0.post0",
     "pytz>=2025.2",
-    "sc-utility>=2.3.2",
+    "sc-utility>=2.3.4",
     "werkzeug>=3.1.3",
 ]
 

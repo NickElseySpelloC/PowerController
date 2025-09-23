@@ -22,7 +22,6 @@ class ExternalServiceHelper:
         self.config = config
         self.logger = logger
         self.heartbeat_last_post = None
-        self.viewer_website_last_post = None
 
     def ping_heatbeat(self, is_fail: bool | None = None) -> bool:  # noqa: FBT001
         """Ping the heartbeat URL to check if the service is available.
@@ -64,26 +63,19 @@ class ExternalServiceHelper:
             self.logger.log_message(f"Heartbeat ping failed with status code: {response.status_code}", "error")
             return False
 
-    def post_state_to_web_viewer(self, system_state: dict, force_post: bool = False) -> None:  # noqa: FBT001, FBT002
+    def post_state_to_web_viewer(self, system_state: dict) -> None:
         """Post the LightingController state to the web server if WebsiteBaseURL is set in config.
 
         Args:
             system_state (dict): The state data to be posted, json friendly
-            force_post (bool): If True, post the state regardless of frequency settings.
         """
         is_enabled = self.config.get("ViewerWebsite", "Enable", default=False)
         base_url = self.config.get("ViewerWebsite", "BaseURL", default=None)
         access_key = self.config.get("ViewerWebsite", "AccessKey", default=None)
         timeout_wait = self.config.get("ViewerWebsite", "APITimeout", default=5)
-        frequency = self.config.get("ViewerWebsite", "Frequency", default=30)
 
         if not is_enabled or base_url is None:
             return
-
-        if self.viewer_website_last_post is not None and not force_post:
-            time_since_last_post = (DateHelper.now() - self.viewer_website_last_post).total_seconds()
-            if time_since_last_post < frequency:  # pyright: ignore[reportOperatorIssue]
-                return
 
         # Convert the system state to a JSON-ready dict
         if not isinstance(system_state, (dict, list)):
@@ -127,4 +119,4 @@ class ExternalServiceHelper:
             self.logger.log_fatal_error(f"Error saving state to web server at {api_url}: Error: {e}, Response: {returned_json}")
 
         # Record the time of the last post even if it failed so that we don't keep retrying on errors
-        self.viewer_website_last_post = DateHelper.now()
+        self.logger.log_message(f"Posted state for {system_state.get('DeviceName')} to {api_url}.", "debug")
