@@ -2,19 +2,21 @@
 import datetime as dt
 import urllib.parse
 
-from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
-
-from enumerations import (
-    AmberChannel,
+from org_enums import (
     AppMode,
-    InputMode,
-    OutputStatusData,
     RunPlanMode,
     RunPlanStatus,
     RunPlanTargetHours,
     StateReasonOff,
     StateReasonOn,
     SystemState,
+)
+from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
+
+from local_enumerations import (
+    AmberChannel,
+    InputMode,
+    OutputStatusData,
 )
 from pricing import PricingManager
 from run_history import RunHistory

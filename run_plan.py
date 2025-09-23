@@ -2,9 +2,10 @@
 import datetime as dt
 import operator
 
+from org_enums import RunPlanMode, RunPlanStatus
 from sc_utility import DateHelper, SCLogger
 
-from enumerations import AmberChannel, RunPlanMode, RunPlanStatus
+from local_enumerations import AmberChannel
 
 
 class RunPlanner:

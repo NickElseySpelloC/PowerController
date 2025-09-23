@@ -1,11 +1,13 @@
 from threading import Thread
 
 from flask import Flask, jsonify, render_template, request
+from org_enums import AppMode
 from sc_utility import SCConfigManager, SCLogger
 from werkzeug.datastructures import MultiDict
 from werkzeug.serving import make_server
 
-from controller import AppMode, Command, PowerController
+from controller import PowerController
+from local_enumerations import Command
 
 
 def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:

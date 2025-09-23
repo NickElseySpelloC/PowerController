@@ -9,7 +9,7 @@ from sc_utility import SCConfigManager, SCLogger
 
 from config_schemas import ConfigSchema
 from controller import PowerController
-from enumerations import CONFIG_FILE
+from local_enumerations import CONFIG_FILE
 from webapp import FlaskServerThread, create_flask_app
 
 

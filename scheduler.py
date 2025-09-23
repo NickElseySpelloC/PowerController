@@ -6,9 +6,10 @@ import re
 import pytz
 from astral import LocationInfo
 from astral.sun import sun
+from org_enums import RunPlanMode
 from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
 
-from enumerations import DEFAULT_PRICE, WEEKDAY_ABBREVIATIONS, RunPlanMode
+from local_enumerations import DEFAULT_PRICE, WEEKDAY_ABBREVIATIONS
 from run_plan import RunPlanner
 
 

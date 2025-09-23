@@ -5,15 +5,15 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
+from org_enums import RunPlanMode
 from sc_utility import DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
 
-from enumerations import (
+from local_enumerations import (
     PRICE_SLOT_INTERVAL,
     PRICES_DATA_FILE,
     AmberAPIMode,
     AmberChannel,
     PriceFetchMode,
-    RunPlanMode,
 )
 from run_plan import RunPlanner
 

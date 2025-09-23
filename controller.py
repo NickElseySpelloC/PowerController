@@ -3,6 +3,7 @@ import queue
 from pathlib import Path
 from threading import Event
 
+from org_enums import AppMode
 from sc_utility import (
     DateHelper,
     JSONEncoder,
@@ -12,8 +13,8 @@ from sc_utility import (
     ShellyControl,
 )
 
-from enumerations import AppMode, Command, LookupMode
 from external_services import ExternalServiceHelper
+from local_enumerations import Command, LookupMode
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler

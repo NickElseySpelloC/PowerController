@@ -2,15 +2,15 @@
 
 import datetime as dt
 
-from sc_utility import DateHelper, SCLogger
-
-from enumerations import (
-    OutputStatusData,
+from org_enums import (
     RunPlanTargetHours,
     StateReasonOff,
     StateReasonOn,
     SystemState,
 )
+from sc_utility import DateHelper, SCLogger
+
+from local_enumerations import OutputStatusData
 
 
 class RunHistory:
