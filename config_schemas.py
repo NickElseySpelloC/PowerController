@@ -208,6 +208,8 @@ class ConfigSchema:
                         "DeviceInputMode": {"type": "string", "required": False, "nullable": True, "allowed": ["Ignore", "TurnOn", "TurnOff"]},
                         "ParentOutput": {"type": "string", "required": False, "nullable": True},
                         "StopOnExit": {"type": "boolean", "required": False, "nullable": True},
+                        "MinOnTime": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 60},
+                        "MinOffTime": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 60},
                     },
                 },
             },

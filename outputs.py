@@ -79,6 +79,14 @@ class OutputManager:
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.dates_off = []
 
+        # Minimum runtime configuration
+        self.min_on_time = output_config.get("MinOnTime", 0)  # minutes
+        self.min_off_time = output_config.get("MinOffTime", 0)  # minutes
+
+        # Track state change times
+        self.last_turned_on = saved_state.get("LastTurnedOn") if saved_state else None
+        self.last_turned_off = saved_state.get("LastTurnedOff") if saved_state else None
+
         try:
             saved_run_history = None
             if saved_state and "RunHistory" in saved_state:
@@ -257,6 +265,10 @@ class OutputManager:
             "MaxHours": self.max_hours,
             "TargetHours": self._get_target_hours(),
             "RunPlanTargetMode": self.run_plan_target_mode,
+            "LastTurnedOn": self.last_turned_on,
+            "LastTurnedOff": self.last_turned_off,
+            "MinOnTime": self.min_on_time,
+            "MinOffTime": self.min_off_time,
             "DatesOff": self.dates_off,
             "RunPlan": self.run_plan,
             "RunHistory": self.run_history.history,
@@ -401,23 +413,32 @@ class OutputManager:
             return
         assert isinstance(new_output_state, bool)
 
+        if new_output_state and reason_on is None:
+            self.logger.log_fatal_error(f"Output {self.name} state evaluates to On but reason_on not set.")
+        elif not new_output_state and reason_off is None:
+            self.logger.log_fatal_error(f"Output {self.name} state evaluates to Off but reason_off not set.")
+
         # If we're proposing to turn on and the system_state is AUTO, then make sure our parent output allows this
         if new_system_state == SystemState.AUTO and new_output_state and self.parent_output and not self.parent_output.is_on:
             # The output of the parent device is off, so we have to remain off
             new_output_state = False
             reason_off = StateReasonOff.PARENT_OFF
 
-        if new_output_state and reason_on is None:
-            self.logger.log_fatal_error(f"Output {self.name} state evaluates to On but reason_on not set.")
-        elif not new_output_state and reason_off is None:
-            self.logger.log_fatal_error(f"Output {self.name} state evaluates to Off but reason_off not set.")
-        # And finally we're ready to apply our changes
-        if new_output_state:
-            assert reason_on is not None
-            self._turn_on(new_system_state, reason_on)
-        else:
-            assert reason_off is not None
-            self._turn_off(new_system_state, reason_off)
+        # Check minimum runtime constraints before applying changes
+        if self._should_respect_minimum_runtime(new_output_state):
+            # message here
+            if self.is_on:
+                self.print_to_console(f"Output {self.name} has been ON for less than MinOnTime of {self.min_on_time} minutes. Will remain ON until minimum time has elapsed.")
+            else:
+                self.print_to_console(f"Output {self.name} has been OFF for less than MinOffTime of {self.min_off_time} minutes. Will remain OFF until minimum time has elapsed.")
+        else:  # noqa: PLR5501
+            # And finally we're ready to apply our changes
+            if new_output_state:
+                assert reason_on is not None
+                self._turn_on(new_system_state, reason_on)
+            else:
+                assert reason_off is not None
+                self._turn_off(new_system_state, reason_off)
 
     def _get_input_state(self) -> bool | None:
         """Get the current state of the input device if it exists.
@@ -532,6 +553,10 @@ class OutputManager:
         else:
             self.logger.clear_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline")
 
+        # Track when we turned on (only if actually changing state)
+        if not self.is_on:  # Only update if we're actually changing from off to on
+            self.last_turned_on = DateHelper.now()
+
         self.is_on = True
 
         # If the system_state or reason has changed, update them and log the change
@@ -573,6 +598,10 @@ class OutputManager:
                     self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} off.")  # pyright: ignore[reportArgumentType]
         else:
             self.logger.clear_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline")
+
+        # Track when we turned off (only if actually changing state)
+        if self.is_on:  # Only update if we're actually changing from on to off
+            self.last_turned_off = DateHelper.now()
 
         if self.is_on:
             self.logger.log_message(f"Output {self.name} state changed to OFF - {reason.value}.", "detailed")
@@ -691,3 +720,48 @@ class OutputManager:
         """
         if self.config.get("General", "PrintToConsole", default=False):
             print(message)
+
+    def _should_respect_minimum_runtime(self, proposed_state: bool) -> bool:  # noqa: FBT001
+        """Check if we should delay state change due to minimum runtime constraints.
+
+        Args:
+            proposed_state (bool): The proposed new state of the output (True for ON, False for OFF).
+
+        Returns:
+            bool: True if we should delay the state change, False otherwise.
+        """
+        now = DateHelper.now()
+
+        # If proposing to turn OFF but haven't met minimum ON time
+        if (
+            not proposed_state
+            and self.is_on
+            and self.min_on_time > 0
+            and self.last_turned_on
+        ):
+            time_on = (now - self.last_turned_on).total_seconds() / 60  # minutes
+            if time_on < self.min_on_time:
+                remaining = self.min_on_time - time_on
+                self.logger.log_message(
+                    f"Output {self.name} must stay on for {remaining:.1f} more minutes "
+                    f"(MinOnTime: {self.min_on_time})", "debug"
+                )
+                return True
+
+        # If proposing to turn ON but haven't met minimum OFF time
+        if (
+            proposed_state
+            and not self.is_on
+            and self.min_off_time > 0
+            and self.last_turned_off
+        ):
+            time_off = (now - self.last_turned_off).total_seconds() / 60  # minutes
+            if time_off < self.min_off_time:
+                remaining = self.min_off_time - time_off
+                self.logger.log_message(
+                    f"Output {self.name} must stay off for {remaining:.1f} more minutes "
+                    f"(MinOffTime: {self.min_off_time})", "debug"
+                )
+                return True
+
+        return False

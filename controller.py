@@ -311,7 +311,7 @@ class PowerController:
         self._generate_run_plans()
 
         # Evaluate the conditions for each output and make changes if needed
-        self._evaluation_conditions()
+        self._evaluate_conditions()
 
         # Refresh the Amber price data if it's time to do so
         self.pricing.refresh_price_data_if_time()
@@ -349,7 +349,7 @@ class PowerController:
         for output in self.outputs:
             output.generate_run_plan()
 
-    def _evaluation_conditions(self):
+    def _evaluate_conditions(self):
         """Evaluate the conditions for each output."""
         # Do the parents first
         for output in self.outputs:
