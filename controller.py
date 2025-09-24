@@ -252,8 +252,6 @@ class PowerController:
             "outputs": outputs_data,
         }
 
-        self.logger.log_message(f"get_output_snapshot() is returning:\n {return_dict}", "all")
-
         return return_dict
 
     def post_command(self, cmd: Command) -> None:

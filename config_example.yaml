@@ -1,0 +1,197 @@
+# General settings for the Power Controller application
+General:
+  # A label for this installation - used in the email subject and web viewer app
+  Label: MyPower
+  # Number of seconds to sleep between each check of the run plan and possible changes to outputs. Recommended 30 seconds or more.
+  PollingInterval: 120
+  # Some critical errors can trigger email notifications - for example the AmberAPI not responding. This is the time in minutes for an issue to 
+  # persist before we send an email notification. Leave blank to disable.
+  ReportCriticalErrorsDelay: 30
+  # Print some basic information to the console during startup and operation
+  PrintToConsole: True
+  # A default price to use if the Amber API is not available and there is no schedule price defined
+  DefaultPrice: 32.0
+
+
+# Settings for the built-in web server that provides a web interface to view and control the power controller
+Website:
+  HostingIP: 0.0.0.0          # The IP address to host the web server on. Use 0.0.0.0 to listen on all interfaces
+  Port: 8080                  # The port to host the web server on
+  PageAutoRefresh: 30         # How often to refresh the web page (in seconds). Set to 0 to disable auto-refresh.
+  DebugMode: True             # Enable or disable debug mode for the web server (should be False in production)
+  AccessKey: <Your website API key here>                 # An access key to secure the web interface. Leave blank to disable access control.
+
+
+# Settings for the Amber API integration
+AmberAPI:
+  # Operating mode for the Amber API: Live (attempt to download prices), Offline (pretend Amber API is offline, use cached prices). Disabled (fall back to schedule)
+  Mode: Live
+  APIURL: https://api.amber.com.au/v1   # The base URL for the Amber API
+  APIKey: <Your Amber API key here>    # The API key for your account, get one at app.amber.com.au/developers
+  Timeout: 15               # How long to wait in second for a response from the Amber API
+  MaxConcurrentErrors: 4    # Send an email notification if we get this number of concurrent errors from Amber
+  RefreshInterval: 15       # How often to refresh the pricing data from Amber (in minutes) 
+
+
+# Use this section to configure your Shelly devices used to control the lights. See this page for more information: https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/
+ShellyDevices:
+  AllowDebugLogging: False      # Set to True to enable debug logging for Shelly devices
+  ResponseTimeout: 3            # How long to wait in seconds for a response from a Shelly device
+  RetryCount: 1                 # Number of times to retry a request to a Shelly device if it fails
+  RetryDelay: 2                 # Number of seconds to wait between retries
+  MaxConcurrentErrors: 4        # Send an email notification if we get this number of concurrent errors
+  PingAllowed: True             # Set to True if it's possible to ping your Shelly device to check if they are online (if they are on the same subnet as the controller)
+  WebhooksEnabled: True         # Enable or disable the webhook listener
+  WebhookHost: 0.0.0.0          # IP to listen for webhooks on. This should be the IP address of the machine running the app. Defaults to 0.0.0.0
+  WebhookPort: 8787             # Port to listen for webhooks on. Defaults to 8787.
+  WebhookPath: /shelly/webhook  # The URI path that webhooks will post to.
+  Devices:                      # List of Shelly devices to control
+    - Name: Shelly Pool          # A name for this device
+      Model: Shelly2PMG3        # The model of Shelly device - see https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list
+      Hostname: 192.168.1.20   # The IP address or hostname of the Shelly device
+      Simulate: False           # Set to True to simulate the device (for testing)
+      Inputs:                   # List of inputs on the Shelly device to monitor
+        - Name: "Pool I1"
+          Webhooks: True
+        - Name: "Pool I2"
+      Outputs:                  # List of outputs on the Shelly device to control your devices
+        - Name: "Pool O1"
+        - Name: "Pool O2"
+      Meters:                  # List of meters on the Shelly device to monitor energy usage
+        - Name: "Pool M1"
+        - Name: "Pool M2"
+    - Name: Spello Hot Water
+      Model: Shelly2PMG3
+      Hostname: 192.168.86.39
+      Outputs:
+        - Name: "Hot Water O1"
+        - Name: "Hot Water O2"
+      Meters:
+        - Name: "Hot Water M1"
+        - Name: "Hot Water M2"
+
+
+# Define the operating schedules for your devices. These are used to determine when a device is allowed to run when not using the Amber pricing data.
+OperatingSchedules:
+  - Name: Pool                # A name for this schedule - used in the Outputs section
+    Windows:                  # List of time windows when the schedule is active
+      - StartTime: "00:00"
+        EndTime: "8:30"
+        DaysOfWeek: All       # Days of the week this window applies to - Mon, Tue, Wed, Thu, Fri, Sat, Sun or All. Multiple days can be specified separated by commas
+        Price: 20
+      - StartTime: "13:00"
+        EndTime: "16:30"
+        DaysOfWeek: All   
+        Price: 22
+      - StartTime: "21:00"
+        EndTime: "23:59"
+        DaysOfWeek: All
+        Price: 23
+  - Name: Hot Water
+    Windows: 
+      - StartTime: "00:00"
+        EndTime: "14:00"
+        DaysOfWeek: All
+        Price: 18
+      - StartTime: "22:00"
+        EndTime: "23:59"
+        DaysOfWeek: All
+        Price: 20
+
+
+# Configure each switched output that controls your devices and how they behave
+Outputs:  
+  - Name: Pool Pump                 # A name for this output - used in the web interface  
+    DeviceOutput: Pool O1     # The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section
+    Mode: BestPrice                 # Operating mode: BestPrice (run for target hours at best price), Schedule (run according to schedule only)
+    Schedule: Pools                 # The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section
+    AmberChannel: general           # The Amber pricing channel to use for this device, typically general or controlledLoad
+    DaysOfHistory: 7                # How many days of history to keep for this device
+    MinHours: 2                     # Minimum number of hours to run each day
+    MaxHours: 10                    # Maximum number of hours to run each day
+    TargetHours: 6                  # Target number of hours to run each day. Set to -1 to run for all hours that fall within best price or the schedule
+    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days
+    MaxBestPrice: 23.0              # The maximum price to run at when in BestPrice mode. 
+    MaxPriorityPrice: 35.0          # The maximum price to run when we haven't run for the minimum number of hours yet.
+    DatesOff:                       # Optional list of date ranges when the output should not run
+      - StartDate: 2024-07-01
+        EndDate: 2024-09-30
+    DeviceMeter: Pool M1      # The Shelly device meter to use to track energy usage - must match a Name in the ShellyDevices: Devices: Meters section
+    MaxDailyEnergyUse: 6000         # Maximum energy use expected in Wh per day. An email warning will be sent if this is exceeded.
+    DeviceInput: Pool I1      # Optional: The Shelly device input to used override the state of the output - must match a Name in the ShellyDevices: Devices: Inputs section
+    DeviceInputMode: TurnOn         # If a DeviceInput is specified, this controls how is is used. Ignore: Ignore the state of the inputs. TurnOn: Turn output on if input is off. TurnOff: Turn output off if input is on.
+    StopOnExit: True                # If True, attempt to turn off the outputs when the application exits
+    MinOnTime: 30                   # Minimum minutes to stay on once turned on
+    MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling)    
+  - Name: Chlorinator
+    DeviceOutput: Pool O2
+    Mode: BestPrice
+    Schedule: Pool
+    AmberChannel: general
+    TargetHours: 4
+    MinHours: 2
+    MaxHours: 8
+    MaxShortfallHours: 3
+    MaxBestPrice: 23.0
+    MaxPriorityPrice: 35.0
+    DeviceMeter: Pool M2
+    ParentOutput: Pool Pump
+  - Name: Hot Water Heater
+    DeviceOutput: Hot Water O1
+    Mode: BestPrice
+    Schedule: Hot Water
+    AmberChannel: controlledLoad
+    TargetHours: -1
+    MaxBestPrice: 23.0
+    MaxPriorityPrice: 30.0
+    DeviceMeter: Hot Water M1
+
+
+# Optionally use this section to specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for scheduled events.
+# You can do this in one of three ways:
+# 1. Use a Shelly device's location (using IP lookup)- just specify the device name in the UseShellyDevice field
+# 2. Use a Google Maps URL to extract the location - specify the GoogleMapsURL field and the Timezone field.
+# 3. Manually specify the latitude and longitude - specify the Timezone, Latitude and Longitude fields.
+Location:
+  # UseShellyDevice: "Spello Dev"
+  Timezone: Europe/London     # See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  GoogleMapsURL:              # A Google Maps URL containing the latitude and longitude of your location, e.g. https://www.google.com/maps/place/London,+UK/@51.5012694,-0.1425182,18.41z
+  Latitude:                   # The latitude of your location, e.g. - 51.50185169072752
+  Longitude:                  # The longitude of your location. e.g. -0.1406533148232459
+
+
+# Settings for various log and state files
+Files:
+  SavedStateFile: system_state.json    # The name of the saved state file. This is used to store the state of the device between runs.
+  LogfileName: logfile.log             # The name of the log file
+  LogfileMaxLines: 10000               # The maximum number of lines to keep in the log file
+  LogfileVerbosity: debug              # How much information do we write to the log file. One of: none; error; warning; summary; detailed; debug; all
+  ConsoleVerbosity: detailed           # How much information do we write to the console. One of: error; warning; summary; detailed; debug; all
+  
+
+# Enter your settings here if you want to be emailed when there's a critical error 
+Email:
+  EnableEmail: True                         # Set to True to enable email notifications 
+  SendEmailsTo: <Your email address here>   # The email address to send notifications to
+  SMTPServer: <Your SMTP server here>       # The SMTP server to use to send the email
+  SMTPPort: 587                             # The SMTP server port
+  SMTPUsername: <Your SMTP username here>   # The SMTP username
+  SMTPPassword: <Your SMTP password here>   # The SMTP password or app password
+  SubjectPrefix: "[Dev PowerController]: "  # A prefix to add to the email subject line
+
+
+# Use this section to configure integration with the PowerControllerViewer app - see https://github.com/NickElseySpelloC/PowerControllerViewer
+ViewerWebsite:
+  Enable: False                   # Set to True to enable integration with the PowerControllerViewer app
+  BaseURL: http://localhost:8000  # The base URL of the PowerControllerViewer app
+  AccessKey: <Your website API key here>  # The access key for the PowerControllerViewer app
+  APITimeout: 5                   # How long to wait in seconds for a response from the PowerControllerViewer app
+  Frequency: 10                   # How often to post the state to the web viewer app (in seconds)
+
+
+# Use this section to configure integration with the BetterStack Heartbeat monitoring service - see https://betterstack.com/heartbeat/
+HeartbeatMonitor:
+  Enable: False              # Set to True to enable integration with the Heartbeat monitoring service
+  WebsiteURL: https://uptime.betterstack.com/api/v1/heartbeat/myheartbeatid    # The URL of the website to monitor for availability
+  HeartbeatTimeout: 5        # How long to wait for a response from the website before considering it down in seconds
+  Frequency: 10              # How often to post the state to the heartbeat monitor (in seconds)

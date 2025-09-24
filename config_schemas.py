@@ -152,18 +152,6 @@ class ConfigSchema:
                                     "EndTime": {"type": "string", "required": True},
                                     "Price": {"type": "number", "required": False, "nullable": True},
                                     "DaysOfWeek": {"type": "string", "required": False, "nullable": True},
-                                    "DatesOff": {
-                                        "type": "list",
-                                        "required": False,
-                                        "nullable": True,
-                                        "schema": {
-                                            "type": "dict",
-                                            "schema": {
-                                                "StartDate": {"type": "date", "required": False, "nullable": True},
-                                                "EndDate": {"type": "date", "required": False, "nullable": True},
-                                            },
-                                        },
-                                    },
                                 },
                             },
                         },
