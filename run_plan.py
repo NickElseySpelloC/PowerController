@@ -106,9 +106,12 @@ class RunPlanner:
 
         # Step 1: Select qualifying slots based on price criteria
         selected_slots = self._select_qualifying_slots(
-            sorted_slot_data, required_mins, int(priority_hours * 60),
-            max_price, max_priority_price, hourly_energy_usage
-        )
+                                    sorted_slot_data=sorted_slot_data,
+                                    remaining_required_mins=required_mins,
+                                    max_price=max_price,
+                                    max_priority_price=max_priority_price,
+                                    hourly_energy_usage=hourly_energy_usage
+                                )
 
         if not selected_slots:
             run_plan["Status"] = RunPlanStatus.FAILED
@@ -125,7 +128,7 @@ class RunPlanner:
         return self._finalize_run_plan(run_plan, final_slots, required_mins, int(priority_hours * 60))
 
     def _select_qualifying_slots(self, sorted_slot_data: list[dict], remaining_required_mins: int,  # noqa: PLR6301
-                            required_priority_mins: int, max_price: float, max_priority_price: float,
+                            max_price: float, max_priority_price: float,
                             hourly_energy_usage: float) -> list[dict]:
         """Select slots that qualify based on price criteria.
 
@@ -137,7 +140,6 @@ class RunPlanner:
                 - "Minutes" (int): The duration of the slot in minutes.
                 - "Price" (float): The price of the slot in pence per kWh.
             remaining_required_mins (int): The total remaining minutes required for the task.
-            required_priority_mins (int): The number of minutes that can be run at the priority price.
             max_price (float): The maximum price (in pence per kWh) for normal hours.
             max_priority_price (float): The maximum price (in pence per kWh) for priority hours.
             hourly_energy_usage (float): The estimated energy usage in Watts when the task is running. Default is 0.0 (unknown).
@@ -157,8 +159,8 @@ class RunPlanner:
                 continue  # Too expensive even for priority hours
 
             # Check if slot qualifies under either normal or priority pricing
-            qualifies_normal = price <= max_price and duration_mins <= remaining_mins
-            qualifies_priority = price <= max_priority_price and filled_mins < required_priority_mins
+            qualifies_normal = price <= max_price
+            qualifies_priority = price <= max_priority_price
 
             if not (qualifies_normal or qualifies_priority):
                 continue
@@ -308,6 +310,10 @@ class RunPlanner:
                 # Merge current slot with next slot
                 start_dt = to_datetime(slot["Date"], slot["StartTime"])
                 end_dt = to_datetime(next_slot["Date"], next_slot["EndTime"])
+
+                # Handle midnight crossing: if EndTime < StartTime, add a day to end_dt
+                if next_slot["EndTime"] < slot["StartTime"]:
+                    end_dt += dt.timedelta(days=1)
 
                 merged_slot = {
                     "Date": slot["Date"],

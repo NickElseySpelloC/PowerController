@@ -775,6 +775,7 @@ class OutputManager:
 
     def run_self_tests(self):  # noqa: PLR0914
         """Run self tests on the output manager."""
+        print(f"\nRunning self tests for output {self.name}...")
         self.run_plan = None
         hourly_energy_used = 1000
 
@@ -784,8 +785,8 @@ class OutputManager:
         target_hours = 7
         actual_hours = 2
         prior_shortfall = 0.5
-        max_best_price = 19.0
-        max_priority_price = 20.0
+        max_best_price = 32.0
+        max_priority_price = 40.0
         # TO DO: When enforcing min slot ap, we merge slots that are close together. This miht result in us picking up expensive slots that we
         # shouldn't. Do we delay the start of the next slot to avoid this or just recommend not making the gap too long?
         min_slot_length = 15  # minutes
@@ -800,18 +801,18 @@ class OutputManager:
         priority_hours = min(min_hours, required_hours)
 
         # Get a best price run plan
-        # run_plan = self.pricing.get_run_plan(required_hours=required_hours,
-        #                                      priority_hours=priority_hours,
-        #                                      max_price=max_best_price,
-        #                                      max_priority_price=max_priority_price,
-        #                                      channel_id=channel,
-        #                                      hourly_energy_usage=hourly_energy_used,
-        #                                      slot_min_minutes=min_slot_length,
-        #                                      slot_min_gap_minutes=min_time_between_slots)  # pyright: ignore[reportArgument
-        # if run_plan:
-        #     print(f"Best Price: {RunPlanner.print_info(run_plan, self.name)}")
-        # else:
-        #     print(f"Self Test Best Price Run Plan: No run plan could be generated for output {self.name}.")
+        run_plan = self.pricing.get_run_plan(required_hours=required_hours,
+                                             priority_hours=priority_hours,
+                                             max_price=max_best_price,
+                                             max_priority_price=max_priority_price,
+                                             channel_id=channel,
+                                             hourly_energy_usage=hourly_energy_used,
+                                             slot_min_minutes=min_slot_length,
+                                             slot_min_gap_minutes=min_time_between_slots)  # pyright: ignore[reportArgument
+        if run_plan:
+            print(f"Best Price: {RunPlanner.print_info(run_plan, self.name)}")
+        else:
+            print(f"Self Test Best Price Run Plan: No run plan could be generated for output {self.name}.")
 
         # # Get a Schedule run plan
         run_plan = self.scheduler.get_run_plan(operating_schedule_name=schedule,
