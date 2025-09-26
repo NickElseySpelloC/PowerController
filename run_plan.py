@@ -48,173 +48,411 @@ class RunPlanner:
         }
         return new_run_plan
 
-    def calculate_run_plan(self, sorted_slot_data: list[dict], required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, hourly_energy_usage: float = 0.0) -> dict:
+    def calculate_run_plan(self, sorted_slot_data: list[dict], required_hours: float, priority_hours: float, max_price: float,
+                           max_priority_price: float, hourly_energy_usage: float = 0.0, slot_min_minutes: int = 0, slot_min_gap_minutes: int = 0) -> dict:
         """Determines when to run based on the best pricing strategy.
 
-        The time_slots[] list must contain the following keys:
-            - StartTime: The start time of the slot (datetime.time)
-            - EndTime: The end time of the slot (datetime.time)
-            - Price: The price of the slot (float)
-            - Minutes: The duration of the slot in minutes (int)
-
-        The run_plan["Status"] key indicates the outcome of the planning process. Use the RunPlanStatus enum
-            Nothing: The required_hours were zero. There's nothing to do sowe returned an empty run plan.
-            Failed: The run plan could not be filled - could not allocate all required priority hours.
-            Partial: The run plan was partially filled, but all the priority hours were allocated.
-            Ready: The run plan was filled successfully and is ready to be executed.
+        Honours slot_min_minutes (minimum final slot length) and slot_gap_minutes
+        (minimum gap between final slots - gaps smaller than this are eliminated by merging).
 
         Args:
-            sorted_slot_data (list[dict]): A list of dictionaries containing the price data sorted by best for the selected channel.
-            required_hours (float): The number of hours required for the task. Set to -1 to get all remaining hours that can be filled by price.
-            priority_hours (float): The number of hours that should be prioritized.
-            max_price (float): The maximum price to consider for normal hours.
-            max_priority_price (float): The maximum price to consider for the priority hours.
-            hourly_energy_usage (float): The average hourly energy usage in Wh. Used to estimate cost of the run plan.
+            sorted_slot_data (list[dict]): A list of slot data dictionaries, each containing:
+                - "Date" (datetime.date | None): The date of the slot, or None if today.
+                - "StartTime" (datetime.time): The start time of the slot.
+                - "EndTime" (datetime.time): The end time of the slot.
+                - "Minutes" (int): The duration of the slot in minutes.
+                - "Price" (float): The price of the slot in pence per kWh.
+            required_hours (float): The number of hours required for the task. If -1, return all remaining minutes in the day.
+            priority_hours (float): The number of hours that can be run at the priority price.
+            max_price (float): The maximum price (in pence per kWh) for normal hours.
+            max_priority_price (float): The maximum price (in pence per kWh) for priority hours.
+            hourly_energy_usage (float): The estimated energy usage in Watts when the task is running. Default is 0.0 (unknown).
+            slot_min_minutes (int): The minimum length of a final slot in minutes. Default is 0 (no minimum).
+            slot_min_gap_minutes (int): The minimum gap between final slots in minutes. Gaps smaller than this are eliminated by merging. Default is 0 (no gap merging).
 
         Raises:
-            RuntimeError: If the parameters are invalid.
+            RuntimeError: If the price parameters are invalid.
 
         Returns:
-            run_plan (dict): A dictionary containing the run plan. Check the Status key for success or failure.
+            dict: A run plan dictionary containing:
+                - "Source": The source of the run plan (BestPrice or Schedule).
+                - "Channel": The channel of the run plan (if applicable).
+                - "LastUpdate": The timestamp of the last update.
         """
-        # First check to see if an empty plan was requested
         run_plan = self._create_run_plan_object()
-        remaining_required_mins = RunPlanner._calculate_required_minutes(required_hours)
-        if remaining_required_mins == 0:
+        run_plan["SlotMinMinutes"] = slot_min_minutes
+        run_plan["SlotGapMinutes"] = slot_min_gap_minutes
+
+        required_mins = RunPlanner._calculate_required_minutes(required_hours)
+        if required_mins == 0:
             run_plan["RequiredHours"] = run_plan["PriorityHours"] = run_plan["PlannedHours"] = 0.0
             run_plan["Status"] = RunPlanStatus.NOTHING
             return run_plan
 
-        # Max sure the priority_hours is <= required_hours
         if required_hours != -1:
             priority_hours = min(priority_hours, required_hours)
 
-        # Set the run plan hours
         run_plan["RequiredHours"] = required_hours
         run_plan["PriorityHours"] = priority_hours
 
-        # If we were passed an empty slot list but requested hours, we can't fulfill the request
         if not sorted_slot_data:
             run_plan["Status"] = RunPlanStatus.FAILED
             run_plan["PlannedHours"] = 0.0
             return run_plan
 
-        # Validate the parameters
         if max_price <= 0 or max_priority_price <= 0:
             error_msg = "Invalid price parameters for run plan."
             raise RuntimeError(error_msg)
 
-        # Initialise our countdowns
-        filled_mins = 0
-        required_priority_mins = int(priority_hours * 60)
-        required_priority_mins = min(required_priority_mins, remaining_required_mins)
+        # Step 1: Select qualifying slots based on price criteria
+        selected_slots = self._select_qualifying_slots(
+            sorted_slot_data, required_mins, int(priority_hours * 60),
+            max_price, max_priority_price, hourly_energy_usage
+        )
 
-        # Iterate through the sorted price data and add each slot indidually if it conforms to the price limits.
+        if not selected_slots:
+            run_plan["Status"] = RunPlanStatus.FAILED
+            run_plan["PlannedHours"] = 0.0
+            return run_plan
+
+        # Step 2: Consolidate slots to honor min_minutes and gap constraints
+        consolidated_slots = self._consolidate_slots(selected_slots, slot_min_minutes, slot_min_gap_minutes)
+
+        # Step 3: Trim to exact required hours if needed
+        final_slots = self._trim_to_required_hours(consolidated_slots, required_mins)
+
+        # Step 4: Calculate final plan metrics
+        return self._finalize_run_plan(run_plan, final_slots, required_mins, int(priority_hours * 60))
+
+    def _select_qualifying_slots(self, sorted_slot_data: list[dict], remaining_required_mins: int,  # noqa: PLR6301
+                            required_priority_mins: int, max_price: float, max_priority_price: float,
+                            hourly_energy_usage: float) -> list[dict]:
+        """Select slots that qualify based on price criteria.
+
+        Args:
+            sorted_slot_data (list[dict]): A list of slot data dictionaries, each containing:
+                - "Date" (datetime.date | None): The date of the slot, or None if today.
+                - "StartTime" (datetime.time): The start time of the slot.
+                - "EndTime" (datetime.time): The end time of the slot.
+                - "Minutes" (int): The duration of the slot in minutes.
+                - "Price" (float): The price of the slot in pence per kWh.
+            remaining_required_mins (int): The total remaining minutes required for the task.
+            required_priority_mins (int): The number of minutes that can be run at the priority price.
+            max_price (float): The maximum price (in pence per kWh) for normal hours.
+            max_priority_price (float): The maximum price (in pence per kWh) for priority hours.
+            hourly_energy_usage (float): The estimated energy usage in Watts when the task is running. Default is 0.0 (unknown).
+
+        Returns:
+            list[dict]: A list of selected slot dictionaries with added metadata:
+        """
+        selected_slots = []
+        filled_mins = 0
+        remaining_mins = remaining_required_mins
+
         for slot in sorted_slot_data:
             duration_mins = slot["Minutes"]
+            price = slot["Price"]
 
-            # If slot is too expensive for priority hours, skip it
-            if slot["Price"] > max_priority_price:
-                continue
-            if (slot["Price"] <= max_price and duration_mins <= remaining_required_mins) or (slot["Price"] <= max_priority_price and filled_mins < required_priority_mins):
-                filled_mins += duration_mins
-                remaining_required_mins -= duration_mins
-            else:
+            if price > max_priority_price:
+                continue  # Too expensive even for priority hours
+
+            # Check if slot qualifies under either normal or priority pricing
+            qualifies_normal = price <= max_price and duration_mins <= remaining_mins
+            qualifies_priority = price <= max_priority_price and filled_mins < required_priority_mins
+
+            if not (qualifies_normal or qualifies_priority):
                 continue
 
-            # If we get to get, we can add this price slot to our raw run plan
-            end_time = slot["EndTime"]
-            if remaining_required_mins < 0:
-                # We have overrun, so reduce the end time
-                end_dt = dt.datetime.combine(DateHelper.today(), end_time)
-                end_dt -= dt.timedelta(minutes=abs(remaining_required_mins))
-                end_time = end_dt.time()
-            run_entry = {
+            # Create slot entry with metadata for consolidation
+            slot_entry = {
                 "Date": slot["Date"],
                 "StartTime": slot["StartTime"],
                 "EndTime": slot["EndTime"],
                 "Minutes": duration_mins,
-                "Price": slot["Price"],
+                "Price": price,
                 "ForecastEnergyUsage": (hourly_energy_usage / 60) * duration_mins if hourly_energy_usage > 0 else 0.0,
-                "EstimatedCost": (hourly_energy_usage / (60 * 1000)) * duration_mins * (slot["Price"] / 100) if hourly_energy_usage > 0 else 0.0,
-                "SlotCount": 1   # Used to count the number of slots merged together so that we can calculate the average price
+                "EstimatedCost": (hourly_energy_usage / (60 * 1000)) * duration_mins * (price / 100) if hourly_energy_usage > 0 else 0.0,
+                "SlotCount": 1,
+                "_WeightedPriceMinutes": price * duration_mins
             }
-            run_plan["RunPlan"].append(run_entry)
 
-            if remaining_required_mins <= 0:
-                remaining_required_mins = 0
+            selected_slots.append(slot_entry)
+            filled_mins += duration_mins
+            remaining_mins -= duration_mins
+
+            if remaining_mins <= 0:
                 break
 
-        # We've completed the loop, let's finalise the run plan
-        if not run_plan["RunPlan"] or filled_mins < required_priority_mins:
-            run_plan["Status"] = RunPlanStatus.FAILED
-        elif remaining_required_mins > 0:
-            run_plan["Status"] = RunPlanStatus.PARTIAL
-        else:
-            run_plan["Status"] = RunPlanStatus.READY
+        return selected_slots
 
-        return RunPlanner._consolidate_run_plan(run_plan)
-
-    @staticmethod
-    def _consolidate_run_plan(run_plan) -> dict:
-        """
-        Consolidate the run plan by merging overlapping time slots and summarizing the total hours.
+    def _consolidate_slots(self, slots: list[dict], slot_min_minutes: int, slot_gap_minutes: int) -> list[dict]:
+        """Consolidate slots by merging based on gap and minimum slot constraints.
 
         Args:
-            run_plan (dict): The run plan to consolidate.
+            slots (list[dict]): A list of selected slot dictionaries.
+            slot_min_minutes (int): The minimum duration for a slot to be considered valid.
+            slot_gap_minutes (int): The maximum gap allowed between slots for merging.
 
         Returns:
-            dict: The consolidated run plan.
+            list[dict]: A list of consolidated slot dictionaries.
         """
-        # Sort the run plan by start time
-        run_plan["RunPlan"].sort(key=operator.itemgetter("StartTime"))
+        if not slots:
+            return slots
+        # Sort chronologically
+        slots.sort(key=operator.itemgetter("Date", "StartTime"))
 
-        # Merge overlapping time slots
-        merged_slots = []
-        for slot in run_plan["RunPlan"]:
-            if not merged_slots:
-                merged_slots.append(slot)
+        # Step 1: Merge slots with gaps smaller than slot_gap_minutes
+        merged_slots = self._merge_by_gap(slots, slot_gap_minutes)
+
+        # Step 2: Handle slots shorter than slot_min_minutes
+        final_slots = self._enforce_minimum_slot_length(merged_slots, slot_min_minutes)
+
+        return final_slots
+
+    def _merge_by_gap(self, slots: list[dict], slot_gap_minutes: int) -> list[dict]:  # noqa: PLR6301
+        """Merge slots that have gaps smaller than slot_gap_minutes.
+
+        Args:
+            slots (list[dict]): A list of slot dictionaries.
+            slot_gap_minutes (int): The maximum gap allowed between slots for merging.
+
+        Returns:
+            list[dict]: A list of merged slot dictionaries.
+        """
+        if not slots:
+            return slots
+
+        merged = []
+        today = DateHelper.today()
+
+        def to_datetime(date_obj, time_obj) -> dt.datetime:
+            if isinstance(date_obj, dt.date):
+                return dt.datetime.combine(date_obj, time_obj)
+            return dt.datetime.combine(today, time_obj)
+
+        for slot in slots:
+            if not merged:
+                merged.append(slot)
+                continue
+
+            last_slot = merged[-1]
+            last_end_dt = to_datetime(last_slot["Date"], last_slot["EndTime"])
+            curr_start_dt = to_datetime(slot["Date"], slot["StartTime"])
+
+            gap_minutes = (curr_start_dt - last_end_dt).total_seconds() / 60
+
+            # Merge if:
+            # 1. Slots are back-to-back (gap_minutes == 0), OR
+            # 2. Gap is smaller than minimum required (when slot_gap_minutes > 0)
+            should_merge = (gap_minutes == 0) or (slot_gap_minutes > 0 and 0 < gap_minutes < slot_gap_minutes)
+
+            if should_merge:
+                # Update last slot - extend to the end of current slot
+                last_slot["EndTime"] = slot["EndTime"]
+
+                # Calculate total duration using consistent date reference (last_slot's date)
+                start_dt = to_datetime(last_slot["Date"], last_slot["StartTime"])
+                end_dt = to_datetime(last_slot["Date"], slot["EndTime"])
+
+                # Handle midnight crossing: if EndTime < StartTime, add a day to end_dt
+                if slot["EndTime"] < last_slot["StartTime"]:
+                    end_dt += dt.timedelta(days=1)
+
+                total_duration = int((end_dt - start_dt).total_seconds() / 60)
+                last_slot["Minutes"] = total_duration
+
+                # Aggregate metrics
+                last_slot["_WeightedPriceMinutes"] += slot["_WeightedPriceMinutes"]
+                last_slot["ForecastEnergyUsage"] += slot["ForecastEnergyUsage"]
+                last_slot["EstimatedCost"] += slot["EstimatedCost"]
+                last_slot["SlotCount"] += slot["SlotCount"]
             else:
-                last_slot = merged_slots[-1]
-                if slot["StartTime"] <= last_slot["EndTime"]:
-                    # Overlapping slot found, merge them
-                    last_slot["EndTime"] = max(last_slot["EndTime"], slot["EndTime"])
-                    last_slot["Minutes"] += slot["Minutes"]
-                    last_slot["SlotCount"] += 1
-                    last_slot["Price"] += slot["Price"]
-                    last_slot["ForecastEnergyUsage"] += slot["ForecastEnergyUsage"]
-                    last_slot["EstimatedCost"] += slot["EstimatedCost"]
-                else:
-                    merged_slots.append(slot)
+                merged.append(slot)
 
-        # Fixup the averaged price per slot and the total average price
-        price_total = 0
-        slot_total = 0
+        return merged
+
+    def _enforce_minimum_slot_length(self, slots: list[dict], slot_min_minutes: int) -> list[dict]:
+        """Handle slots that are shorter than minimum length.
+
+        Args:
+            slots (list[dict]): A list of slot dictionaries.
+            slot_min_minutes (int): The minimum length of a final slot in minutes.
+
+        Returns:
+            list[dict]: A list of slot dictionaries with short slots merged or removed.
+        """
+        if not slots or slot_min_minutes <= 0:
+            return slots
+
+        result = []
+        today = DateHelper.today()
+
+        def to_datetime(date_obj, time_obj) -> dt.datetime:
+            if isinstance(date_obj, dt.date):
+                return dt.datetime.combine(date_obj, time_obj)
+            return dt.datetime.combine(today, time_obj)
+
+        i = 0
+        while i < len(slots):
+            slot = slots[i]
+
+            if slot["Minutes"] >= slot_min_minutes:
+                result.append(slot)
+                i += 1
+                continue
+
+            # Slot is too short - try to merge with next slot first
+            if i + 1 < len(slots):
+                next_slot = slots[i + 1]
+
+                # Merge current slot with next slot
+                start_dt = to_datetime(slot["Date"], slot["StartTime"])
+                end_dt = to_datetime(next_slot["Date"], next_slot["EndTime"])
+
+                merged_slot = {
+                    "Date": slot["Date"],
+                    "StartTime": slot["StartTime"],
+                    "EndTime": next_slot["EndTime"],
+                    "Minutes": int((end_dt - start_dt).total_seconds() / 60),
+                    "_WeightedPriceMinutes": slot["_WeightedPriceMinutes"] + next_slot["_WeightedPriceMinutes"],
+                    "ForecastEnergyUsage": slot["ForecastEnergyUsage"] + next_slot["ForecastEnergyUsage"],
+                    "EstimatedCost": slot["EstimatedCost"] + next_slot["EstimatedCost"],
+                    "SlotCount": slot["SlotCount"] + next_slot["SlotCount"]
+                }
+
+                result.append(merged_slot)
+                i += 2  # Skip both slots
+
+            # Try to merge with previous slot if no next slot available
+            elif result:
+                prev_slot = result[-1]
+                end_dt = to_datetime(slot["Date"], slot["EndTime"])
+
+                # Extend previous slot
+                prev_slot["EndTime"] = slot["EndTime"]
+                prev_slot["Minutes"] = int((end_dt - to_datetime(prev_slot["Date"], prev_slot["StartTime"])).total_seconds() / 60)
+                prev_slot["_WeightedPriceMinutes"] += slot["_WeightedPriceMinutes"]
+                prev_slot["ForecastEnergyUsage"] += slot["ForecastEnergyUsage"]
+                prev_slot["EstimatedCost"] += slot["EstimatedCost"]
+                prev_slot["SlotCount"] += slot["SlotCount"]
+
+                i += 1
+
+            else:
+                # Isolated short slot - remove it
+                self.logger.log_message(f"Removing short slot ({slot['Minutes']} min) that cannot be merged", "debug")
+                i += 1
+
+        return result
+
+    def _trim_to_required_hours(self, slots: list[dict], required_minutes: int) -> list[dict]:  # noqa: PLR6301
+        """Trim slots to exactly meet required hours.
+
+        Args:
+            slots (list[dict]): A list of slot dictionaries.
+            required_minutes (int): The total required minutes.
+
+        Returns:
+            list[dict]: A list of slot dictionaries trimmed to the required minutes.
+        """
+        if not slots:
+            return slots
+
+        total_minutes = sum(slot["Minutes"] for slot in slots)
+
+        if total_minutes <= required_minutes:
+            return slots
+
+        # Need to trim excess minutes from the last slot(s)
+        excess_minutes = total_minutes - required_minutes
+
+        # Work backwards through slots to trim excess
+        for i in range(len(slots) - 1, -1, -1):
+            slot = slots[i]
+
+            if excess_minutes <= 0:
+                break
+
+            if slot["Minutes"] <= excess_minutes:
+                # Remove entire slot
+                excess_minutes -= slot["Minutes"]
+                slots.pop(i)
+            else:
+                # Trim part of this slot
+                today = DateHelper.today()
+                start_dt = dt.datetime.combine(today, slot["StartTime"])
+                new_end_dt = start_dt + dt.timedelta(minutes=slot["Minutes"] - excess_minutes)
+
+                # Update slot
+                slot["EndTime"] = new_end_dt.time()
+                slot["Minutes"] -= excess_minutes
+
+                # Proportionally adjust energy and cost
+                ratio = slot["Minutes"] / (slot["Minutes"] + excess_minutes)
+                slot["ForecastEnergyUsage"] *= ratio
+                slot["EstimatedCost"] *= ratio
+                slot["_WeightedPriceMinutes"] = slot["Price"] * slot["Minutes"]
+
+                excess_minutes = 0
+
+        return slots
+
+    def _finalize_run_plan(self, run_plan: dict, slots: list[dict], required_mins: int, required_priority_mins: int) -> dict:  # noqa: PLR6301
+        """Calculate final metrics and status for the run plan.
+
+        Args:
+            run_plan (dict): The run plan dictionary to finalize.
+            slots (list[dict]): A list of slot dictionaries.
+            required_mins (int): The total number of minutes to be included in the run plan.
+            required_priority_mins (int): The minimum number of minutes that must be included in the run plan for it to be valid.
+
+        Returns:
+            dict: The finalized run plan dictionary.
+        """
+        if not slots:
+            run_plan["Status"] = RunPlanStatus.FAILED
+            run_plan["PlannedHours"] = 0.0
+            return run_plan
+
+        # Calculate final metrics
         total_minutes = 0
+        total_weighted_price = 0.0
         total_energy_used = 0.0
         total_cost = 0.0
 
-        for slot in merged_slots:
-            total_minutes += slot["Minutes"]
-            price_total += slot["Price"]
-            slot_total += slot["SlotCount"]
-            if slot["SlotCount"] > 1:
-                slot["Price"] /= slot["SlotCount"]
-            slot["Price"] = round(slot["Price"], 2)
+        for slot in slots:
+            minutes = slot["Minutes"]
+            total_minutes += minutes
             total_energy_used += slot["ForecastEnergyUsage"]
             total_cost += slot["EstimatedCost"]
+            total_weighted_price += slot["_WeightedPriceMinutes"]
+
+            # Calculate weighted average price for this slot
+            slot["Price"] = round(slot["_WeightedPriceMinutes"] / minutes if minutes > 0 else 0.0, 2)
+
+            # Clean up internal fields
+            del slot["_WeightedPriceMinutes"]
+
+        run_plan["RunPlan"] = slots
         run_plan["PlannedHours"] = total_minutes / 60.0
-        run_plan["ForecastAveragePrice"] = round(price_total / slot_total, 2) if slot_total > 0 else 0.0
+        run_plan["ForecastAveragePrice"] = round(
+            total_weighted_price / total_minutes if total_minutes > 0 else 0.0, 2
+        )
         run_plan["ForecastEnergyUsage"] = total_energy_used
         run_plan["EstimatedCost"] = total_cost
 
-        run_plan["RunPlan"] = merged_slots
+        # Set status
+        if total_minutes < required_priority_mins:
+            run_plan["Status"] = RunPlanStatus.FAILED
+        elif total_minutes >= required_mins:
+            run_plan["Status"] = RunPlanStatus.READY
+        else:
+            run_plan["Status"] = RunPlanStatus.PARTIAL
 
-        # NextStartTime and StartNow
-        run_plan["StartNow"] = False
-        if run_plan["RunPlan"]:
-            run_plan["NextStartTime"] = run_plan["RunPlan"][0]["StartTime"]
-            run_plan["NextStopTime"] = run_plan["RunPlan"][0]["EndTime"]
+        # Set timing fields
+        if slots:
+            run_plan["NextStartTime"] = slots[0]["StartTime"]
+            run_plan["NextStopTime"] = slots[0]["EndTime"]
             time_now = DateHelper.now().replace(tzinfo=None).time()
             run_plan["StartNow"] = run_plan["NextStartTime"] <= time_now
 

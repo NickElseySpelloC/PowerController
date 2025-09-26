@@ -170,7 +170,8 @@ class RunHistory:
             if self.history["DailyData"]:
                 last_day = self.history["DailyData"][-1]
                 if last_day["DeviceRuns"] and last_day["DeviceRuns"][-1]["EndTime"] is None:
-                    end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59))
+                    local_tz = dt.datetime.now().astimezone().tzinfo
+                    end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59), tzinfo=local_tz)
                     self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
 
             # Check the energy usage for yesterdat and send email if needed

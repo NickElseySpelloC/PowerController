@@ -27,6 +27,7 @@ class ConfigSchema:
                     "ReportCriticalErrorsDelay": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                     "PrintToConsole": {"type": "boolean", "required": False, "nullable": True},
                     "DefaultPrice": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 1000},
+                    "TestingMode": {"type": "boolean", "required": False, "nullable": True},
                 },
             },
             "Website": {
@@ -197,7 +198,7 @@ class ConfigSchema:
                         "ParentOutput": {"type": "string", "required": False, "nullable": True},
                         "StopOnExit": {"type": "boolean", "required": False, "nullable": True},
                         "MinOnTime": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 60},
-                        "MinOffTime": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 60},
+                        "MinOffTime": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 10},
                     },
                 },
             },

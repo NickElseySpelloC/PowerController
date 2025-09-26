@@ -20,6 +20,7 @@ from local_enumerations import (
 )
 from pricing import PricingManager
 from run_history import RunHistory
+from run_plan import RunPlanner
 from scheduler import Scheduler
 
 
@@ -80,8 +81,8 @@ class OutputManager:
         self.dates_off = []
 
         # Minimum runtime configuration
-        self.min_on_time = output_config.get("MinOnTime", 0)  # minutes
-        self.min_off_time = output_config.get("MinOffTime", 0)  # minutes
+        self.min_on_time = 0  # minutes
+        self.min_off_time = 0  # minutes
 
         # Track state change times
         self.last_turned_on = saved_state.get("LastTurnedOn") if saved_state else None
@@ -180,6 +181,12 @@ class OutputManager:
                     error_msg = f"Invalid MinHours / MaxHours/TargetHours configuration for output {self.name}."
                 # Note: TargetHours is set during calculate_running_totals()
             # Note: If self.mode == RunHistoryMode.ALL_DAY, then min / max / target are ignored
+
+            # Minimum runtime configuration
+            self.min_on_time = output_config.get("MinOnTime", 0)  # minutes
+            self.min_off_time = output_config.get("MinOffTime", 0)  # minutes
+            if self.min_off_time >= self.min_on_time:
+                error_msg = f"MinOffTime {self.min_off_time} must be less than to MinOnTime {self.min_on_time} for output {self.name}."
 
             # DatesOff
             if not error_msg:
@@ -765,3 +772,57 @@ class OutputManager:
                 return True
 
         return False
+
+    def run_self_tests(self):  # noqa: PLR0914
+        """Run self tests on the output manager."""
+        self.run_plan = None
+        hourly_energy_used = 1000
+
+        # Mock some values
+        max_hours = 20
+        min_hours = 2
+        target_hours = 7
+        actual_hours = 2
+        prior_shortfall = 0.5
+        max_best_price = 19.0
+        max_priority_price = 20.0
+        # TO DO: When enforcing min slot ap, we merge slots that are close together. This miht result in us picking up expensive slots that we
+        # shouldn't. Do we delay the start of the next slot to avoid this or just recommend not making the gap too long?
+        min_slot_length = 15  # minutes
+        min_time_between_slots = 15  # minutes
+        channel = AmberChannel.GENERAL
+        schedule = "Hot Water"
+
+        # Calculate the inputs
+        hours_remaining = target_hours - actual_hours + prior_shortfall
+        required_hours = max(0.0, hours_remaining)
+        required_hours = min(max_hours, required_hours)
+        priority_hours = min(min_hours, required_hours)
+
+        # Get a best price run plan
+        # run_plan = self.pricing.get_run_plan(required_hours=required_hours,
+        #                                      priority_hours=priority_hours,
+        #                                      max_price=max_best_price,
+        #                                      max_priority_price=max_priority_price,
+        #                                      channel_id=channel,
+        #                                      hourly_energy_usage=hourly_energy_used,
+        #                                      slot_min_minutes=min_slot_length,
+        #                                      slot_min_gap_minutes=min_time_between_slots)  # pyright: ignore[reportArgument
+        # if run_plan:
+        #     print(f"Best Price: {RunPlanner.print_info(run_plan, self.name)}")
+        # else:
+        #     print(f"Self Test Best Price Run Plan: No run plan could be generated for output {self.name}.")
+
+        # # Get a Schedule run plan
+        run_plan = self.scheduler.get_run_plan(operating_schedule_name=schedule,
+                                               required_hours=required_hours,
+                                               priority_hours=priority_hours,
+                                               max_price=max_best_price,
+                                               max_priority_price=max_priority_price,
+                                               hourly_energy_usage=hourly_energy_used,
+                                               slot_min_minutes=min_slot_length,
+                                               slot_min_gap_minutes=min_time_between_slots)  # pyright: ignore[reportArgumentType]
+        if run_plan:
+            print(f"Schedule: {RunPlanner.print_info(run_plan, self.name)}")
+        else:
+            print(f"Self Test Schedule Run Plan: No run plan could be generated for output {self.name}.")

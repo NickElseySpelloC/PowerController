@@ -461,7 +461,15 @@ class PricingManager:
 
         return price_data[0]["Price"]
 
-    def get_run_plan(self, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, channel_id: AmberChannel = AmberChannel.GENERAL, hourly_energy_usage: float = 0.0) -> dict | None:
+    def get_run_plan(self,
+                     required_hours: float,
+                     priority_hours: float,
+                     max_price: float,
+                     max_priority_price: float,
+                     channel_id: AmberChannel = AmberChannel.GENERAL,
+                     hourly_energy_usage: float = 0.0,
+                     slot_min_minutes: int = 0,
+                     slot_min_gap_minutes: int = 0) -> dict | None:
         """Determines when to run based on the best pricing strategy.
 
         Args:
@@ -471,6 +479,8 @@ class PricingManager:
             max_priority_price (float): The maximum price to consider for priority hours in the run plan.
             channel_id (str | None): The ID of the channel to use for pricing.
             hourly_energy_usage (float): The average hourly energy usage in Wh. Used to estimate cost of the run plan.
+            slot_min_minutes (int): The minimum length of each time slot in minutes.
+            slot_min_gap_minutes (int): The minimum gap between time slots in minutes.
 
         Returns:
             plan (list[dict]): A list of dictionaries containing the run plan.
@@ -483,7 +493,7 @@ class PricingManager:
             run_planner = RunPlanner(self.logger, RunPlanMode.BEST_PRICE, channel_id)
 
             sorted_price_data = self._get_channel_prices(channel_id=channel_id, which_type=PriceFetchMode.SORTED)
-            run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage)
+            run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating best price run plan: {e}", "error")
             return None

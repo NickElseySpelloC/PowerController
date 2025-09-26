@@ -88,7 +88,15 @@ class Scheduler:
                 return schedule
         return None
 
-    def get_run_plan(self, operating_schedule_name: str, required_hours: float, priority_hours: float, max_price: float, max_priority_price: float, hourly_energy_usage: float = 0.) -> dict | None:
+    def get_run_plan(self,
+                     operating_schedule_name: str,
+                     required_hours: float,
+                     priority_hours: float,
+                     max_price: float,
+                     max_priority_price: float,
+                     hourly_energy_usage: float = 0.0,
+                     slot_min_minutes: int = 0,
+                     slot_min_gap_minutes: int = 0) -> dict | None:
         """Calculate the best time(s) to run based on the configured schedule.
 
         Work throught the Start/Stop times in preference order.
@@ -101,6 +109,8 @@ class Scheduler:
             max_price (float): The maximum price to consider for the run plan.
             max_priority_price (float): The maximum price to consider for priority hours in the run plan.
             hourly_energy_usage (float): The average hourly energy usage in Wh. Used to estimate cost of the run plan.
+            slot_min_minutes (int): The minimum length of each time slot in minutes.
+            slot_min_gap_minutes (int): The minimum gap between time slots in minutes.
 
         Returns:
             dict | None: The run plan if successful, None if failed.
@@ -120,7 +130,7 @@ class Scheduler:
         try:
             # Create a run planner instance
             run_planner = RunPlanner(self.logger, RunPlanMode.SCHEDULE)
-            run_plan = run_planner.calculate_run_plan(time_slots, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage)
+            run_plan = run_planner.calculate_run_plan(time_slots, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating schedule run plan: {e}", "error")
             return None

@@ -286,6 +286,9 @@ class PowerController:
         """
         self.logger.log_message("Power controller starting main control loop.", "detailed")
 
+        if self.run_self_tests():
+            return
+
         while not stop_event.is_set():
             while True:
                 print(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
@@ -413,3 +416,17 @@ class PowerController:
         """
         if self.config.get("General", "PrintToConsole", default=False):
             print(message)
+
+    def run_self_tests(self) -> bool:
+        """Run self tests on all outputs then exit.
+
+        Returns:
+            bool: True if we should exit after the tests, False otherwise.
+        """
+        if not self.config.get("General", "TestingMode", default=False):
+            return False
+
+        for output in self.outputs:
+            output.run_self_tests()
+
+        return True
