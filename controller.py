@@ -1,5 +1,8 @@
 """The PowerController class that orchestrates power management."""
 import queue
+
+# from threading import Event
+import time
 from pathlib import Path
 from threading import Event
 
@@ -14,7 +17,7 @@ from sc_utility import (
 )
 
 from external_services import ExternalServiceHelper
-from local_enumerations import Command, LookupMode
+from local_enumerations import SCHEMA_VERSION, Command, LookupMode
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
@@ -37,6 +40,7 @@ class PowerController:
         self.viewer_website_last_post = None
         self.wake_event = wake_event    # The event used to interrupt the main loop
         self.cmd_q: queue.Queue[Command] = queue.Queue()    # Used to post commands into the controller's loop
+        self.command_pending: bool = False
         self.shelly_device_concurrent_error_count = 0
         self.report_critical_errors_delay = config.get("General", "ReportCriticalErrorsDelay", default=None)
         if isinstance(self.report_critical_errors_delay, (int, float)):
@@ -193,6 +197,7 @@ class PowerController:
 
         try:
             save_object = {
+                "SchemaVersion": SCHEMA_VERSION,
                 "StateFileType": "PowerController",
                 "DeviceName": self.app_label,
                 "SaveTime": DateHelper.now(),
@@ -221,6 +226,7 @@ class PowerController:
             if time_since_last_post >= frequency or force_post:  # pyright: ignore[reportOperatorIssue]
                 for output in self.outputs:
                     post_object = {
+                        "SchemaVersion": SCHEMA_VERSION,
                         "StateFileType": "PowerController",
                         "DeviceName": f"{self.app_label} - {output.name}",
                         "SaveTime": DateHelper.now(),
@@ -236,6 +242,12 @@ class PowerController:
         Returns:
             dict: The state snapshot containing theoutputs.
         """
+        loop_count = 0
+        while self._have_pending_commands() and loop_count < 10:
+            time.sleep(0.1)  # Small delay to let the commands be processed
+            loop_count += 1
+
+        # Now build the snapshot
         global_data = {
             "access_key": self.config.get("Website", "AccessKey"),
             "AppLabel": self.app_label,
@@ -254,10 +266,24 @@ class PowerController:
 
         return return_dict
 
+    def is_valid_output_id(self, output_id: str) -> bool:
+        """Check if the output ID is valid.
+
+        Args:
+            output_id (str): The output ID to check.
+
+        Returns:
+            bool: True if the output ID is valid, False otherwise.
+        """
+        if not isinstance(output_id, str):
+            return False
+
+        return any(output.id == output_id for output in self.outputs)
+
     def post_command(self, cmd: Command) -> None:
         """Post a command to the controller from the web app."""
         self.cmd_q.put(cmd)
-        self.logger.log_message(f"Posted command to controller:\n {cmd}", "debug")
+        self.command_pending: bool = True
         self.wake_event.set()
 
     def _apply_command(self, cmd: Command) -> None:
@@ -272,7 +298,6 @@ class PowerController:
                 return
 
             # Set the new mode, the output will deal with it in the next tick
-            self.logger.log_message(f"Applying new mode {new_mode} to output {output_id}", "debug")
             output.app_mode = new_mode
 
             # And evaluate the conditions immediately
@@ -290,26 +315,45 @@ class PowerController:
             return
 
         while not stop_event.is_set():
-            while True:
-                print(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
-                try:
-                    cmd = self.cmd_q.get_nowait()
-                except queue.Empty:
-                    break
-                self._apply_command(cmd)
+            print(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
+            self._clear_commands()          # Get all commands from the queue and apply them
             self._run_scheduler_tick()
             self.wake_event.clear()
             self.wake_event.wait(timeout=self.poll_interval)
 
         self.shutdown()
 
+    def _clear_commands(self):
+        """Clear all commands in the command queue."""
+        while True:
+            try:
+                cmd = self.cmd_q.get_nowait()
+            except queue.Empty:
+                break
+            self._apply_command(cmd)
+
+        self.command_pending = False
+
+    def _have_pending_commands(self) -> bool:
+        """Check if there are any pending commands in the command queue.
+
+        Returns:
+            bool: True if there are pending commands, False otherwise.
+        """
+        if not self.cmd_q.empty():
+            return True
+        return bool(self.command_pending)
+
     def _run_scheduler_tick(self):
         """Do all the control processing of the main loop."""
         # Tell each device to update its physical state
         self._refresh_device_statuses()
 
-        # Calculate running totals and regenerate the run_plan for each output
-        self._generate_run_plans()
+        # Calculate the running totals for each output
+        self._calculate_running_totals()
+
+        # Regenerate the run_plan for each output if needed
+        self._review_run_plans()
 
         # Evaluate the conditions for each output and make changes if needed
         self._evaluate_conditions()
@@ -345,10 +389,15 @@ class PowerController:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Shelly Device {device['Label']}", issue_type="States Refresh Error", send_delay=self.report_critical_errors_delay * 60, message="Unable to get the status for this This Shelly device.")
 
-    def _generate_run_plans(self):
+    def _calculate_running_totals(self):
+        """Calculate the running totals for each output."""
+        for output in self.outputs:
+            output.calculate_running_totals()
+
+    def _review_run_plans(self):
         """Generate / refresh the run plan for each output."""
         for output in self.outputs:
-            output.generate_run_plan()
+            output.review_run_plan()
 
     def _evaluate_conditions(self):
         """Evaluate the conditions for each output."""

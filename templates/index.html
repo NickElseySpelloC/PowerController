@@ -23,7 +23,6 @@
               <span class="pill status-pill {{ 'on' if output.is_on else 'off' }}">
                 {{ 'ON' if output.is_on else 'OFF' }}
               </span>
-              <!-- TO DO: Put reason text on new line -->
               <span class="reason-text">
                 {{ output.reason if output.reason else '' }}
               </span>
@@ -143,7 +142,7 @@
   <script>
     // Store global data from server
     const globalData = JSON.parse(document.getElementById('global-data-json').textContent);
-    
+
     // Helper function to build URL with access key if needed
     function buildApiUrl(path) {
       if (globalData.access_key) {
@@ -152,26 +151,34 @@
       }
       return path;
     }
-    
+
     async function fetchOutputs() {
       const res = await fetch(buildApiUrl('/api/outputs'));
       return await res.json();
     }
-   
+
+    // NEW: Fetch a single output snapshot by ID
+    async function fetchOutput(id) {
+      const res = await fetch(buildApiUrl(`/api/outputs/${id}`));
+      if (res.ok) {
+        return await res.json();
+      }
+      throw new Error(`Failed to fetch output ${id}`);
+    }
+
     async function setMode(id, mode) {
       try {
+        console.log(`Setting mode ${mode} for output ${id}`);
+        
         const response = await fetch(buildApiUrl(`/api/outputs/${id}/mode`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode })
         });
-        
+
         if (response.ok) {
-          // Update the button state immediately for user feedback
-          updateOutputDisplay(id, { mode });
-          
-          // Force an immediate refresh to get the updated server state
-          await refreshAllOutputs();
+          const output = await response.json();
+          updateOutputDisplay(output.id || id, output);                    
         } else {
           console.error('Failed to set mode:', response.statusText);
         }
@@ -179,10 +186,12 @@
         console.error('Failed to set mode:', error);
       }
     }
-    
+
     function updateOutputDisplay(outputId, outputData) {
       // Find the card for this output
       const card = document.querySelector(`[data-output-id="${outputId}"]`);
+
+      console.error(`Updating display for output ${outputId}:`, outputData);
       if (!card) return;
 
       // Update mode display if provided
@@ -227,7 +236,7 @@
     async function refreshAllOutputs() {
       try {
         const data = await fetchOutputs();
-        
+
         // Update each output's display using updateOutputDisplay
         Object.values(data.outputs).forEach(output => {
           updateOutputDisplay(output.id, output);

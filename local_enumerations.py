@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+SCHEMA_VERSION = 1  # Version of the system_state schema we expect
 CONFIG_FILE = "config.yaml"
 PRICES_DATA_FILE = "latest_prices.json"
 PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
@@ -50,7 +51,7 @@ class OutputStatusData:
 @dataclass
 class Command:
     kind: str
-    payload: dict[str, Any]
+    payload: dict[str, str]
 
 
 # Lookup mode used for PowerController._find_output()

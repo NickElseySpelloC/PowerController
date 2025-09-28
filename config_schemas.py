@@ -35,7 +35,7 @@ class ConfigSchema:
                 "schema": {
                     "HostingIP": {"type": "string", "required": False, "nullable": True},
                     "Port": {"type": "number", "required": False, "nullable": True, "min": 80, "max": 65535},
-                    "PageAutoRefresh": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 3600},
+                    "PageAutoRefresh": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                     "DebugMode": {"type": "boolean", "required": False, "nullable": True},
                     "AccessKey": {"type": "string", "required": False, "nullable": True},
                 },
@@ -208,8 +208,10 @@ class ConfigSchema:
                     "SavedStateFile": {"type": "string", "required": True},
                     "LogfileName": {"type": "string", "required": False, "nullable": True},
                     "LogfileMaxLines": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100000},
+                    "LogProcessID": {"type": "boolean", "required": False, "nullable": True},
+                    "LogThreadID": {"type": "boolean", "required": False, "nullable": True},
                     "LogfileVerbosity": {"type": "string", "required": True, "allowed": ["none", "error", "warning", "summary", "detailed", "debug", "all"]},
-                    "ConsoleVerbosity": {"type": "string", "required": True, "allowed": ["error", "warning", "summary", "detailed", "debug"]},
+                    "ConsoleVerbosity": {"type": "string", "required": True, "allowed": ["error", "warning", "summary", "detailed", "debug", "all"]},
                 },
             },
             "Email": {

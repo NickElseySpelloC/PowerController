@@ -1,6 +1,7 @@
 """Scheduler module for managing the time based schedules for each switch."""
 
 import datetime as dt
+import operator
 import re
 
 import pytz
@@ -123,6 +124,7 @@ class Scheduler:
 
         # Get the available window time slots for this schedule
         time_slots = self._get_schedule_slots(schedule)
+        sorted_slots = sorted(time_slots, key=operator.itemgetter("Price"))
         if not time_slots:
             self.logger.log_message(f"No available time slots found for schedule {operating_schedule_name} for today.", "debug")
             return None
@@ -130,7 +132,7 @@ class Scheduler:
         try:
             # Create a run planner instance
             run_planner = RunPlanner(self.logger, RunPlanMode.SCHEDULE)
-            run_plan = run_planner.calculate_run_plan(time_slots, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes)
+            run_plan = run_planner.calculate_run_plan(sorted_slots, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating schedule run plan: {e}", "error")
             return None
@@ -152,6 +154,7 @@ class Scheduler:
         today = DateHelper.today()
         weekday_str = WEEKDAY_ABBREVIATIONS[today.weekday()]
         time_now = DateHelper.now().time().replace(second=0, microsecond=0)
+        local_tz = dt.datetime.now().astimezone().tzinfo
 
         # Loop through each window in the provided schedule
         for idx, window in enumerate(schedule.get("Windows", [])):
@@ -171,13 +174,15 @@ class Scheduler:
                 start_time = max(start_time, time_now)
 
             # need datetime versions to calculate minutes
-            start_dt = dt.datetime.combine(today, start_time)
-            end_dt = dt.datetime.combine(today, end_time)
+            start_dt = dt.datetime.combine(today, start_time, tzinfo=local_tz)
+            end_dt = dt.datetime.combine(today, end_time, tzinfo=local_tz)
 
             time_slot = {
                 "Date": today,
                 "StartTime": start_time,
+                "StartDateTime": start_dt,
                 "EndTime": end_time,
+                "EndDateTime": end_dt,
                 "Minutes": int((end_dt - start_dt).total_seconds() // 60),
                 "Price": window.get("Price", self.default_price) or self.default_price
             }

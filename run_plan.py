@@ -37,9 +37,8 @@ class RunPlanner:
             "RequiredHours": 0.0,
             "PriorityHours": 0.0,
             "PlannedHours": 0.0,
-            "NextStartTime": None,
-            "NextStopTime": None,
-            "StartNow": False,
+            "NextStartDateTime": None,
+            "NextStopDateTime": None,
             "ForecastAveragePrice": 0.0,
             "ForecastEnergyUsage": 0.0,
             "EstimatedCost": 0.0,
@@ -58,8 +57,8 @@ class RunPlanner:
         Args:
             sorted_slot_data (list[dict]): A list of slot data dictionaries, each containing:
                 - "Date" (datetime.date | None): The date of the slot, or None if today.
-                - "StartTime" (datetime.time): The start time of the slot.
-                - "EndTime" (datetime.time): The end time of the slot.
+                - "StartDateTime" (datetime.datetime): The start time of the slot.
+                - "EndDateTime" (datetime.datetime): The end time of the slot.
                 - "Minutes" (int): The duration of the slot in minutes.
                 - "Price" (float): The price of the slot in pence per kWh.
             required_hours (float): The number of hours required for the task. If -1, return all remaining minutes in the day.
@@ -133,12 +132,7 @@ class RunPlanner:
         """Select slots that qualify based on price criteria.
 
         Args:
-            sorted_slot_data (list[dict]): A list of slot data dictionaries, each containing:
-                - "Date" (datetime.date | None): The date of the slot, or None if today.
-                - "StartTime" (datetime.time): The start time of the slot.
-                - "EndTime" (datetime.time): The end time of the slot.
-                - "Minutes" (int): The duration of the slot in minutes.
-                - "Price" (float): The price of the slot in pence per kWh.
+            sorted_slot_data (list[dict]): A list of slot data dictionaries (see calculate_run_plan):
             remaining_required_mins (int): The total remaining minutes required for the task.
             max_price (float): The maximum price (in pence per kWh) for normal hours.
             max_priority_price (float): The maximum price (in pence per kWh) for priority hours.
@@ -168,8 +162,8 @@ class RunPlanner:
             # Create slot entry with metadata for consolidation
             slot_entry = {
                 "Date": slot["Date"],
-                "StartTime": slot["StartTime"],
-                "EndTime": slot["EndTime"],
+                "StartDateTime": slot["StartDateTime"],
+                "EndDateTime": slot["EndDateTime"],
                 "Minutes": duration_mins,
                 "Price": price,
                 "ForecastEnergyUsage": (hourly_energy_usage / 60) * duration_mins if hourly_energy_usage > 0 else 0.0,
@@ -201,7 +195,7 @@ class RunPlanner:
         if not slots:
             return slots
         # Sort chronologically
-        slots.sort(key=operator.itemgetter("Date", "StartTime"))
+        slots.sort(key=operator.itemgetter("Date", "StartDateTime"))
 
         # Step 1: Merge slots with gaps smaller than slot_gap_minutes
         merged_slots = self._merge_by_gap(slots, slot_gap_minutes)
@@ -225,21 +219,14 @@ class RunPlanner:
             return slots
 
         merged = []
-        today = DateHelper.today()
-
-        def to_datetime(date_obj, time_obj) -> dt.datetime:
-            if isinstance(date_obj, dt.date):
-                return dt.datetime.combine(date_obj, time_obj)
-            return dt.datetime.combine(today, time_obj)
-
         for slot in slots:
             if not merged:
                 merged.append(slot)
                 continue
 
             last_slot = merged[-1]
-            last_end_dt = to_datetime(last_slot["Date"], last_slot["EndTime"])
-            curr_start_dt = to_datetime(slot["Date"], slot["StartTime"])
+            last_end_dt = last_slot["EndDateTime"]
+            curr_start_dt = slot["StartDateTime"]
 
             gap_minutes = (curr_start_dt - last_end_dt).total_seconds() / 60
 
@@ -250,15 +237,11 @@ class RunPlanner:
 
             if should_merge:
                 # Update last slot - extend to the end of current slot
-                last_slot["EndTime"] = slot["EndTime"]
+                last_slot["EndDateTime"] = slot["EndDateTime"]
 
                 # Calculate total duration using consistent date reference (last_slot's date)
-                start_dt = to_datetime(last_slot["Date"], last_slot["StartTime"])
-                end_dt = to_datetime(last_slot["Date"], slot["EndTime"])
-
-                # Handle midnight crossing: if EndTime < StartTime, add a day to end_dt
-                if slot["EndTime"] < last_slot["StartTime"]:
-                    end_dt += dt.timedelta(days=1)
+                start_dt = last_slot["StartDateTime"]
+                end_dt = slot["EndDateTime"]
 
                 total_duration = int((end_dt - start_dt).total_seconds() / 60)
                 last_slot["Minutes"] = total_duration
@@ -287,13 +270,6 @@ class RunPlanner:
             return slots
 
         result = []
-        today = DateHelper.today()
-
-        def to_datetime(date_obj, time_obj) -> dt.datetime:
-            if isinstance(date_obj, dt.date):
-                return dt.datetime.combine(date_obj, time_obj)
-            return dt.datetime.combine(today, time_obj)
-
         i = 0
         while i < len(slots):
             slot = slots[i]
@@ -308,17 +284,13 @@ class RunPlanner:
                 next_slot = slots[i + 1]
 
                 # Merge current slot with next slot
-                start_dt = to_datetime(slot["Date"], slot["StartTime"])
-                end_dt = to_datetime(next_slot["Date"], next_slot["EndTime"])
-
-                # Handle midnight crossing: if EndTime < StartTime, add a day to end_dt
-                if next_slot["EndTime"] < slot["StartTime"]:
-                    end_dt += dt.timedelta(days=1)
+                start_dt = slot["StartDateTime"]
+                end_dt = next_slot["EndDateTime"]
 
                 merged_slot = {
                     "Date": slot["Date"],
-                    "StartTime": slot["StartTime"],
-                    "EndTime": next_slot["EndTime"],
+                    "StartDateTime": start_dt,
+                    "EndDateTime": end_dt,
                     "Minutes": int((end_dt - start_dt).total_seconds() / 60),
                     "_WeightedPriceMinutes": slot["_WeightedPriceMinutes"] + next_slot["_WeightedPriceMinutes"],
                     "ForecastEnergyUsage": slot["ForecastEnergyUsage"] + next_slot["ForecastEnergyUsage"],
@@ -332,11 +304,11 @@ class RunPlanner:
             # Try to merge with previous slot if no next slot available
             elif result:
                 prev_slot = result[-1]
-                end_dt = to_datetime(slot["Date"], slot["EndTime"])
+                end_dt = slot["EndDateTime"]
 
                 # Extend previous slot
-                prev_slot["EndTime"] = slot["EndTime"]
-                prev_slot["Minutes"] = int((end_dt - to_datetime(prev_slot["Date"], prev_slot["StartTime"])).total_seconds() / 60)
+                prev_slot["EndDateTime"] = slot["EndDateTime"]
+                prev_slot["Minutes"] = int((end_dt - prev_slot["StartDateTime"]).total_seconds() / 60)
                 prev_slot["_WeightedPriceMinutes"] += slot["_WeightedPriceMinutes"]
                 prev_slot["ForecastEnergyUsage"] += slot["ForecastEnergyUsage"]
                 prev_slot["EstimatedCost"] += slot["EstimatedCost"]
@@ -356,7 +328,7 @@ class RunPlanner:
 
         Args:
             slots (list[dict]): A list of slot dictionaries.
-            required_minutes (int): The total required minutes.
+            required_minutes (int): The exact number of minutes required.
 
         Returns:
             list[dict]: A list of slot dictionaries trimmed to the required minutes.
@@ -385,19 +357,23 @@ class RunPlanner:
                 slots.pop(i)
             else:
                 # Trim part of this slot
-                today = DateHelper.today()
-                start_dt = dt.datetime.combine(today, slot["StartTime"])
+                start_dt = slot["StartDateTime"]
                 new_end_dt = start_dt + dt.timedelta(minutes=slot["Minutes"] - excess_minutes)
 
+                # Calculate the original price from weighted price minutes
+                original_price = slot["_WeightedPriceMinutes"] / slot["Minutes"] if slot["Minutes"] > 0 else 0.0
+
                 # Update slot
-                slot["EndTime"] = new_end_dt.time()
+                slot["EndDateTime"] = new_end_dt
                 slot["Minutes"] -= excess_minutes
 
                 # Proportionally adjust energy and cost
                 ratio = slot["Minutes"] / (slot["Minutes"] + excess_minutes)
                 slot["ForecastEnergyUsage"] *= ratio
                 slot["EstimatedCost"] *= ratio
-                slot["_WeightedPriceMinutes"] = slot["Price"] * slot["Minutes"]
+
+                # Recalculate weighted price minutes with new duration
+                slot["_WeightedPriceMinutes"] = original_price * slot["Minutes"]
 
                 excess_minutes = 0
 
@@ -457,10 +433,8 @@ class RunPlanner:
 
         # Set timing fields
         if slots:
-            run_plan["NextStartTime"] = slots[0]["StartTime"]
-            run_plan["NextStopTime"] = slots[0]["EndTime"]
-            time_now = DateHelper.now().replace(tzinfo=None).time()
-            run_plan["StartNow"] = run_plan["NextStartTime"] <= time_now
+            run_plan["NextStartDateTime"] = slots[0]["StartDateTime"]
+            run_plan["NextStopDateTime"] = slots[0]["EndDateTime"]
 
         return run_plan
 
@@ -477,7 +451,7 @@ class RunPlanner:
         """
         # If required_hours is -1, we need to fill all remaining time today (hot water mode)
         if required_hours == -1:
-            current_time = DateHelper.now().replace(tzinfo=None)
+            current_time = DateHelper.now()
             remaining_required_mins = 24 * 60 - (current_time.hour * 60 + current_time.minute)
             # Round down to the nearest 5 minutes
             if remaining_required_mins % 5 != 0:
@@ -508,12 +482,28 @@ class RunPlanner:
         return_str += f"  - RequiredHours: {run_plan['RequiredHours']}\n"
         return_str += f"  - PriorityHours: {run_plan['PriorityHours']}\n"
         return_str += f"  - PlannedHours: {run_plan['PlannedHours']}\n"
-        return_str += f"  - NextStartTime: {run_plan['NextStartTime']}\n"
-        return_str += f"  - NextStopTime: {run_plan['NextStopTime']}\n"
-        return_str += f"  - StartNow: {run_plan['StartNow']}\n"
+        return_str += f"  - NextStartDateTime: {run_plan['NextStartDateTime']}\n"
+        return_str += f"  - NextStopDateTime: {run_plan['NextStopDateTime']}\n"
         return_str += f"  - ForecastAveragePrice: {run_plan['ForecastAveragePrice']}\n"
         return_str += "   - Run Plan Slots:\n"
         for slot in run_plan.get("RunPlan", []):
-            return_str += f"     - Start: {slot['StartTime']}, End: {slot['EndTime']}, Duration: {slot['Minutes']}, Price: {slot['Price']}\n"
+            return_str += f"     - Start: {slot['StartDateTime']}, End: {slot['EndDateTime']}, Duration: {slot['Minutes']}, Price: {slot['Price']}\n"
 
         return return_str
+
+    @staticmethod
+    def get_current_slot(run_plan: dict) -> tuple[dict | None, bool]:
+        """
+        Get the current active slot from the run plan.
+
+        Args:
+            run_plan (dict): The run plan to check.
+
+        Returns:
+            tuple(dict | None, bool): The current active slot if found, otherwise None. Also returns a boolean indicating if a slot is currently active (i.e. should be running now).
+        """
+        current_time = DateHelper.now()
+        for slot in run_plan.get("RunPlan", []):
+            if slot["StartDateTime"] <= current_time <= slot["EndDateTime"]:
+                return slot, True
+        return None, False

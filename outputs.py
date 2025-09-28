@@ -1,5 +1,6 @@
 """Manages the system state of a specific output device and associated resources."""
 import datetime as dt
+import threading
 import urllib.parse
 
 from org_enums import (
@@ -75,6 +76,8 @@ class OutputManager:
 
         # Run planning
         self.run_plan = None
+        self.invalidate_run_plan = True
+        self.last_price = 0
         self.min_hours = 0
         self.max_hours = 0
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
@@ -119,6 +122,7 @@ class OutputManager:
             RuntimeError: If the configuration is invalid.
         """
         self.output_config = output_config
+        self.invalidate_run_plan = True  # Force a regeneration of the run plan if config changes
         error_msg = None
         try:
             # Name
@@ -185,8 +189,8 @@ class OutputManager:
             # Minimum runtime configuration
             self.min_on_time = output_config.get("MinOnTime", 0)  # minutes
             self.min_off_time = output_config.get("MinOffTime", 0)  # minutes
-            if self.min_off_time >= self.min_on_time:
-                error_msg = f"MinOffTime {self.min_off_time} must be less than to MinOnTime {self.min_on_time} for output {self.name}."
+            if self.min_off_time > self.min_on_time:
+                error_msg = f"MinOffTime {self.min_off_time} must be less than or equal to MinOnTime {self.min_on_time} for output {self.name}."
 
             # DatesOff
             if not error_msg:
@@ -294,23 +298,23 @@ class OutputManager:
                 return True
         return False
 
-    def calculate_running_totals(self) -> bool:
-        """Update running totals in run_history object.
-
-        Returns:
-            bool: True if we rolled over to a new day, False otherwise.
-        """
+    def calculate_running_totals(self):
+        """Update running totals in run_history object."""
         data_block = self._get_status_data()
 
-        return self.run_history.tick(data_block)
+        if self.run_history.tick(data_block):
+            self.invalidate_run_plan = True  # If we've rolled over to a new day, we need a new run plan
 
-    def generate_run_plan(self) -> bool:
-        """Generate / update the run plan for this output.
+    def review_run_plan(self) -> bool:
+        """Generate / update the run plan for this output if needed.
 
         Returns:
             bool: True if the run plan was successfully generated or updated, False otherwise.
         """
-        day_roll_over = self.calculate_running_totals()   # Update all the running totals including actual hours from the run history
+        if not self._new_runplan_needed():
+            return False
+
+        self.logger.log_message(f"Generating new run plan for output {self.name}", "debug")
         self.run_plan = None
         hourly_energy_used = self.run_history.get_hourly_energy_used()
 
@@ -343,12 +347,39 @@ class OutputManager:
         if self.device_mode == RunPlanMode.SCHEDULE or not self.run_plan:
             self.run_plan = self.scheduler.get_run_plan(self.schedule_name, required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, hourly_energy_usage=hourly_energy_used)  # pyright: ignore[reportArgumentType]
 
-        if day_roll_over:
-            # We rolled over to a new day, log the state of the output
-            output_info = self.get_info()
-            self.logger.log_message(output_info, "detailed")
-
+        self.invalidate_run_plan = False
         return bool(self.run_plan)
+
+    def _new_runplan_needed(self) -> bool:
+        """See if we need to regenerate the run plan.
+
+        Returns:
+            bool: True if we need a new run plan, False otherwise.
+        """
+        # If some other task has already invalidated the run plan, we need to regenerate it.
+        # Also if we don't have a run plan at all
+        if self.invalidate_run_plan or not self.run_plan:
+            return True
+
+        # If we have a plan but it's complete and there's nothing left to do, we don't need a new plan
+        if self.run_plan["Status"] == RunPlanStatus.NOTHING:
+            return False
+
+        # See if we're running in a current slot
+        current_slot, running_now = RunPlanner.get_current_slot(self.run_plan)
+
+        # If we we're currently in an active run plan slot and the current price has risen significantly, we need a new plan
+        if running_now and self.device_mode == RunPlanMode.BEST_PRICE:
+            current_price = self.pricing.get_current_price(self.amber_channel)
+            if not self.last_price or current_price > self.last_price * 1.1:    # Price has risen by 10% or more
+                self.last_price = current_price
+                return True
+
+        # Output is on but the run plan is inactive, so we've just gone out of a run plan slot
+        if not current_slot and self.is_on and self.system_state == SystemState.AUTO:  # noqa: SIM103
+            return True
+
+        return False
 
     def evaluate_conditions(self):  # noqa: PLR0912, PLR0915
         """Evaluate the conditions for this output.
@@ -400,7 +431,8 @@ class OutputManager:
                 reason_off = StateReasonOff.RUN_PLAN_COMPLETE
             elif self.run_plan["Status"] in {RunPlanStatus.PARTIAL, RunPlanStatus.READY}:
                 # We have a complete or partially filled run plan
-                if self.run_plan["StartNow"]:
+                _, run_now = RunPlanner.get_current_slot(self.run_plan)
+                if run_now:
                     # Run plan tells us to run now.
                     new_output_state = True
                     reason_on = StateReasonOn.ACTIVE_RUN_PLAN
@@ -432,7 +464,7 @@ class OutputManager:
             reason_off = StateReasonOff.PARENT_OFF
 
         # Check minimum runtime constraints before applying changes
-        if self._should_respect_minimum_runtime(new_output_state):
+        if new_system_state == SystemState.AUTO and self._should_respect_minimum_runtime(new_output_state):
             # message here
             if self.is_on:
                 self.print_to_console(f"Output {self.name} has been ON for less than MinOnTime of {self.min_on_time} minutes. Will remain ON until minimum time has elapsed.")
@@ -672,12 +704,12 @@ class OutputManager:
         forecast_energy_used = self.run_plan.get("ForecastEnergyUsage", 0) if self.run_plan else 0
         forecast_price = self.run_plan.get("ForecastAveragePrice", 0) if self.run_plan else 0
 
-        next_start_dt = self.run_plan.get("NextStartTime") if self.run_plan else None
+        next_start_dt = self.run_plan.get("NextStartDateTime") if self.run_plan else None
         if next_start_dt and not self.is_on:
             next_start = next_start_dt.strftime("%H:%M")
         else:
             next_start = None
-        stopping_at_dt = self.run_plan.get("NextStopTime") if self.run_plan else None
+        stopping_at_dt = self.run_plan.get("NextStopDateTime") if self.run_plan else None
         if stopping_at_dt and self.is_on:
             stopping_at = stopping_at_dt.strftime("%H:%M")
         else:
@@ -782,15 +814,13 @@ class OutputManager:
         # Mock some values
         max_hours = 20
         min_hours = 2
-        target_hours = 7
-        actual_hours = 2
+        target_hours = 3.5
+        actual_hours = 0
         prior_shortfall = 0.5
         max_best_price = 32.0
-        max_priority_price = 40.0
-        # TO DO: When enforcing min slot ap, we merge slots that are close together. This miht result in us picking up expensive slots that we
-        # shouldn't. Do we delay the start of the next slot to avoid this or just recommend not making the gap too long?
-        min_slot_length = 15  # minutes
-        min_time_between_slots = 15  # minutes
+        max_priority_price = 42.0
+        min_slot_length = 10  # minutes
+        min_time_between_slots = 5  # minutes
         channel = AmberChannel.GENERAL
         schedule = "Hot Water"
 
@@ -827,3 +857,12 @@ class OutputManager:
             print(f"Schedule: {RunPlanner.print_info(run_plan, self.name)}")
         else:
             print(f"Self Test Schedule Run Plan: No run plan could be generated for output {self.name}.")
+
+    @staticmethod
+    def _get_current_thread_name() -> str:
+        """Get the name of the current thread.
+
+        Returns:
+            str: The name of the current thread.
+        """
+        return threading.current_thread().name

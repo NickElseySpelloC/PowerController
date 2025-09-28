@@ -10,7 +10,7 @@ dependencies = [
     "org-enums",
     "python-dateutil>=2.9.0.post0",
     "pytz>=2025.2",
-    "sc-utility>=2.3.4",
+    "sc-utility>=2.3.6",
     "werkzeug>=3.1.3",
 ]
 

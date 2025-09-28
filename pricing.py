@@ -97,7 +97,7 @@ class PricingManager:
 
         # Now build the self.raw_price_data list into 5 minute increments for today
         today = DateHelper.today()
-        now = DateHelper.now().replace(tzinfo=None)
+        now = DateHelper.now()
         # Round down to the nearest 5 minutes
         rounded_minute = now.minute - (now.minute % PRICE_SLOT_INTERVAL)
         first_start_time = now.replace(minute=rounded_minute, second=0, microsecond=0)
@@ -433,7 +433,7 @@ class PricingManager:
             self.logger.log_message(f"Invalid channel ID '{channel_id}' specified when checking price data duration.", "error")
             return 0.0
 
-        start_time = DateHelper.now().replace(tzinfo=None)
+        start_time = DateHelper.now()
         price_data = self._get_channel_prices(channel_id)
         if not price_data:
             return 0.0
@@ -502,24 +502,23 @@ class PricingManager:
 
     @staticmethod
     def _convert_utc_dt_string(utc_time_str: str) -> dt.datetime:
-        """Converts a UTC datetime string to a local datetime string.
+        """
+        Converts a UTC datetime string (e.g. '2025-09-26T16:25:01Z') to a local datetime object.
 
         Args:
-            utc_time_str (str): The UTC datetime string in the format "YYYY-MM-DDTH HH:MM:SSZ"
+            utc_time_str (str): The UTC datetime string in ISO format.
 
         Returns:
-            local_time_str(str): The local datetime string in ISO format without microseconds.
+            dt.datetime: The corresponding local datetime object.
         """
-        # Parse the string into a datetime object (with UTC timezone)
+        # Get local timezone
         local_tz = dt.datetime.now().astimezone().tzinfo
-        utc_dt = dt.datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=ZoneInfo("UTC")).replace(tzinfo=None)
 
-        # ZoneInfo() fails for my AEST timezone, so instead calculate the current time difference for UTC and local time
-        local_timenow = dt.datetime.now(local_tz).replace(tzinfo=None)
-        utc_timenow = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+        # Parse the UTC string to a datetime object
+        utc_dt = dt.datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%SZ")  # noqa: DTZ007
+        utc_dt = utc_dt.replace(tzinfo=dt.UTC)
 
-        tz_diff = local_timenow - utc_timenow + dt.timedelta(0, 1)
-
-        # Convert to local time and round to the nearest minute
-        local_dt = utc_dt + tz_diff
-        return local_dt.replace(second=0, microsecond=0).replace(tzinfo=None)
+        # Convert to local timezone
+        local_dt = utc_dt.astimezone(local_tz)
+        local_dt = local_dt.replace(second=0, microsecond=0)
+        return local_dt
