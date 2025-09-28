@@ -565,6 +565,22 @@ class OutputManager:
 
         self.parent_output = parent_output
 
+    def set_app_mode(self, new_mode: AppMode):
+        """Sets the app mode for this output manager.
+
+        Args:
+            new_mode (AppMode): The new app mode.
+        """
+        if new_mode not in AppMode:
+            self.logger.log_message(f"Invalid AppMode {new_mode} for output {self.name}.", "error")
+            return
+
+        if new_mode != self.app_mode:
+            self.app_mode = new_mode
+            self.logger.log_message(f"Output {self.name} app mode changed to {self.app_mode.value}.", "debug")
+            # If the app mode has changed, we need to re-evaluate our state
+            self.evaluate_conditions()
+
     def _turn_on(self, new_system_state: SystemState, reason: StateReasonOn):
         """Turns on the output device.
 

@@ -298,10 +298,8 @@ class PowerController:
                 return
 
             # Set the new mode, the output will deal with it in the next tick
-            output.app_mode = new_mode
-
-            # And evaluate the conditions immediately
-            output.evaluate_conditions()
+            # And evaluate the conditions immediately if the mode has changed
+            output.set_app_mode(new_mode)
 
     def run(self, stop_event: Event):
         """The main loop of the power controller.
