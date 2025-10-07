@@ -11,12 +11,12 @@ SNAPSHOT_DIR="snapshots"
 mkdir -p "$SNAPSHOT_DIR"
 
 # Get the current date in YYYYMMDD format
-CURRENT_DATE=$(date +"%Y%m%d")
+CURRENT_DATETIME=$(date +"%Y%m%d_%H%M%S")
 
 # Copy files to the snapshots directory with the date prepended
 for FILE in "${FILES_TO_SNAPSHOT[@]}"; do
     if [[ -f "$FILE" ]]; then
-        cp "$FILE" "$SNAPSHOT_DIR/${CURRENT_DATE}_$FILE"
+        cp "$FILE" "$SNAPSHOT_DIR/${CURRENT_DATETIME}_$FILE"
         echo "Snapshot created for $FILE"
     else
         echo "File $FILE does not exist, skipping..."
