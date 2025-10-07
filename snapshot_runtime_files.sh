@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Change directory to the location of the script
+cd "$(dirname "$0")"
+
 # List of filenames to snapshot
 FILES_TO_SNAPSHOT=("logfile.log" "system_state.json" "latest_prices.json")
 
