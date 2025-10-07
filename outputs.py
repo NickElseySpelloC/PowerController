@@ -101,6 +101,7 @@ class OutputManager:
 
         # The required state of the device
         self.is_on = saved_state.get("IsOn") if saved_state else None
+        self.is_device_online = False  # If device is offline, assume the output is off
         self.last_changed = None
         self.reason = None
 
@@ -298,12 +299,34 @@ class OutputManager:
                 return True
         return False
 
+    def tell_device_status_updated(self):
+        """Notify this output that the device status may have changed."""
+        if not self.device:
+            return
+        new_online_status = self.device.get("Online")
+        if new_online_status != self.is_device_online:
+            self.invalidate_run_plan = True
+            if new_online_status:
+                self.logger.log_message(f"Device {self.device.get('ClientName')} for output {self.name} is now online.", "debug")
+                self.logger.clear_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline")
+            elif not self.device.get("ExpectOffline", False):
+                self.logger.log_message(f"Device {self.device['Name']} is offline.", "warning")
+                if self.report_critical_errors_delay:
+                    assert isinstance(self.report_critical_errors_delay, int)
+                    self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} on.")  # pyright: ignore[reportArgumentType]
+
+        self.is_device_online = new_online_status
+
     def calculate_running_totals(self):
         """Update running totals in run_history object."""
         data_block = self._get_status_data()
 
         if self.run_history.tick(data_block):
             self.invalidate_run_plan = True  # If we've rolled over to a new day, we need a new run plan
+
+        # Update the remaining hours in the current run plan if we have one
+        if self.run_plan:
+            RunPlanner.tick(self.run_plan)  # Update the run plan's internal state
 
     def review_run_plan(self) -> bool:
         """Generate / update the run plan for this output if needed.
@@ -347,6 +370,13 @@ class OutputManager:
         if self.device_mode == RunPlanMode.SCHEDULE or not self.run_plan:
             self.run_plan = self.scheduler.get_run_plan(self.schedule_name, required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, hourly_energy_usage=hourly_energy_used)  # pyright: ignore[reportArgumentType]
 
+        # Log errors and warnings
+        if not self.run_plan or self.run_plan["Status"] == RunPlanStatus.FAILED:
+            self.logger.log_message(f"Failed to generate run plan for output {self.name}.", "error")
+
+        elif self.run_plan["Status"] == RunPlanStatus.PARTIAL:
+            self.logger.log_message(f"Partially generated run plan for output {self.name}. Not enough low-price slots to meet target hours.", "warning")
+
         self.invalidate_run_plan = False
         return bool(self.run_plan)
 
@@ -389,18 +419,19 @@ class OutputManager:
         new_output_state = None  # This is the new state. Once it's set, we are blocked from further checks
         new_system_state = None
         reason_on = reason_off = None
-        # See if the app has overridden our state
-        if self.app_mode == AppMode.ON:
-            new_output_state = True
-            new_system_state = SystemState.APP_OVERRIDE
-            reason_on = StateReasonOn.INPUT_SWITCH_ON
-        if self.app_mode == AppMode.OFF:
-            new_output_state = False
-            new_system_state = SystemState.APP_OVERRIDE
-            reason_off = StateReasonOff.INPUT_SWITCH_OFF
+        # See if the app has overridden our state. Only allow changes if the device is online
+        if self.is_device_online:
+            if self.app_mode == AppMode.ON:
+                new_output_state = True
+                new_system_state = SystemState.APP_OVERRIDE
+                reason_on = StateReasonOn.INPUT_SWITCH_ON
+            if self.app_mode == AppMode.OFF:
+                new_output_state = False
+                new_system_state = SystemState.APP_OVERRIDE
+                reason_off = StateReasonOff.INPUT_SWITCH_OFF
 
-        # Otherwise see if the Input switch has overridden our state
-        if new_output_state is None:
+        # Otherwise see if the Input switch has overridden our state. Only allow changes if the device is online
+        if new_output_state is None and self.is_device_online:
             input_state = self._get_input_state()
             if isinstance(input_state, bool):
                 if input_state and self.device_input_mode == InputMode.TURN_ON:
@@ -421,7 +452,11 @@ class OutputManager:
         # If new_output_state hasn't been set at this point, we're in auto mode
         if new_output_state is None:
             new_system_state = SystemState.AUTO
-            if not self.run_plan or self.run_plan["Status"] == RunPlanStatus.FAILED:
+            if not self.is_device_online:
+                # Device is offline, so we have to remain off
+                new_output_state = False
+                reason_off = StateReasonOff.DEVICE_OFFLINE
+            elif not self.run_plan or self.run_plan["Status"] == RunPlanStatus.FAILED:
                 # We don't have a run plan, generally an error condition
                 new_output_state = False
                 reason_off = StateReasonOff.NO_RUN_PLAN
@@ -487,6 +522,8 @@ class OutputManager:
         """
         if not self.device_input:
             return None
+        if not self.is_device_online:
+            return None
         return self.device_input.get("State")
 
     def _get_target_hours(self, for_date: dt.date | None = None) -> float | None:
@@ -522,6 +559,7 @@ class OutputManager:
         Returns:
             float: The current price.
         """
+        price = None
         if self.device_mode == RunPlanMode.BEST_PRICE:
             price = self.pricing.get_current_price(self.amber_channel)
 
@@ -575,6 +613,10 @@ class OutputManager:
             self.logger.log_message(f"Invalid AppMode {new_mode} for output {self.name}.", "error")
             return
 
+        if not self.is_device_online:
+            self.logger.log_message(f"Cannot set AppMode to {new_mode.value} for output {self.name} because the device is offline.", "warning")
+            return
+
         if new_mode != self.app_mode:
             self.app_mode = new_mode
             self.logger.log_message(f"Output {self.name} app mode changed to {self.app_mode.value}.", "debug")
@@ -591,22 +633,17 @@ class OutputManager:
         assert self.device_output is not None
         assert self.device is not None
 
+        if not self.is_device_online:
+            self.logger.log_message(f"Device {self.device['Name']} is offline, cannot turn on output {self.device_output_name} _turn_on() should not have been called.", "warning")
+
         # If actual output is off, we need to turn it on.
         if not self.device_output.get("State"):
-            if self.device["Online"]:
-                try:
-                    self.shelly_control.change_output(self.device_output, True)
-                except TimeoutError:
-                    self.logger.log_message(f"Device {self.device['Name']} is not responding, cannot turn on output {self.device_output_name}.", "warning")
-                except RuntimeError as e:
-                    self.logger.log_message(f"Error turning on output {self.device_output_name}: {e}", "error")
-            else:
-                self.logger.log_message(f"Device {self.device['Name']} is offline, cannot turn on output {self.device_output_name}.", "warning")
-                if self.report_critical_errors_delay:
-                    assert isinstance(self.report_critical_errors_delay, int)
-                    self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} on.")  # pyright: ignore[reportArgumentType]
-        else:
-            self.logger.clear_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline")
+            try:
+                self.shelly_control.change_output(self.device_output, True)
+            except TimeoutError:
+                self.logger.log_message(f"Device {self.device['Name']} is not responding, cannot turn on output {self.device_output_name}.", "warning")
+            except RuntimeError as e:
+                self.logger.log_message(f"Error turning on output {self.device_output_name}: {e}", "error")
 
         # Track when we turned on (only if actually changing state)
         if not self.is_on:  # Only update if we're actually changing from off to on
@@ -638,21 +675,13 @@ class OutputManager:
         assert self.device is not None
 
         # If actual output is off, we need to turn it on.
-        if self.device_output.get("State"):
-            if self.device["Online"]:
-                try:
-                    self.shelly_control.change_output(self.device_output, False)
-                except TimeoutError:
-                    self.logger.log_message(f"Device {self.device['Name']} is not responding, cannot turn off output {self.device_output_name}.", "warning")
-                except RuntimeError as e:
-                    self.logger.log_message(f"Error turning off output {self.device_output_name}: {e}", "error")
-            else:
-                self.logger.log_message(f"Device {self.device['Name']} is offline, cannot turn off output {self.device_output_name}.", "warning")
-                if self.report_critical_errors_delay:
-                    assert isinstance(self.report_critical_errors_delay, int)
-                    self.logger.report_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} off.")  # pyright: ignore[reportArgumentType]
-        else:
-            self.logger.clear_notifiable_issue(entity=f"Device {self.device['Name']}", issue_type="Device Offline")
+        if self.device_output.get("State") and self.is_device_online:
+            try:
+                self.shelly_control.change_output(self.device_output, False)
+            except TimeoutError:
+                self.logger.log_message(f"Device {self.device['Name']} is not responding, cannot turn off output {self.device_output_name}.", "warning")
+            except RuntimeError as e:
+                self.logger.log_message(f"Error turning off output {self.device_output_name}: {e}", "error")
 
         # Track when we turned off (only if actually changing state)
         if self.is_on:  # Only update if we're actually changing from on to off
@@ -793,6 +822,7 @@ class OutputManager:
             and self.is_on
             and self.min_on_time > 0
             and self.last_turned_on
+            and self.is_device_online
         ):
             time_on = (now - self.last_turned_on).total_seconds() / 60  # minutes
             if time_on < self.min_on_time:
@@ -809,6 +839,7 @@ class OutputManager:
             and not self.is_on
             and self.min_off_time > 0
             and self.last_turned_off
+            and self.is_device_online
         ):
             time_off = (now - self.last_turned_off).total_seconds() / 60  # minutes
             if time_off < self.min_off_time:

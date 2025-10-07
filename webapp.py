@@ -1,3 +1,4 @@
+"""Web application module for the PowerController project."""
 from threading import Thread
 
 from flask import Flask, jsonify, render_template, request
@@ -11,6 +12,7 @@ from local_enumerations import Command
 
 
 def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:
+    """Create and configure the Flask web application."""
     app = Flask(__name__)
     app.config["DEBUG"] = config.get("Website", "DebugMode", default=False) or False
 
@@ -127,7 +129,9 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
 
 
 class FlaskServerThread(Thread):
+    """Thread to run the Flask server."""
     def __init__(self, app: Flask, config: SCConfigManager, logger: SCLogger):
+        """Initialize the Flask server thread."""
         super().__init__(daemon=True)
         self.config = config
         self.logger = logger
@@ -142,9 +146,11 @@ class FlaskServerThread(Thread):
         self.ctx.push()
 
     def run(self):
+        """Run the Flask server."""
         self.logger.log_message(f"Starting Flask server on {self.server.server_address}", "debug")
         self.server.serve_forever()
 
     def shutdown(self):
+        """Shutdown the Flask server."""
         self.server.shutdown()
         self.logger.log_message(f"Stopping Flask server on {self.server.server_address}", "debug")

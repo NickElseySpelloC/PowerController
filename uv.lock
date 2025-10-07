@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.13"
 
 [[package]]
@@ -250,8 +250,8 @@ wheels = [
 
 [[package]]
 name = "org-enums"
-version = "0.1.0"
-source = { git = "https://github.com/NickElseySpelloC/org_enums?rev=main#809bbb64be60b2b719c5d3d1943c7f46d8c7f566" }
+version = "0.1.2"
+source = { git = "https://github.com/NickElseySpelloC/org_enums?tag=v0.1.2#9bc1fed26c2247b12f5d1c72d1c9c60739ed1f0e" }
 dependencies = [
     { name = "pytest" },
 ]
@@ -292,10 +292,10 @@ dependencies = [
 requires-dist = [
     { name = "astral", specifier = ">=3.2" },
     { name = "flask", specifier = ">=3.1.2" },
-    { name = "org-enums", git = "https://github.com/NickElseySpelloC/org_enums?rev=main" },
+    { name = "org-enums", git = "https://github.com/NickElseySpelloC/org_enums?tag=v0.1.2" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "pytz", specifier = ">=2025.2" },
-    { name = "sc-utility", specifier = ">=2.3.6" },
+    { name = "sc-utility", specifier = ">=2.3.11" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
 
@@ -379,7 +379,7 @@ wheels = [
 
 [[package]]
 name = "sc-utility"
-version = "2.3.6"
+version = "2.3.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cerberus" },
@@ -391,9 +391,9 @@ dependencies = [
     { name = "tzdata" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/43/fb/b9cc9fb672f7585ced847c553045ae7dda4579811c681224678de3e6ac8e/sc_utility-2.3.6.tar.gz", hash = "sha256:1f287ad10bf338105fccb48ca4cf22067e6e036fd926215110564bb8d52fc094", size = 48542, upload-time = "2025-09-28T09:07:32.632Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/7b/1f1611b81ca8928aba610bec66e8d8a3b158f04cc5f55b4eb6a8bff1ef4a/sc_utility-2.3.11.tar.gz", hash = "sha256:bb2c8d27611641f448ae30f0ccae884157f2ca17514bf4a101d9641d790c7d05", size = 48542, upload-time = "2025-10-07T00:55:15.763Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/fe/5fd9910d145dc13c771ea42b1b5b689c2d118a1815b0b871a54cd9831986/sc_utility-2.3.6-py3-none-any.whl", hash = "sha256:e7877e0194a17062e02c9cd7953a6ffd07007b6646af57417855d1ba6a370cd9", size = 46080, upload-time = "2025-09-28T09:07:31.357Z" },
+    { url = "https://files.pythonhosted.org/packages/87/30/9b51fe9b31022a8818e939bc625b1a0cf4ab13aa80d0d4a0511f27f00027/sc_utility-2.3.11-py3-none-any.whl", hash = "sha256:366bdee0dcbbe1e6205b54f3bc1c44f4e2d5bf1925e57ec7178be3a2aaeb1c28", size = 46106, upload-time = "2025-10-07T00:55:14.291Z" },
 ]
 
 [[package]]

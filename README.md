@@ -94,6 +94,7 @@ ShellyDevices:
     - Name: Spello Hot Water
       Model: Shelly2PMG3
       Hostname: 192.168.86.39
+      ExpectOffline: True       # Expect that this device will sometimes be offline and so don't report warnings when it happens
       Outputs:
         - Name: "Hot Water O1"
         - Name: "Hot Water O2"
@@ -140,7 +141,14 @@ Outputs:
     DaysOfHistory: 7                # How many days of history to keep for this device
     MinHours: 2                     # Minimum number of hours to run each day
     MaxHours: 10                    # Maximum number of hours to run each day
-    TargetHours: 6                  # Target number of hours to run each day. Set to -1 to run for all hours that fall within best price or the schedule
+    TargetHours: 7                  # Target number of hours to run each day. Set to -1 to run for all hours that fall within best price or the schedule
+    MonthlyTargetHours:             # Override the TargetHours for a specific month of the year 
+      January: 8
+      February: 8
+      June: 6
+      July: 6
+      August: 6
+      December: 8     
     MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days
     MaxBestPrice: 23.0              # The maximum price to run at when in BestPrice mode. 
     MaxPriorityPrice: 35.0          # The maximum price to run when we haven't run for the minimum number of hours yet.
@@ -299,6 +307,7 @@ Configure each switched output that controls your devices and how they behave. T
 | MinHours | Minimum number of hours to run each day |
 | MaxHours | Maximum number of hours to run each day |
 | TargetHours | Target number of hours to run each day. Set to -1 to run for all hours that fall within best price or the schedule |
+| MonthlyTargetHours | Override the TargetHours for a specific month of the year |
 | MaxShortfallHours | Maximum number of shortfall hours we can carry forward from previous days |
 | MaxBestPrice | The maximum price to run at when in BestPrice mode.  |
 | MaxPriorityPrice | The maximum price to run when we haven't run for the minimum number of hours yet. |

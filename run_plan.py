@@ -9,6 +9,7 @@ from local_enumerations import AmberChannel
 
 
 class RunPlanner:
+    """Class to calculate a run plan based on either Amber pricing or a defined schedule."""
     def __init__(self, logger: SCLogger, plan_type: RunPlanMode, channel: AmberChannel | None = None):
         """Initializes the RunPlanner.
 
@@ -37,6 +38,7 @@ class RunPlanner:
             "RequiredHours": 0.0,
             "PriorityHours": 0.0,
             "PlannedHours": 0.0,
+            "RemainingHours": 0.0,
             "NextStartDateTime": None,
             "NextStopDateTime": None,
             "ForecastAveragePrice": 0.0,
@@ -84,7 +86,7 @@ class RunPlanner:
 
         required_mins = RunPlanner._calculate_required_minutes(required_hours)
         if required_mins == 0:
-            run_plan["RequiredHours"] = run_plan["PriorityHours"] = run_plan["PlannedHours"] = 0.0
+            run_plan["RequiredHours"] = run_plan["PriorityHours"] = run_plan["PlannedHours"] = run_plan["RemainingHours"] = 0.0
             run_plan["Status"] = RunPlanStatus.NOTHING
             return run_plan
 
@@ -97,6 +99,7 @@ class RunPlanner:
         if not sorted_slot_data:
             run_plan["Status"] = RunPlanStatus.FAILED
             run_plan["PlannedHours"] = 0.0
+            run_plan["RemainingHours"] = 0.0
             return run_plan
 
         if max_price <= 0 or max_priority_price <= 0:
@@ -115,6 +118,7 @@ class RunPlanner:
         if not selected_slots:
             run_plan["Status"] = RunPlanStatus.FAILED
             run_plan["PlannedHours"] = 0.0
+            run_plan["RemainingHours"] = 0.0
             return run_plan
 
         # Step 2: Consolidate slots to honor min_minutes and gap constraints
@@ -394,17 +398,28 @@ class RunPlanner:
         if not slots:
             run_plan["Status"] = RunPlanStatus.FAILED
             run_plan["PlannedHours"] = 0.0
+            run_plan["RemainingHours"] = 0.0
             return run_plan
 
         # Calculate final metrics
         total_minutes = 0
+        future_minutes = 0
         total_weighted_price = 0.0
         total_energy_used = 0.0
         total_cost = 0.0
 
+        now = DateHelper.now()
         for slot in slots:
             minutes = slot["Minutes"]
             total_minutes += minutes
+
+            # Add to future minutes for the portion of the slot that is in the future
+            if slot["EndDateTime"] > now:
+                if slot["StartDateTime"] >= now:
+                    future_minutes += minutes
+                else:
+                    future_minutes += int((slot["EndDateTime"] - now).total_seconds() / 60)
+
             total_energy_used += slot["ForecastEnergyUsage"]
             total_cost += slot["EstimatedCost"]
             total_weighted_price += slot["_WeightedPriceMinutes"]
@@ -417,6 +432,7 @@ class RunPlanner:
 
         run_plan["RunPlan"] = slots
         run_plan["PlannedHours"] = total_minutes / 60.0
+        run_plan["RemainingHours"] = future_minutes / 60.0
         run_plan["ForecastAveragePrice"] = round(
             total_weighted_price / total_minutes if total_minutes > 0 else 0.0, 2
         )
@@ -435,6 +451,32 @@ class RunPlanner:
         if slots:
             run_plan["NextStartDateTime"] = slots[0]["StartDateTime"]
             run_plan["NextStopDateTime"] = slots[0]["EndDateTime"]
+
+        return run_plan
+
+    @staticmethod
+    def tick(run_plan: dict) -> dict:
+        """Perform any periodic tasks needed by the RunPlanner.
+
+        Args:
+            run_plan (dict): The current run plan.
+
+        Returns:
+            dict: The updated run plan.
+        """
+        future_minutes = 0
+        now = DateHelper.now()
+
+        for slot in run_plan.get("RunPlan", []):
+            # Add to future minutes for the portion of the slot that is in the future
+            minutes = slot["Minutes"]
+            if slot["EndDateTime"] > now:
+                if slot["StartDateTime"] >= now:
+                    future_minutes += minutes
+                else:
+                    future_minutes += int((slot["EndDateTime"] - now).total_seconds() / 60)
+
+        run_plan["RemainingHours"] = future_minutes / 60.0
 
         return run_plan
 
@@ -482,6 +524,7 @@ class RunPlanner:
         return_str += f"  - RequiredHours: {run_plan['RequiredHours']}\n"
         return_str += f"  - PriorityHours: {run_plan['PriorityHours']}\n"
         return_str += f"  - PlannedHours: {run_plan['PlannedHours']}\n"
+        return_str += f"  - RemainingHours: {run_plan['RemainingHours']}\n"
         return_str += f"  - NextStartDateTime: {run_plan['NextStartDateTime']}\n"
         return_str += f"  - NextStopDateTime: {run_plan['NextStopDateTime']}\n"
         return_str += f"  - ForecastAveragePrice: {run_plan['ForecastAveragePrice']}\n"

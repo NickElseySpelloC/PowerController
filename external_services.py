@@ -101,10 +101,10 @@ class ExternalServiceHelper:
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
             try:
-                returned_json = response.json()
+                returned_json = response.json()  # pyright: ignore[reportPossiblyUnboundVariable]
             except (ValueError, requests.exceptions.JSONDecodeError):
-                returned_json = response.text if hasattr(response, "text") else "No response content"
-            if response.status_code == HTTP_STATUS_FORBIDDEN:
+                returned_json = response.text if hasattr(response, "text") else "No response content"    # pyright: ignore[reportPossiblyUnboundVariable]
+            if response.status_code == HTTP_STATUS_FORBIDDEN:  # pyright: ignore[reportPossiblyUnboundVariable]
                 self.logger.log_message(f"Access denied ({HTTP_STATUS_FORBIDDEN} Forbidden) when posting to {api_url}. Check your access key or permissions. Error: {e}, Response: {returned_json}", "error")
             else:
                 self.logger.log_message(f"HTTP error saving state to web server at {api_url}: Error: {e}, Response: {returned_json}", "warning")
@@ -114,9 +114,9 @@ class ExternalServiceHelper:
             self.logger.log_message(f"Timeout while trying to save state to web server at {api_url}: Error: {e}", "warning")
         except requests.exceptions.RequestException as e:
             try:
-                returned_json = response.json()
+                returned_json = response.json()  # pyright: ignore[reportPossiblyUnboundVariable]
             except (ValueError, requests.exceptions.JSONDecodeError, UnboundLocalError):
-                returned_json = response.text if hasattr(response, "text") else "No response content"
+                returned_json = response.text if hasattr(response, "text") else "No response content"  # pyright: ignore[reportPossiblyUnboundVariable]
             self.logger.log_fatal_error(f"Error saving state to web server at {api_url}: Error: {e}, Response: {returned_json}")
         else:
             # Record the time of the last post even if it failed so that we don't keep retrying on errors

@@ -63,6 +63,7 @@ class PowerController:
         except RuntimeError as e:
             logger.log_fatal_error(f"Shelly control initialization error: {e}")
             return
+        self.all_shelly_devices_online = self._are_all_shelly_devices_online()
 
         # Create the two run_planner types
         self.scheduler = Scheduler(self.config, self.logger, self.shelly_control)
@@ -84,6 +85,7 @@ class PowerController:
             # Reinitialise the Shelly controller
             shelly_settings = self.config.get_shelly_settings()
             self.shelly_control.initialize_settings(shelly_settings, refresh_status=True)
+            self.all_shelly_devices_online = self._are_all_shelly_devices_online()
 
         # Confirm that the configured output names are unique
         output_names = [o["Name"] for o in self.config.get("Outputs", default=[]) or []]
@@ -376,7 +378,7 @@ class PowerController:
         max_errors = int(self.config.get("ShellyDevices", "MaxConcurrentErrors", default=4) or 4)  # pyright: ignore[reportArgumentType]
         for device in self.shelly_control.devices:
             try:
-                if not self.shelly_control.get_device_status(device):
+                if not self.shelly_control.get_device_status(device) and not device.get("ExpectOffline", False):
                     self.logger.log_message(f"Failed to refresh status for device {device['Label']} - device offline.")
             except RuntimeError as e:
                 self.logger.log_message(f"Error refreshing status for device {device['Label']}: {e}", "error")
@@ -386,6 +388,26 @@ class PowerController:
                 if self.shelly_device_concurrent_error_count > max_errors and self.report_critical_errors_delay:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Shelly Device {device['Label']}", issue_type="States Refresh Error", send_delay=self.report_critical_errors_delay * 60, message="Unable to get the status for this This Shelly device.")
+            else:
+                for output in self.outputs:
+                    output.tell_device_status_updated()
+
+        # Now see if we need to reinitialise the Shelly controller because a device has come back online
+        new_online_status = self._are_all_shelly_devices_online()
+        if new_online_status and not self.all_shelly_devices_online:
+            self.logger.log_message("All Shelly devices are now online, reinitializing Shelly controller.", "debug")
+            shelly_settings = self.config.get_shelly_settings()
+            self.shelly_control.initialize_settings(shelly_settings, refresh_status=True)
+
+        self.all_shelly_devices_online = new_online_status
+
+    def _are_all_shelly_devices_online(self) -> bool:
+        """Check if all Shelly devices are online.
+
+        Returns:
+            bool: True if all devices are online, False otherwise.
+        """
+        return all(device.get("Online") for device in self.shelly_control.devices)
 
     def _calculate_running_totals(self):
         """Calculate the running totals for each output."""

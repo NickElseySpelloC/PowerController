@@ -2,7 +2,7 @@
 import datetime as dt
 import operator
 from pathlib import Path
-from zoneinfo import ZoneInfo
+# from zoneinfo import ZoneInfo
 
 import requests
 from org_enums import RunPlanMode
@@ -19,6 +19,7 @@ from run_plan import RunPlanner
 
 
 class PricingManager:
+    """Manages the pricing data from Amber and determines when to run based on the best pricing strategy."""
     def __init__(self, config: SCConfigManager, logger: SCLogger):
         """Initializes the PricingManager.
 
@@ -32,6 +33,7 @@ class PricingManager:
 
         # Amber specific information
         self.concurrent_error_count = 0
+        self.api_error_count = 0
         self.site_id = None
         self.raw_price_data = []   # The raw pricing data retrieved from Amber
         self.price_data = []       # The processed pricing data
@@ -142,6 +144,7 @@ class PricingManager:
             result(bool): True if the refresh was successful or AmberPricing disabled, False if there was an error.
         """
         connection_error = False
+        max_errors = 10
         # If Amber pricing is disabled, nothing to do
         if self.mode == AmberAPIMode.DISABLED:
             self.next_refresh = DateHelper.now() + dt.timedelta(minutes=self.refresh_interval)  # pyright: ignore[reportArgumentType]
