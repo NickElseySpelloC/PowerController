@@ -2,8 +2,8 @@
 import datetime as dt
 import operator
 from pathlib import Path
-# from zoneinfo import ZoneInfo
 
+# from zoneinfo import ZoneInfo
 import requests
 from org_enums import RunPlanMode
 from sc_utility import DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
@@ -496,6 +496,7 @@ class PricingManager:
             run_planner = RunPlanner(self.logger, RunPlanMode.BEST_PRICE, channel_id)
 
             sorted_price_data = self._get_channel_prices(channel_id=channel_id, which_type=PriceFetchMode.SORTED)
+            self.logger.log_message(f"Calculating best price run plan for {required_hours} hours ({priority_hours} priority) on channel {channel_id} with max prices {max_price} / {max_priority_price}.", "debug")
             run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating best price run plan: {e}", "error")

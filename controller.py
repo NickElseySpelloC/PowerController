@@ -315,7 +315,7 @@ class PowerController:
             return
 
         while not stop_event.is_set():
-            print(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
+            self.print_to_console(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
             self._clear_commands()          # Get all commands from the queue and apply them
             self._run_scheduler_tick()
             self.wake_event.clear()
@@ -346,6 +346,9 @@ class PowerController:
 
     def _run_scheduler_tick(self):
         """Do all the control processing of the main loop."""
+        # Refresh the Amber price data if it's time to do so
+        self.pricing.refresh_price_data_if_time()
+
         # Tell each device to update its physical state
         self._refresh_device_statuses()
 
@@ -357,9 +360,6 @@ class PowerController:
 
         # Evaluate the conditions for each output and make changes if needed
         self._evaluate_conditions()
-
-        # Refresh the Amber price data if it's time to do so
-        self.pricing.refresh_price_data_if_time()
 
         # Deal with config changes including downstream objects
         self._check_for_configuration_changes()
@@ -485,6 +485,8 @@ class PowerController:
         """
         if self.config.get("General", "PrintToConsole", default=False):
             print(message)
+
+        self.logger.log_message(message, "debug")
 
     def run_self_tests(self) -> bool:
         """Run self tests on all outputs then exit.

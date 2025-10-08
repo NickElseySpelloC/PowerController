@@ -15,6 +15,8 @@ from org_enums import (
 from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
 
 from local_enumerations import (
+    FAILED_RUNPLAN_CHECK_INTERVAL,
+    RUNPLAN_CHECK_INTERVAL,
     AmberChannel,
     InputMode,
     OutputStatusData,
@@ -77,6 +79,7 @@ class OutputManager:
         # Run planning
         self.run_plan = None
         self.invalidate_run_plan = True
+        self.next_run_plan_check = DateHelper.now()
         self.last_price = 0
         self.min_hours = 0
         self.max_hours = 0
@@ -351,7 +354,7 @@ class OutputManager:
             actual_hours = self.run_history.get_actual_hours()
             prior_shortfall, max_shortfall = self.run_history.get_prior_shortfall()
             if self.report_critical_errors_delay:
-                if prior_shortfall >= max_shortfall:
+                if prior_shortfall >= max_shortfall > 0:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Output {self.name}", issue_type="Reached MaxShortfall", send_delay=self.report_critical_errors_delay * 60, message=f"This output has reached the maximum shortfall of {max_shortfall} hours. Please review the configuration to make sure it's possible to run for sufficient hours each day.")  # pyright: ignore[reportArgumentType]
                 else:
@@ -360,7 +363,8 @@ class OutputManager:
             hours_remaining = target_hours - actual_hours + prior_shortfall
             required_hours = max(0.0, hours_remaining)
             required_hours = min(self.max_hours, required_hours)
-            priority_hours = min(self.min_hours, required_hours)
+            priority_hours = min(self.min_hours - actual_hours, required_hours)
+            priority_hours = max(0.0, priority_hours)
 
         # If we're in the Best Price mode, get a best price run plan
         if self.device_mode == RunPlanMode.BEST_PRICE:
@@ -372,10 +376,17 @@ class OutputManager:
 
         # Log errors and warnings
         if not self.run_plan or self.run_plan["Status"] == RunPlanStatus.FAILED:
-            self.logger.log_message(f"Failed to generate run plan for output {self.name}.", "error")
+            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
+            logging_level = "warning" if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else "error"
+            self.logger.log_message(f"Failed to generate run plan for output {self.name}. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", logging_level)
 
-        elif self.run_plan["Status"] == RunPlanStatus.PARTIAL:
-            self.logger.log_message(f"Partially generated run plan for output {self.name}. Not enough low-price slots to meet target hours.", "warning")
+        elif self.run_plan["Status"] == RunPlanStatus.PARTIAL and self.run_plan_target_mode == RunPlanTargetHours.NORMAL:
+            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
+            self.logger.log_message(f"Partially generated run plan for output {self.name}. Not enough low-price slots to meet target hours. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", "warning")
+
+        else:
+            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=RUNPLAN_CHECK_INTERVAL)
+            self.logger.log_message(f"Successfully generated run plan for output {self.name}. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", "debug")
 
         self.invalidate_run_plan = False
         return bool(self.run_plan)
@@ -386,6 +397,10 @@ class OutputManager:
         Returns:
             bool: True if we need a new run plan, False otherwise.
         """
+        # If the device is currently offline, we can't generate a run plan
+        if not self.is_device_online:
+            return False
+
         # If some other task has already invalidated the run plan, we need to regenerate it.
         # Also if we don't have a run plan at all
         if self.invalidate_run_plan or not self.run_plan:
@@ -406,7 +421,11 @@ class OutputManager:
                 return True
 
         # Output is on but the run plan is inactive, so we've just gone out of a run plan slot
-        if not current_slot and self.is_on and self.system_state == SystemState.AUTO:  # noqa: SIM103
+        if not current_slot and self.is_on and self.system_state == SystemState.AUTO:
+            return True
+
+        # Check if it's been a while since we last checked the run plan
+        if DateHelper.now() >= self.next_run_plan_check:  # noqa: SIM103
             return True
 
         return False
@@ -804,6 +823,8 @@ class OutputManager:
         """
         if self.config.get("General", "PrintToConsole", default=False):
             print(message)
+
+        self.logger.log_message(message, "debug")
 
     def _should_respect_minimum_runtime(self, proposed_state: bool) -> bool:  # noqa: FBT001
         """Check if we should delay state change due to minimum runtime constraints.

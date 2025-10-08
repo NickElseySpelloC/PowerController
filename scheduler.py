@@ -15,6 +15,7 @@ from run_plan import RunPlanner
 
 
 class Scheduler:
+    """Scheduler class to manage the time based schedules for each switch."""
     def __init__(self, config: SCConfigManager, logger: SCLogger, shelly_control: ShellyControl):
         """Initialise the scheduler class.
 
@@ -132,6 +133,8 @@ class Scheduler:
         try:
             # Create a run planner instance
             run_planner = RunPlanner(self.logger, RunPlanMode.SCHEDULE)
+            self.logger.log_message(f"Calculating schedule {operating_schedule_name} run plan for {required_hours} hours ({priority_hours} priority) with max prices {max_price} / {max_priority_price}.", "debug")
+
             run_plan = run_planner.calculate_run_plan(sorted_slots, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating schedule run plan: {e}", "error")
@@ -249,7 +252,7 @@ class Scheduler:
             except ValueError:
                 self.logger.log_fatal_error(f"Invalid time format for the schedule '{schedule_name}', time entry '{time_str}'. Use format like 'HH:MM'")
 
-        return base_time
+        return base_time  # pyright: ignore[reportPossiblyUnboundVariable]
 
     def _get_dusk_dawn_times(self) -> dict:
         """Get the dawn and dusk times based on the location returned from the specified shelly switch or the manually configured location configuration.

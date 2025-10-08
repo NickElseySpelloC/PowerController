@@ -52,7 +52,7 @@ class RunHistory:
         self.output_config = output_config
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.output_name = output_config.get("Name") or "Unknown"
-        self.max_shortfall_hours = output_config.get("MaxShortfallHours", 12) or 12
+        self.max_shortfall_hours = 0 if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else output_config.get("MaxShortfallHours", 12) or 12
         self.max_history_days = output_config.get("DaysOfHistory", 7)
 
     @staticmethod
@@ -423,6 +423,9 @@ class RunHistory:
         Returns:
             tuple[float, float]: The prior shortfall hours and the maximum shortfall hours.
         """
+        if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS:
+            return 0.0, 0.0
+
         if self.history["DailyData"]:
             return self.history["DailyData"][-1]["PriorShortfall"], self.max_shortfall_hours
         return 0.0, self.max_shortfall_hours
