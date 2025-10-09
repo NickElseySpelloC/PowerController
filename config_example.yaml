@@ -27,7 +27,7 @@ AmberAPI:
   # Operating mode for the Amber API: Live (attempt to download prices), Offline (pretend Amber API is offline, use cached prices). Disabled (fall back to schedule)
   Mode: Live
   APIURL: https://api.amber.com.au/v1   # The base URL for the Amber API
-  APIKey: <Your Amber API key here>    # The API key for your account, get one at app.amber.com.au/developers
+  APIKey: psk_18a5a2e1f7cb9b7fad555bcd32    # The API key for your account, get one at app.amber.com.au/developers
   Timeout: 15               # How long to wait in second for a response from the Amber API
   MaxConcurrentErrors: 4    # Send an email notification if we get this number of concurrent errors from Amber
   RefreshInterval: 15       # How often to refresh the pricing data from Amber (in minutes) 
