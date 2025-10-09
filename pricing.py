@@ -76,7 +76,7 @@ class PricingManager:
         Returns:
             result(bool): True if the refresh was successful or AmberPricing disabled, False if there was an error.
         """
-        if DateHelper.now() >= self.next_refresh:
+        if DateHelper.now() >= self.next_refresh or DateHelper.now().date() > self.next_refresh.date():
             self.refresh_price_data()
             return True
         return False

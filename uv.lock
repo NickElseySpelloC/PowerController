@@ -250,8 +250,8 @@ wheels = [
 
 [[package]]
 name = "org-enums"
-version = "0.1.2"
-source = { git = "https://github.com/NickElseySpelloC/org_enums?tag=v0.1.2#9bc1fed26c2247b12f5d1c72d1c9c60739ed1f0e" }
+version = "0.1.4"
+source = { git = "https://github.com/NickElseySpelloC/org_enums?tag=v0.1.4#d18f2e6f02a6d103747b6d7def84eceb76d4573e" }
 dependencies = [
     { name = "pytest" },
 ]
@@ -292,7 +292,7 @@ dependencies = [
 requires-dist = [
     { name = "astral", specifier = ">=3.2" },
     { name = "flask", specifier = ">=3.1.2" },
-    { name = "org-enums", git = "https://github.com/NickElseySpelloC/org_enums?tag=v0.1.2" },
+    { name = "org-enums", git = "https://github.com/NickElseySpelloC/org_enums?tag=v0.1.4" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "pytz", specifier = ">=2025.2" },
     { name = "sc-utility", specifier = ">=2.3.11" },
