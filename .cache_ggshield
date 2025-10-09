@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "Generic High Entropy Secret - commit://18a53ecef69d5778fea7f8db23d7a26eac2b6506/config_example.yaml", "match": "897f58aa06e12f2b4db8bdc8109e639a2f345bb371b19486d43824e8eb5a1992"}]}
+{"last_found_secrets": [{"match": "897f58aa06e12f2b4db8bdc8109e639a2f345bb371b19486d43824e8eb5a1992", "name": "Generic High Entropy Secret - commit://18a53ecef69d5778fea7f8db23d7a26eac2b6506/config_example.yaml"}]}
