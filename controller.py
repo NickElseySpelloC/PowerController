@@ -389,8 +389,20 @@ class PowerController:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Shelly Device {device['Label']}", issue_type="States Refresh Error", send_delay=self.report_critical_errors_delay * 60, message="Unable to get the status for this This Shelly device.")
             else:
-                for output in self.outputs:
-                    output.tell_device_status_updated()
+                # TO DO: Remove
+                self.logger.log_message(f"{device['Label']} status refreshed.", "debug")
+
+        # TO DO: Show status of each output
+        for device_output in self.shelly_control.outputs:
+            self.logger.log_message(f"Output {device_output['Name']} is {'ON' if device_output.get('State') else 'OFF'}.", "debug")
+
+        # TO DO: Show reading of each meter
+        for device_meter in self.shelly_control.meters:
+            self.logger.log_message(f"Meter {device_meter['Name']} reading is {device_meter.get('Energy')}, power draw is {device_meter.get('Power')}.", "debug")
+
+        # Tell all the outputs that the device status has been updated
+        for output in self.outputs:
+            output.tell_device_status_updated()
 
         # Now see if we need to reinitialise the Shelly controller because a device has come back online
         new_online_status = self._are_all_shelly_devices_online()
