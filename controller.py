@@ -392,11 +392,11 @@ class PowerController:
                 # TO DO: Remove
                 self.logger.log_message(f"{device['Label']} status refreshed.", "debug")
 
-        # TO DO: Show status of each output
+        # TO DO Remove: Show status of each output
         for device_output in self.shelly_control.outputs:
             self.logger.log_message(f"Output {device_output['Name']} is {'ON' if device_output.get('State') else 'OFF'}.", "debug")
 
-        # TO DO: Show reading of each meter
+        # TO DO Remove: Show reading of each meter
         for device_meter in self.shelly_control.meters:
             self.logger.log_message(f"Meter {device_meter['Name']} reading is {device_meter.get('Energy')}, power draw is {device_meter.get('Power')}.", "debug")
 

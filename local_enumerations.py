@@ -45,6 +45,8 @@ class InputMode(StrEnum):
 class OutputStatusData:
     """Used to pass status data into RunHistory."""
     meter_reading: float
+    power_draw: float
+    is_on: bool
     target_hours: float | None
     current_price: float
 

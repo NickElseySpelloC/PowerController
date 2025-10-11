@@ -39,7 +39,8 @@ class RunHistory:
         self.initialise(output_config)
 
         # Now do a tick just to make sure everything is in order
-        status_data = OutputStatusData(meter_reading=0.0, target_hours=None, current_price=15.0)
+        # TO DO: Can we get rid of this?
+        status_data = OutputStatusData(meter_reading=0.0, power_draw=0.0, is_on=False, target_hours=None, current_price=15.0)
         self.tick(status_data)
 
     def initialise(self, output_config: dict):
@@ -302,6 +303,28 @@ class RunHistory:
 
         self._update_totals(status_data)
 
+    def break_run(self, reason: StateReasonOff, status_data: OutputStatusData):
+        """Break the current active run into a new run entry because of a status change.
+
+        Args:
+            reason (StateReasonOff): The reason why the output was turned off.
+            status_data (OutputStatusData): The status data for the associated output.
+        """
+        current_run = self.get_current_run()
+        if current_run is None:
+            # No active run to break
+            return
+
+        current_system_state = current_run["SystemState"]
+        current_reason_on = current_run["ReasonStarted"]
+
+        # We can't call stop_run() because we want to skip calling _calculate_values_for_open_run()
+        current_run["EndTime"] = DateHelper.now()
+        current_run["ReasonStopped"] = reason
+
+        # Now immediately start a new run with the same state and reason
+        self.start_run(current_system_state, current_reason_on, status_data)
+
     def _calculate_values_for_open_run(self, status_data: OutputStatusData):
         """Calculate the values for the current open run.
 
@@ -317,7 +340,23 @@ class RunHistory:
 
         last_meter_read = current_run["PriorMeterRead"]
         current_run["LastActualPrice"] = status_data.current_price
-        if status_data.meter_reading > 0.0 and last_meter_read > 0.0 and status_data.meter_reading > last_meter_read:
+
+        if last_meter_read > 0 and not status_data.meter_reading:
+            # Deal with the case where we had a prior read but now don't - possible dues to comms error
+            self.logger.log_message(f"Meter reading for {self.output_name} output is no longer available. Last known reading was {last_meter_read:.2f}.", "warning")
+
+        elif status_data.meter_reading > 0 and status_data.meter_reading < last_meter_read:
+            # Meter has been reset or replaced, so we can't calculate energy used
+            current_run["PriorMeterRead"] = status_data.meter_reading
+            self.logger.log_message(f"Meter reading for {self.output_name} output has decreased from {last_meter_read:.2f} to {status_data.meter_reading:.2f}. Assuming meter reset or replacement.", "warning")
+
+            # End the current run and start a new one with the new meter reading
+            self.break_run(StateReasonOff.METER_RESET, status_data)
+
+        elif status_data.meter_reading > 0 and last_meter_read == 0.0:
+            self.logger.log_message(f"Meter reading for {self.output_name} is {status_data.meter_reading:.2f} but the prior read was zero. This is not expected.", "error")
+
+        elif status_data.meter_reading > 0.0 and last_meter_read > 0.0 and status_data.meter_reading > last_meter_read:
             # We have used some energy since the last call to this func
             energy_used = status_data.meter_reading - last_meter_read
             current_run["EnergyUsed"] += energy_used

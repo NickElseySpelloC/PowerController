@@ -595,11 +595,17 @@ class OutputManager:
         Returns:
             data_block(OutputStatusData)
         """
-        return OutputStatusData(
+        status_data = OutputStatusData(
             meter_reading=(self.device_meter.get("Energy") or 0) if self.device_meter else 0,
+            power_draw=(self.device_meter.get("Power") or 0) if self.device_meter else 0,
+            is_on=self.device_output.get("State") or False,  # pyright: ignore[reportOptionalMemberAccess]
             target_hours=self._get_target_hours(),
             current_price=self._get_current_price()
         )
+
+        self.logger.log_message(f"Output {self.name} status data: MeterReading={status_data.meter_reading}Wh PowerDraw={status_data.power_draw}W IsOn={'On' if status_data.is_on else 'Off'} TargetHours={status_data.target_hours} CurrentPrice=${status_data.current_price:.2f}c/kWh", "debug")
+
+        return status_data
 
     def set_parent_output(self, parent_output):
         """Sets the parent output for this output manager.
