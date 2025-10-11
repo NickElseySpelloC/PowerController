@@ -521,10 +521,10 @@ class OutputManager:
         if new_system_state == SystemState.AUTO and self._should_respect_minimum_runtime(new_output_state):
             # message here
             if self.is_on:
-                reason_on = StateReasonOn.MIN_ON_TIME
+                self.reason = StateReasonOn.MIN_ON_TIME
                 self.print_to_console(f"Output {self.name} has been ON for less than MinOnTime of {self.min_on_time} minutes. Will remain ON until minimum time has elapsed.")
             else:
-                reason_off = StateReasonOff.MIN_OFF_TIME
+                self.reason = StateReasonOff.MIN_OFF_TIME
                 self.print_to_console(f"Output {self.name} has been OFF for less than MinOffTime of {self.min_off_time} minutes. Will remain OFF until minimum time has elapsed.")
         else:  # noqa: PLR5501
             # And finally we're ready to apply our changes
@@ -603,6 +603,7 @@ class OutputManager:
             current_price=self._get_current_price()
         )
 
+        # TO DO: Remove this debug log eventually
         self.logger.log_message(f"Output {self.name} status data: MeterReading={status_data.meter_reading}Wh PowerDraw={status_data.power_draw}W IsOn={'On' if status_data.is_on else 'Off'} TargetHours={status_data.target_hours} CurrentPrice=${status_data.current_price:.2f}c/kWh", "debug")
 
         return status_data

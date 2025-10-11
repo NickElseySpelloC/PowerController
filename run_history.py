@@ -35,6 +35,12 @@ class RunHistory:
         else:
             self.history = saved_history
 
+        # Fixup for any missing keys in the saved history
+        if "ActualDays" not in self.history["CurrentTotals"]:
+            self.history["CurrentTotals"]["ActualDays"] = 0
+            self.history["EarlierTotals"]["ActualDays"] = 0
+            self.history["AlltimeTotals"]["ActualDays"] = 0
+
         # Now set the min / max / target hours. May throw runtime error
         self.initialise(output_config)
 
@@ -71,6 +77,7 @@ class RunHistory:
                 "TotalCost": 0.0,  # Total cost in $
                 "AveragePrice": 0.0,  # Average price in c/kWh
                 "ActualHours": 0.0,
+                "ActualDays": 0,
                 "ActualHoursPerDay": 0.0
 
             },
@@ -79,14 +86,16 @@ class RunHistory:
                 "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
                 "TotalCost": 0.0,
                 "AveragePrice": 0.0,
-                "ActualHours": 0.0
+                "ActualHours": 0.0,
+                "ActualDays": 0,
             },
             "AlltimeTotals": {   # Sum of CurrentTotals and EarlierTotals
                 "EnergyUsed": 0,
                 "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
                 "TotalCost": 0.0,
                 "AveragePrice": 0.0,
-                "ActualHours": 0.0
+                "ActualHours": 0.0,
+                "ActualDays": 0
             },
             "DailyData": []  # List of day objects as created by _create_day_object
         }
@@ -162,7 +171,9 @@ class RunHistory:
                 self.history["EarlierTotals"]["EnergyUsed"] += oldest_day["EnergyUsed"]
                 self.history["EarlierTotals"]["TotalCost"] += oldest_day["TotalCost"]
                 self.history["EarlierTotals"]["ActualHours"] += oldest_day["ActualHours"]
+                self.history["EarlierTotals"]["ActualDays"] += 1
                 self.history["EarlierTotals"]["AveragePrice"] = self.history["EarlierTotals"]["TotalCost"] / (self.history["EarlierTotals"]["EnergyUsed"] / 1000) if self.history["EarlierTotals"]["EnergyUsed"] > 0 else 0
+                self.history["EarlierTotals"]["HourlyEnergyUsed"] = (self.history["EarlierTotals"]["EnergyUsed"] / (self.history["EarlierTotals"]["ActualDays"] * 24)) if self.history["EarlierTotals"]["ActualDays"] > 0 else 0.0
 
                 # Now remove the oldest day
                 self.history["DailyData"].pop(0)
@@ -385,14 +396,16 @@ class RunHistory:
         self.history["CurrentTotals"]["TotalCost"] = 0.0
         self.history["CurrentTotals"]["AveragePrice"] = 0.0
         self.history["CurrentTotals"]["ActualHours"] = 0.0
+        self.history["CurrentTotals"]["ActualDays"] = 0
         self.history["CurrentTotals"]["ActualHoursPerDay"] = 0.0
 
         # Set a default for the AlltimeTotals in case we don't have anything to process
-        self.history["AlltimeTotals"]["EnergyUsed"] = self.history["EarlierTotals"]["EnergyUsed"]
+        self.history["AlltimeTotals"]["EnergyUsed"] = self.history["EarlierTotals"]["EnergyUsed"] or 0
+        self.history["AlltimeTotals"]["TotalCost"] = self.history["EarlierTotals"]["TotalCost"] or 0
+        self.history["AlltimeTotals"]["ActualHours"] = self.history["EarlierTotals"]["ActualHours"] or 0
+        self.history["AlltimeTotals"]["ActualDays"] = self.history["EarlierTotals"]["ActualDays"] or 0
+        self.history["AlltimeTotals"]["AveragePrice"] = self.history["EarlierTotals"]["AveragePrice"] or 0
         self.history["AlltimeTotals"]["HourlyEnergyUsed"] = self.history["EarlierTotals"].get("HourlyEnergyUsed", 0.0)
-        self.history["AlltimeTotals"]["TotalCost"] = self.history["EarlierTotals"]["TotalCost"]
-        self.history["AlltimeTotals"]["ActualHours"] = self.history["EarlierTotals"]["ActualHours"]
-        self.history["AlltimeTotals"]["AveragePrice"] = self.history["EarlierTotals"]["AveragePrice"]
 
         # Now iterate through each day if we have anything to do
         # Set the prior_shortfall to be the current value for the earliest day
@@ -427,13 +440,14 @@ class RunHistory:
             self.history["CurrentTotals"]["EnergyUsed"] += day["EnergyUsed"]
             self.history["CurrentTotals"]["TotalCost"] += day["TotalCost"]
             self.history["CurrentTotals"]["ActualHours"] += day["ActualHours"]
-            self.history["CurrentTotals"]["HourlyEnergyUsed"] = self.history["CurrentTotals"]["EnergyUsed"] / self.history["CurrentTotals"]["ActualHours"] if self.history["CurrentTotals"]["ActualHours"] > 0 else 0.0
+            self.history["CurrentTotals"]["ActualDays"] += 1
 
             # Adjust running_shortfall for the next day
             running_shortfall += status_data.target_hours - day["ActualHours"] if status_data.target_hours is not None else 0.0
 
         # Calculate the remaining values for CurrentTotals
         self.history["HistoryDays"] = len(self.history["DailyData"])
+        self.history["CurrentTotals"]["HourlyEnergyUsed"] = (self.history["CurrentTotals"]["EnergyUsed"] / (self.history["CurrentTotals"]["ActualDays"] * 24)) if self.history["CurrentTotals"]["ActualDays"] > 0 else 0.0
         self.history["CurrentTotals"]["AveragePrice"] = self.calc_price(self.history["CurrentTotals"]["EnergyUsed"], self.history["CurrentTotals"]["TotalCost"])
         self.history["CurrentTotals"]["ActualHoursPerDay"] = self.history["CurrentTotals"]["ActualHours"] / self.history["HistoryDays"] if self.history["HistoryDays"] > 0 else 0.0
 
@@ -441,8 +455,9 @@ class RunHistory:
         self.history["AlltimeTotals"]["EnergyUsed"] = self.history["CurrentTotals"]["EnergyUsed"] + self.history["EarlierTotals"]["EnergyUsed"]
         self.history["AlltimeTotals"]["TotalCost"] = self.history["CurrentTotals"]["TotalCost"] + self.history["EarlierTotals"]["TotalCost"]
         self.history["AlltimeTotals"]["ActualHours"] = self.history["CurrentTotals"]["ActualHours"] + self.history["EarlierTotals"]["ActualHours"]
+        self.history["AlltimeTotals"]["ActualDays"] = self.history["CurrentTotals"]["ActualDays"] + self.history["EarlierTotals"]["ActualDays"]
         self.history["AlltimeTotals"]["AveragePrice"] = self.calc_price(self.history["AlltimeTotals"]["EnergyUsed"], self.history["AlltimeTotals"]["TotalCost"])
-        self.history["AlltimeTotals"]["HourlyEnergyUsed"] = self.history["AlltimeTotals"]["EnergyUsed"] / self.history["AlltimeTotals"]["ActualHours"] if self.history["AlltimeTotals"]["ActualHours"] > 0 else 0.0
+        self.history["AlltimeTotals"]["HourlyEnergyUsed"] = (self.history["AlltimeTotals"]["EnergyUsed"] / (self.history["AlltimeTotals"]["ActualDays"] * 24)) if self.history["AlltimeTotals"]["ActualDays"] > 0 else 0.0
 
         self.history["LastUpdate"] = DateHelper.now()
         current_run = self.get_current_run()

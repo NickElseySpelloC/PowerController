@@ -12,7 +12,16 @@ from local_enumerations import Command
 
 
 def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:
-    """Create and configure the Flask web application."""
+    """Create and configure the Flask web application.
+
+    Args:
+        controller (PowerController): The main controller instance.
+        config (SCConfigManager): The configuration manager instance.
+        logger (SCLogger): The logger instance.
+
+    Returns:
+        Flask: The configured Flask application instance.
+    """
     app = Flask(__name__)
     app.config["DEBUG"] = config.get("Website", "DebugMode", default=False) or False
 
