@@ -444,11 +444,11 @@ class OutputManager:
             if self.app_mode == AppMode.ON:
                 new_output_state = True
                 new_system_state = SystemState.APP_OVERRIDE
-                reason_on = StateReasonOn.INPUT_SWITCH_ON
+                reason_on = StateReasonOn.APP_MODE_ON
             if self.app_mode == AppMode.OFF:
                 new_output_state = False
                 new_system_state = SystemState.APP_OVERRIDE
-                reason_off = StateReasonOff.INPUT_SWITCH_OFF
+                reason_off = StateReasonOff.APP_MODE_OFF
 
         # Otherwise see if the Input switch has overridden our state. Only allow changes if the device is online
         if new_output_state is None and self.is_device_online:

@@ -58,7 +58,7 @@ def main():
     web_thread.start()
 
     # Handle the SIGINT signal (Ctrl-C) so that we can gracefull shut down when this is received.
-    def handle_sigint(sig, frame):  # noqa: ARG001
+    def handle_sigint(_sig, _frame):  # noqa: ARG001
         """Handle the SIGINT signal.
 
         Args:

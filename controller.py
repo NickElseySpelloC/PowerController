@@ -69,19 +69,24 @@ class PowerController:
         self.scheduler = Scheduler(self.config, self.logger, self.shelly_control)
         self.pricing = PricingManager(self.config, self.logger)
 
-        # See if we have a system state file to load
-        state_data = self._load_system_state()
-
-        self.initialise(state_data)
+        self._initialise(skip_shelly_initialization=True)
         self.logger.log_message("Power controller startup complete.", "summary")
 
-    def initialise(self, saved_state: dict | None = None):
+    def _initialise(self, skip_shelly_initialization: bool | None = False):
         """(re) initialise the power controller."""
+
+        # See if we have a system state file to load
+        saved_state = self._load_system_state()
+        if saved_state:
+            self.logger.log_message("Initializing power controller from saved state.", "debug")
+        else:
+            self.logger.log_message("No saved state found, initializing power controller from scratch.", "debug")
+
         self.poll_interval = int(self.config.get("General", "PollingInterval", default=30) or 30)  # pyright: ignore[reportArgumentType]
         self.webapp_refresh = int(self.config.get("Website", "PageAutoRefresh", default=10) or 10)  # pyright: ignore[reportArgumentType]
         self.app_label = self.config.get("General", "Label", default="PowerController")
 
-        if not saved_state:
+        if not skip_shelly_initialization:
             # Reinitialise the Shelly controller
             shelly_settings = self.config.get_shelly_settings()
             self.shelly_control.initialize_settings(shelly_settings, refresh_status=True)
@@ -96,6 +101,7 @@ class PowerController:
         # Loop through each output read from the config file
         # Create an instance of a OutputStateManager manager object for each output we're managing
         outputs_config = self.config.get("Outputs", default=[]) or []
+        self.outputs.clear()    # Clear any existing outputs
         try:
             for output_cfg in outputs_config:
                 # Search for an existing output with the same name and update it if found
@@ -404,14 +410,15 @@ class PowerController:
         for output in self.outputs:
             output.tell_device_status_updated()
 
-        # Now see if we need to reinitialise the Shelly controller because a device has come back online
+        # Now see if we need to reinitialise the Shelly controller because a device that was offline during startup has come back online
         new_online_status = self._are_all_shelly_devices_online()
         if new_online_status and not self.all_shelly_devices_online:
-            self.logger.log_message("All Shelly devices are now online, reinitializing Shelly controller.", "debug")
-            shelly_settings = self.config.get_shelly_settings()
-            self.shelly_control.initialize_settings(shelly_settings, refresh_status=True)
+            self.logger.log_message("All Shelly devices are now online, reinitializing...", "detailed")
+            self.save_system_state(force_post=True)  # Save state before reinitialising
+            self._initialise()
 
-        self.all_shelly_devices_online = new_online_status
+            # Make sure we don't repeat this block again
+            self.all_shelly_devices_online = new_online_status
 
     def _are_all_shelly_devices_online(self) -> bool:
         """Check if all Shelly devices are online.
@@ -448,8 +455,9 @@ class PowerController:
         last_modified = self.config.check_for_config_changes(self.last_config_check)
         if last_modified:
             self.last_config_check = last_modified
-            self.logger.log_message("Configuration file has changed, reloading...", "debug")
-            self.initialise()
+            self.logger.log_message("Configuration file has changed, reloading...", "detailed")
+            self.save_system_state(force_post=True)  # Save state before reinitialising
+            self._initialise()
 
     def _check_fatal_error_recovery(self):
         """Check for fatal errors in the system and handle them."""
