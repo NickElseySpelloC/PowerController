@@ -69,6 +69,7 @@ class OutputManager:
         self.max_best_price = self.max_priority_price = 0
         self.device_meter_name = None
         self.device_meter = None
+        self.device_meter_id = None     # TO DO: Remove this eventually
         self.device_input_name = None
         self.device_input = None
         self.device_input_mode = InputMode.IGNORE
@@ -603,8 +604,16 @@ class OutputManager:
             current_price=self._get_current_price()
         )
 
+        device_meter_id = hex(id(self.device_meter))
+
+        if not self.device_meter_id:
+            self.device_meter_id = device_meter_id
+        elif self.device_meter_id != device_meter_id:
+            self.logger.log_message(f"Output {self.name} DeviceMeter object has changed from {self.device_meter_id} to {device_meter_id}.", "error")
+            self.device_meter_id = device_meter_id
+
         # TO DO: Remove this debug log eventually
-        self.logger.log_message(f"Output {self.name} status data: MeterReading={status_data.meter_reading}Wh PowerDraw={status_data.power_draw}W IsOn={'On' if status_data.is_on else 'Off'} TargetHours={status_data.target_hours} CurrentPrice=${status_data.current_price:.2f}c/kWh", "debug")
+        self.logger.log_message(f"Output {self.name} status data: Meter object = {hex(id(self.device_meter))} MeterReading={status_data.meter_reading}Wh PowerDraw={status_data.power_draw}W IsOn={'On' if status_data.is_on else 'Off'} TargetHours={status_data.target_hours} CurrentPrice=${status_data.current_price:.2f}c/kWh", "debug")
 
         return status_data
 

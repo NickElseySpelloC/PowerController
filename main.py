@@ -14,6 +14,7 @@ from webapp import FlaskServerThread, create_flask_app
 
 
 def main():
+    """Main entry point for the PowerController app."""
     wake_event = Event()    # Wakes the main controller loop from a timed sleep
     stop_event = Event()    # Use to signal the main controller loop that the app is exiting
 
@@ -21,7 +22,7 @@ def main():
         print(f"ERROR: Python 3.13 or higher is required. You are running {sys.version}", file=sys.stderr)
         sys.exit(1)
 
-    """Get our default schema, validation schema, and placeholders."""
+    # Get our default schema, validation schema, and placeholders.
     schemas = ConfigSchema()
 
     # Initialize the SC_ConfigManager class
@@ -41,6 +42,10 @@ def main():
     except RuntimeError as e:
         print(f"Logger initialisation error: {e}", file=sys.stderr)
         return
+    else:
+        logger.log_message("", "summary")
+        logger.log_message("", "summary")
+        logger.log_message("PowerController application starting.", "summary")
 
     # Setup email
     logger.register_email_settings(config.get_email_settings())

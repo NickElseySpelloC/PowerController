@@ -398,7 +398,7 @@ class PowerController:
 
         # TO DO Remove: Show reading of each meter
         for device_meter in self.shelly_control.meters:
-            self.logger.log_message(f"Meter {device_meter['Name']} reading is {device_meter.get('Energy')}, power draw is {device_meter.get('Power')}.", "debug")
+            self.logger.log_message(f"Meter {device_meter['Name']} object = {hex(id(device_meter))}, reading is {device_meter.get('Energy')}, power draw is {device_meter.get('Power')}.", "debug")
 
         # Tell all the outputs that the device status has been updated
         for output in self.outputs:
