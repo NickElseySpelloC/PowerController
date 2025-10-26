@@ -612,9 +612,6 @@ class OutputManager:
             self.logger.log_message(f"Output {self.name} DeviceMeter object has changed from {self.device_meter_id} to {device_meter_id}.", "error")
             self.device_meter_id = device_meter_id
 
-        # TO DO: Remove this debug log eventually
-        self.logger.log_message(f"Output {self.name} status data: Meter object = {hex(id(self.device_meter))} MeterReading={status_data.meter_reading}Wh PowerDraw={status_data.power_draw}W IsOn={'On' if status_data.is_on else 'Off'} TargetHours={status_data.target_hours} CurrentPrice=${status_data.current_price:.2f}c/kWh", "debug")
-
         return status_data
 
     def set_parent_output(self, parent_output):
@@ -952,3 +949,13 @@ class OutputManager:
             str: The name of the current thread.
         """
         return threading.current_thread().name
+
+    def get_consumption_data(self) -> list[dict]:
+        """Get the consumption data for this output.
+
+        Returns:
+            list[dict]: The list of consumption data points.
+        """
+        if self.run_history:
+            return self.run_history.get_consumption_data()
+        return []

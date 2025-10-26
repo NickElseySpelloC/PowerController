@@ -42,6 +42,9 @@ General:
   PrintToConsole: True
   # A default price to use if the Amber API is not available and there is no schedule price defined
   DefaultPrice: 32.0
+  # Output consumption data file - leave blank to disable
+  ConsumptionDataFile: output_consumption_data.csv
+  ConsumptionDataMaxDays: 30    # Maximum number of days to keep in the consumption data file
 
 
 # Settings for the built-in web server that provides a web interface to view and control the power controller
@@ -58,10 +61,13 @@ AmberAPI:
   # Operating mode for the Amber API: Live (attempt to download prices), Offline (pretend Amber API is offline, use cached prices). Disabled (fall back to schedule)
   Mode: Live
   APIURL: https://api.amber.com.au/v1   # The base URL for the Amber API
-  APIKey: <Your Amber API key here>    # The API key for your account, get one at app.amber.com.au/developers
+  APIKey: <Your API key here>    # The API key for your account, get one at app.amber.com.au/developers
   Timeout: 15               # How long to wait in second for a response from the Amber API
   MaxConcurrentErrors: 4    # Send an email notification if we get this number of concurrent errors from Amber
   RefreshInterval: 15       # How often to refresh the pricing data from Amber (in minutes) 
+  # Save usage data to a CSV file for offline use. Leave blank to disable
+  UsageDataFile: amber_usage_data.csv
+  UsageMaxDays: 30       # Maximum number of days to keep
 
 
 # Use this section to configure your Shelly devices used to control the lights. See this page for more information: https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/
@@ -149,7 +155,7 @@ Outputs:
       July: 6
       August: 6
       December: 8     
-    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days
+    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days. Ignored if TargetHours is -1.
     MaxBestPrice: 23.0              # The maximum price to run at when in BestPrice mode. 
     MaxPriorityPrice: 35.0          # The maximum price to run when we haven't run for the minimum number of hours yet.
     DatesOff:                       # Optional list of date ranges when the output should not run
@@ -248,6 +254,9 @@ General settings for the Power Controller application.
 | ReportCriticalErrorsDelay | Some critical errors can trigger email notifications - for example the AmberAPI not responding. This is the time in minutes for an issue to persist before we send an email notification. Leave blank to disable. |
 | PrintToConsole | Print some basic information to the console during startup and operation |
 | DefaultPrice | A default price to use if the Amber API is not available and there is no schedule price defined |
+| ConsumptionDataFile | Set to the name of a CSV file to have the system log a daily summary of energy usage and costs for each output. | 
+| ConsumptionDataMaxDays | Maximum number of days to keep in the consumption data file | 
+
 
 ### Section: Website
 
@@ -270,7 +279,9 @@ Settings for the built-in web server that provides a web interface to view and c
 | APIKey | Your Amber API key for authentication. Login to  app.amber.com.au/developers/ and generate a new Token to get your API key.| 
 | Timeout | Number of seconds to wait for Amber to respond to an API call | 
 | MaxConcurrentErrors | Send an email notification if we get this number of concurrent errors from Amber. |
-| RefreshInterval | How often to refresh the pricing data from Amber (in minutes) . |
+| RefreshInterval | How often to refresh the pricing data from Amber (in minutes). |
+| UsageDataFile | Set to the name of a CSV file to log hourly energy usage and costs as reported by Amber. |
+| UsageMaxDays | Maximum number of days to keep in the usage data file. |
 
 ### Section: ShellyDevices
 
@@ -398,19 +409,25 @@ This section shows you how to configure the app to run automatically at boot on 
 Create a new service file at _/etc/systemd/system/PowerController.service_. Edit the content below as appropriate
 ```
 [Unit]
-Description=My Lighting Control app
+Description=PowerController app
 After=network.target
 
 [Service]
 ExecStart=/home/pi/scripts/PowerController/launch.sh
 WorkingDirectory=/home/pi/scripts/PowerController
-Restart=on-failure
-RestartSec=5
 StandardOutput=journal
 StandardError=journal
 User=pi
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/home/pi/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Logging and restart behavior
+Restart=on-failure        # Only restart on non-zero exit code
+RestartSec=10             # Wait 10 seconds before restarting
+
+# Limit restart attempts (3 times in 60 seconds)
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target

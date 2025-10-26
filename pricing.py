@@ -6,7 +6,7 @@ from pathlib import Path
 # from zoneinfo import ZoneInfo
 import requests
 from org_enums import RunPlanMode
-from sc_utility import DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
+from sc_utility import CSVReader, DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
 
 from local_enumerations import (
     PRICE_SLOT_INTERVAL,
@@ -14,9 +14,10 @@ from local_enumerations import (
     AmberAPIMode,
     AmberChannel,
     PriceFetchMode,
+    USAGE_AGGREGATION_INTERVAL,
 )
 from run_plan import RunPlanner
-
+from config_schemas import ConfigSchema
 
 class PricingManager:
     """Manages the pricing data from Amber and determines when to run based on the best pricing strategy."""
@@ -62,6 +63,9 @@ class PricingManager:
         else:
             self.report_critical_errors_delay = None
 
+        # Save the usage data
+        self._save_usage_data()
+
         # If the price cache file exists, read from it rather than live prices to save time
         _, mod_time = self._get_price_cache_file_info()
         if self.mode == AmberAPIMode.LIVE and mod_time is not None and (DateHelper.now() - mod_time).total_seconds() < (self.refresh_interval * 60):
@@ -78,6 +82,7 @@ class PricingManager:
         """
         if DateHelper.now() >= self.next_refresh or DateHelper.now().date() > self.next_refresh.date():
             self.refresh_price_data()
+            self._save_usage_data()
             return True
         return False
 
@@ -291,7 +296,7 @@ class PricingManager:
             response_data = response.json()
 
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:  # Trap connection and timeout errors
-            self.logger.log_message(f"Connection error or timeout while authenticating to Amber: {e}", "warning")
+            self.logger.log_message(f"Connection error or timeout while getting Amber price data: {e}", "warning")
             self.concurrent_error_count += 1
             return None
 
@@ -385,6 +390,215 @@ class PricingManager:
             return False
         else:
             return True
+
+    def _save_usage_data(self) -> bool:
+        """Saves the raw usage data a CSV file, appending and truncating as needed.
+
+        Implements https://github.com/NickElseySpelloC/PowerController/issues/11
+
+        Returns:
+            result (bool): True if the usage data was saved, False if not.
+        """
+        file_name = self.config.get("AmberAPI", "UsageDataFile")
+        if not file_name:
+            return False    # No file configured, nothing to do
+
+        file_path = SCCommon.select_file_location(file_name) # pyright: ignore[reportArgumentType]
+        if not file_path:
+            self.logger.log_message(f"No valid path for Amber usage data file {file_name}.", "error")
+            return False
+        max_days = self.config.get("AmberAPI", "UsageDataMaxDays", default=30) or 30
+        assert isinstance(max_days, int)
+
+        # Create a CSVreader to read the existing data
+        csv_reader = None
+        try:
+            schemas = ConfigSchema()
+            csv_reader = CSVReader(file_path, schemas.amber_usage_csv_config)
+            csv_data = csv_reader.read_csv()
+            if not csv_data:
+                csv_data = []
+        except (ImportError, TypeError, ValueError) as e:
+            self.logger.log_message(f"Error initializing CSVReader: {e}", "error")
+            return False
+        else:
+            assert isinstance(csv_reader, CSVReader)
+
+        # If there are any records older than max_days or any records for today, remove them
+        today = DateHelper.today()
+        cutoff_date = today - dt.timedelta(days=max_days)
+        csv_data = [row for row in csv_data if row["Date"] > cutoff_date]
+
+        # Now determine the most recent date in the existing data
+        existing_dates = {row["Date"] for row in csv_data}
+        last_date = max(existing_dates) if existing_dates else None
+
+        # Set the start to be last_date or 6 days prior to today, which ever is later
+        start_date = today - dt.timedelta(days=6)
+        if last_date and last_date >= start_date:
+            start_date = last_date + dt.timedelta(days=1)
+        start_date = min(start_date, today)
+
+        # Call _download_amber_usage_data and append any new data
+        new_usage_data = self._download_amber_usage_data(start_date)
+        csv_data.extend(new_usage_data)
+
+        # Aggregate any 5 min data into hourly data
+        aggregated_data = []
+        i = 0
+        while i < len(csv_data):
+            row = csv_data[i]
+            row_date = row["Date"]
+            duration_minutes = int(row["Minutes"])
+
+            if duration_minutes < USAGE_AGGREGATION_INTERVAL:
+                # Parse the start time to get the hour
+                start_time = row["StartTime"]
+                end_time = row["EndTime"]
+                current_hour = start_time.hour
+
+                # Aggregate all rows for this hour
+                total_usage = row["Usage"]
+                total_cost = row["Cost"]
+                total_minutes = duration_minutes
+
+                # Look ahead to find more rows in the same hour
+                j = i + 1
+                while j < len(csv_data):
+                    next_row = csv_data[j]
+                    next_date = next_row["Date"]
+                    next_start_time = next_row["StartTime"]
+
+                    # Stop if we've moved to a different date, channel, or hour
+                    if (next_date != row_date or
+                        next_row["Channel"] != row["Channel"] or
+                        next_start_time.hour != current_hour):
+                        break
+
+                    # Add this row's data to our aggregate
+                    total_usage += next_row["Usage"]
+                    total_cost += next_row["Cost"]
+                    total_minutes += int(next_row["Minutes"])
+                    end_time = next_row["EndTime"]
+                    j += 1
+
+                # Create aggregated entry
+                new_entry = {
+                    "Date": row["Date"],
+                    "Channel": row["Channel"],
+                    "StartTime": start_time,
+                    "EndTime": end_time,
+                    "Minutes": total_minutes,
+                    "Usage": total_usage,
+                    "Price": total_cost / total_usage * 100 if total_usage > 0 else 0,
+                    "Cost": total_cost,
+                }
+                aggregated_data.append(new_entry)
+
+                # Skip all the rows we just processed
+                i = j
+            else:
+                # No aggregation needed for today or yesterday
+                aggregated_data.append(row)
+                i += 1
+
+        # Write the updated CSV data back to file, overwriting the existing file
+        try:
+            aggregated_data = csv_reader.sort_csv_data(aggregated_data)
+            csv_reader.write_csv(aggregated_data)
+        except (ValueError) as e:
+            self.logger.log_message(f"Error writing usage data file {file_path}: {e}", "error")
+            return False
+        else:
+            return True
+
+    def _download_amber_usage_data(self, start_date: dt.date) -> list[dict]:
+        """Downloads the Amber usage data for the past 7 days up to yesterday.
+
+        Args:
+            start_date (dt.date): The date to start downloading usage data from. Must be no more than 7 days ago.
+
+        Returns:
+            usage_data (list[dict]): The usage data retrieved from Amber, or an empty list if there was an error.
+        """
+
+        connection_error = False
+        response_data = []
+        end_date = DateHelper.today()
+
+        # Validate the start date
+        if (end_date - start_date).days > 7:
+            self.logger.log_message("Start date for Amber usage data download must be no more than 7 days ago.", "error")
+            start_date = end_date - dt.timedelta(days=7)
+
+        # Only attempt to download usage data if in LIVE mode
+        if self.mode == AmberAPIMode.LIVE:
+            # Authenticate to Amber
+            while True:
+                if not self._amber_authenticate():
+                    connection_error = True
+                    break
+
+                # We authenticated to Amber, so go get the usage data for the last 7 days starting from today
+                headers = {
+                    "accept": "application/json",
+                    "Authorization": f"Bearer {self.api_key}",
+                }
+                start_date_str = start_date.strftime("%Y-%m-%d")
+                end_date_str = end_date.strftime("%Y-%m-%d")
+                url = f"{self.base_url}/sites/{self.site_id}/usage?startDate={start_date_str}&endDate={end_date_str}"
+
+                try:
+                    response = requests.get(url, headers=headers, timeout=self.timeout)  # type: ignore[attr-defined]
+                    response.raise_for_status()
+                    response_data = response.json()
+
+                except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:  # Trap connection and timeout errors
+                    self.logger.log_message(f"Connection error or timeout while getting Amber usage data: {e}", "warning")
+                    self.concurrent_error_count += 1
+                    return []
+
+                except requests.exceptions.RequestException as e:
+                    self.logger.log_message(f"Error fetching Amber usage data: {e}", "error")
+                    self.concurrent_error_count += 1
+                    return []
+                else:
+                    self.concurrent_error_count = 0  # reset the error count
+                    self.logger.log_message("Downloaded latest Amber usage data.", "debug")
+                    break
+
+        # Save response_data to a JSON file for debugging
+        # debug_file_path = SCCommon.select_file_location("amber_usage_debug.json")
+        # try:
+        #     JSONEncoder.save_to_file(response_data, debug_file_path)
+        #     self.logger.log_message(f"Saved Amber usage response data to {debug_file_path}", "debug")
+        # except RuntimeError as e:
+        #     self.logger.log_message(f"Error saving debug usage data: {e}", "warning")
+
+        # Note: If there was a connection error along the way we'll let the download prices function handle it
+        usage_data = []
+        if not connection_error:
+            self.logger.clear_notifiable_issue(entity="Amber API", issue_type="Connection Error")
+
+            # Build a return list[dict] in a format suitable for CSV writing
+            for entry in response_data:
+                dt_start = self._convert_utc_dt_string(entry["startTime"])
+                if dt_start.date() == end_date:
+                    continue    # Skip records for today
+                dt_end = self._convert_utc_dt_string(entry["endTime"])
+                new_entry = {
+                    "Date": dt_start.date(),
+                    "Channel": entry["channelType"],
+                    "StartTime": dt_start.time(),
+                    "EndTime": dt_end.time(),
+                    "Minutes": int(entry["duration"]),  # Duration of this slot in minutes
+                    "Usage": float(entry["kwh"]),
+                    "Price": float(entry["perKwh"]),
+                    "Cost": float(entry["cost"]) / 100.0,  # Convert from cents to AUD
+                }
+                usage_data.append(new_entry)
+
+        return usage_data
 
     def is_channel_valid(self, channel_id: AmberChannel) -> bool:
         """Checks if the specified channel ID is valid.

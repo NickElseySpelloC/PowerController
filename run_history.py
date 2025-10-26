@@ -44,10 +44,6 @@ class RunHistory:
         # Now set the min / max / target hours. May throw runtime error
         self.initialise(output_config)
 
-        # Now do a tick just to make sure everything is in order
-        # TO DO: Can we get rid of this?
-        status_data = OutputStatusData(meter_reading=0.0, power_draw=0.0, is_on=False, target_hours=None, current_price=15.0)
-        self.tick(status_data)
 
     def initialise(self, output_config: dict):
         """Initialise or reinitialise the configured values for this object.
@@ -414,7 +410,7 @@ class RunHistory:
 
         for day in self.history["DailyData"]:
             # Calculate the running total for this day
-            day["PriorShortfall"] = max(0, min(self.max_shortfall_hours, running_shortfall))
+            day["PriorShortfall"] = max(-self.max_shortfall_hours, min(self.max_shortfall_hours, running_shortfall))
             # Note: TargetHours will be set when we add the day
 
             # Reset the totals for this day
@@ -491,6 +487,27 @@ class RunHistory:
                 if day["ActualHours"] >= 2 and day["HourlyEnergyUsed"] > 0.0:
                     return day["HourlyEnergyUsed"]
         return 0.0
+
+    def get_consumption_data(self) -> list[dict]:
+        """Returns a list of historic usage data for each day in the run history.
+
+        Data is returned in a CSV friendly format.
+
+        Returns:
+            list[dict]: A list of dictionaries containing date, energy used (Wh), total cost ($), average price (c/kWh), and actual hours for each day.
+        """
+        usage_list = []
+        for day in self.history["DailyData"]:
+            usage_list.append({
+                "Date": day["Date"].isoformat(),
+                "OutputName": self.output_name,
+                "ActualHours": day["ActualHours"],
+                "TargetHours": day["TargetHours"] or "All Hours",
+                "EnergyUsed": day["EnergyUsed"] / 1000,  # Convert to kWh
+                "TotalCost": day["TotalCost"],
+                "AveragePrice": day["AveragePrice"],
+            })
+        return usage_list
 
     @staticmethod
     def calc_cost(energy_used: float, price: float) -> float:

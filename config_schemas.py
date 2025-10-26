@@ -27,6 +27,8 @@ class ConfigSchema:
                     "ReportCriticalErrorsDelay": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                     "PrintToConsole": {"type": "boolean", "required": False, "nullable": True},
                     "DefaultPrice": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 1000},
+                    "ConsumptionDataFile": {"type": "string", "required": False, "nullable": True},
+                    "ConsumptionDataMaxDays": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 365},
                     "TestingMode": {"type": "boolean", "required": False, "nullable": True},
                 },
             },
@@ -48,7 +50,9 @@ class ConfigSchema:
                     "APIKey": {"type": "string", "required": False, "nullable": True},
                     "Timeout": {"type": "number", "required": False, "nullable": True, "min": 5, "max": 60},
                     "MaxConcurrentErrors": {"type": "number", "required": False, "nullable": True, "min": 0},
-                    "RefreshInterval": {"type": "number", "required": False, "nullable": True, "min": 5, "max": 30}
+                    "RefreshInterval": {"type": "number", "required": False, "nullable": True, "min": 5, "max": 30},
+                    "UsageDataFile": {"type": "string", "required": False, "nullable": True},
+                    "UsageMaxDays": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 365},
                 },
             },
             "ShellyDevices": {
@@ -248,3 +252,47 @@ class ConfigSchema:
                 },
             },
         }
+
+
+        self.amber_usage_csv_config = [
+            {
+                "name": "Date",
+                "type": "date",
+                "format": "%Y-%m-%d",
+                "match": True,
+                "sort": 1,
+            },
+            {
+                "name": "Channel",
+                "type": "str",
+                "match": True,
+                "sort": 2,
+            },
+            {
+                "name": "StartTime",
+                "type": "time",
+                "format": "%H:%M:%S",
+            },
+            {
+                "name": "EndTime",
+                "type": "time",
+                "format": "%H:%M:%S",
+            },
+            {
+                "name": "Minutes",
+                "type": "int",
+            },
+            {
+                "name": "Usage",
+                "type": "float",
+            },
+            {
+                "name": "Price",
+                "type": "float",
+            },
+            {
+                "name": "Cost",
+                "type": "float",
+            },
+        ]
+        

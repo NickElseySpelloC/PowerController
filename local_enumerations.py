@@ -13,6 +13,7 @@ PRICES_DATA_FILE = "latest_prices.json"
 PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
 RUNPLAN_CHECK_INTERVAL = 30  # Minutes between checking if we need to regenerate run plan
 FAILED_RUNPLAN_CHECK_INTERVAL = 10  # Minutes between checking if we need to regenerate run plan when then previous one failed or was incomplete
+USAGE_AGGREGATION_INTERVAL = 60  # Minutes between aggregating usage data
 
 
 class AmberAPIMode(StrEnum):

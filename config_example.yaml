@@ -11,6 +11,9 @@ General:
   PrintToConsole: True
   # A default price to use if the Amber API is not available and there is no schedule price defined
   DefaultPrice: 32.0
+  # Output consumption data file - leave blank to disable
+  ConsumptionDataFile: output_consumption_data.csv
+  ConsumptionDataMaxDays: 30    # Maximum number of days to keep in the consumption data file
 
 
 # Settings for the built-in web server that provides a web interface to view and control the power controller
@@ -31,6 +34,9 @@ AmberAPI:
   Timeout: 15               # How long to wait in second for a response from the Amber API
   MaxConcurrentErrors: 4    # Send an email notification if we get this number of concurrent errors from Amber
   RefreshInterval: 15       # How often to refresh the pricing data from Amber (in minutes) 
+  # Save usage data to a CSV file for offline use. Leave blank to disable
+  UsageDataFile: amber_usage_data.csv
+  UsageMaxDays: 30       # Maximum number of days to keep
 
 
 # Use this section to configure your Shelly devices used to control the lights. See this page for more information: https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/

@@ -1,13 +1,16 @@
 """The PowerController class that orchestrates power management."""
+import csv
 import queue
 
 # from threading import Event
 import time
+import datetime as dt
 from pathlib import Path
 from threading import Event
 
 from org_enums import AppMode
 from sc_utility import (
+    CSVReader,
     DateHelper,
     JSONEncoder,
     SCCommon,
@@ -199,6 +202,9 @@ class PowerController:
         Args:
             force_post (bool): If True, force posting the state to the web viewer.
         """
+        # Save the output consumption data if needed
+        self.save_output_consumption_data()
+
         system_state_path = self._get_system_state_path()
         if not system_state_path:
             return
@@ -385,7 +391,11 @@ class PowerController:
         for device in self.shelly_control.devices:
             try:
                 if not self.shelly_control.get_device_status(device) and not device.get("ExpectOffline", False):
-                    self.logger.log_message(f"Failed to refresh status for device {device['Label']} - device offline.")
+                    self.logger.log_message(f"Failed to refresh status for device {device['Label']} - device offline.", "error")
+            except TimeoutError:
+                if not device.get("ExpectOffline", False):
+                    self.logger.log_message(f"Device {device['Label']} is offline as expected.", "error")
+                self.logger.log_message(f"Failed to refresh status for device {device['Label']} - device offline.", "error")
             except RuntimeError as e:
                 self.logger.log_message(f"Error refreshing status for device {device['Label']}: {e}", "error")
                 self.shelly_device_concurrent_error_count += 1
@@ -394,17 +404,6 @@ class PowerController:
                 if self.shelly_device_concurrent_error_count > max_errors and self.report_critical_errors_delay:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Shelly Device {device['Label']}", issue_type="States Refresh Error", send_delay=self.report_critical_errors_delay * 60, message="Unable to get the status for this This Shelly device.")
-            else:
-                # TO DO: Remove
-                self.logger.log_message(f"{device['Label']} status refreshed.", "debug")
-
-        # TO DO Remove: Show status of each output
-        for device_output in self.shelly_control.outputs:
-            self.logger.log_message(f"Output {device_output['Name']} is {'ON' if device_output.get('State') else 'OFF'}.", "debug")
-
-        # TO DO Remove: Show reading of each meter
-        for device_meter in self.shelly_control.meters:
-            self.logger.log_message(f"Meter {device_meter['Name']} object = {hex(id(device_meter))}, reading is {device_meter.get('Energy')}, power draw is {device_meter.get('Power')}.", "debug")
 
         # Tell all the outputs that the device status has been updated
         for output in self.outputs:
@@ -521,3 +520,52 @@ class PowerController:
             output.run_self_tests()
 
         return True
+
+    def save_output_consumption_data(self):
+        """Save usage data for all outputs."""
+        aggregated_data = []
+        for output in self.outputs:
+            output_data = output.get_consumption_data()
+            if isinstance(output_data, list):
+                aggregated_data.extend(output_data)
+            else:
+                aggregated_data.append(output_data)
+
+        usage_data_file = self.config.get("General", "ConsumptionDataFile")
+        if not usage_data_file:
+            return
+        file_path = SCCommon.select_file_location(usage_data_file)  # pyright: ignore[reportArgumentType]
+        if not file_path:
+            return
+
+        # Find the ealiest date to in the aggregated data
+        existing_dates = {dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() for row in aggregated_data}
+        first_history_date = min(existing_dates) if existing_dates else DateHelper.today()
+
+        # Read the existing data if the file exists
+        existing_data = []
+        if file_path.exists():
+            with file_path.open("r", newline="", encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    existing_data.append(row)
+
+        # Remove any rows older than the max days or newer than the first history date
+        truncated_data = []
+        if existing_data:
+            max_days = int(self.config.get("General", "ConsumptionDataMaxDays", default=30) or 30)  # pyright: ignore[reportArgumentType]
+            earliest_date = DateHelper.today() - dt.timedelta(days=max_days)  # pyright: ignore[reportArgumentType]
+            truncated_data = [row for row in existing_data if row["Date"] and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() >= earliest_date and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() < first_history_date]  # pyright: ignore[reportOptionalOperand]
+
+        # Now write the data to the CSV file
+        with file_path.open("w", newline="", encoding="utf-8") as csvfile:
+
+            fieldnames = ["Date", "OutputName", "ActualHours", "TargetHours", "EnergyUsed", "TotalCost", "AveragePrice"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            # Write the existing truncated data first
+            for row in truncated_data:
+                writer.writerow(row)
+            # Now write the new aggregated data
+            for row in aggregated_data:
+                writer.writerow(row)
