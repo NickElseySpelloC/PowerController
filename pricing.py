@@ -6,18 +6,26 @@ from pathlib import Path
 # from zoneinfo import ZoneInfo
 import requests
 from org_enums import RunPlanMode
-from sc_utility import CSVReader, DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
+from sc_utility import (
+    CSVReader,
+    DateHelper,
+    JSONEncoder,
+    SCCommon,
+    SCConfigManager,
+    SCLogger,
+)
 
+from config_schemas import ConfigSchema
 from local_enumerations import (
     PRICE_SLOT_INTERVAL,
     PRICES_DATA_FILE,
+    USAGE_AGGREGATION_INTERVAL,
     AmberAPIMode,
     AmberChannel,
     PriceFetchMode,
-    USAGE_AGGREGATION_INTERVAL,
 )
 from run_plan import RunPlanner
-from config_schemas import ConfigSchema
+
 
 class PricingManager:
     """Manages the pricing data from Amber and determines when to run based on the best pricing strategy."""
@@ -391,7 +399,7 @@ class PricingManager:
         else:
             return True
 
-    def _save_usage_data(self) -> bool:
+    def _save_usage_data(self) -> bool:  # noqa: PLR0914, PLR0915
         """Saves the raw usage data a CSV file, appending and truncating as needed.
 
         Implements https://github.com/NickElseySpelloC/PowerController/issues/11
@@ -403,7 +411,7 @@ class PricingManager:
         if not file_name:
             return False    # No file configured, nothing to do
 
-        file_path = SCCommon.select_file_location(file_name) # pyright: ignore[reportArgumentType]
+        file_path = SCCommon.select_file_location(file_name)  # pyright: ignore[reportArgumentType]
         if not file_path:
             self.logger.log_message(f"No valid path for Amber usage data file {file_name}.", "error")
             return False
@@ -521,7 +529,6 @@ class PricingManager:
         Returns:
             usage_data (list[dict]): The usage data retrieved from Amber, or an empty list if there was an error.
         """
-
         connection_error = False
         response_data = []
         end_date = DateHelper.today()

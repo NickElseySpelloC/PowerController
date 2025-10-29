@@ -1,5 +1,6 @@
 """Web application module for the PowerController project."""
-from threading import Thread
+import contextlib
+from threading import Event
 
 from flask import Flask, jsonify, render_template, request
 from org_enums import AppMode
@@ -23,6 +24,7 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
         Flask: The configured Flask application instance.
     """
     app = Flask(__name__)
+    # Preserve Website section usage
     app.config["DEBUG"] = config.get("Website", "DebugMode", default=False) or False
 
     def validate_access_key(args: MultiDict[str, str]) -> bool:
@@ -137,29 +139,41 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
     return app
 
 
-class FlaskServerThread(Thread):
-    """Thread to run the Flask server."""
-    def __init__(self, app: Flask, config: SCConfigManager, logger: SCLogger):
-        """Initialize the Flask server thread."""
-        super().__init__(daemon=True)
-        self.config = config
-        self.logger = logger
-        assert isinstance(self.config, SCConfigManager), "Configuration instance is not initialized."
-        assert isinstance(self.logger, SCLogger), "Logger instance is not initialized."
+def serve_flask_blocking(app: Flask, config: SCConfigManager, logger: SCLogger, stop_event: Event):
+    """Run Flask in the current thread with cooperative shutdown using stop_event."""
+    # Preserve Website.* config keys
+    host = config.get("Website", "HostingIP", default="127.0.0.1") or "127.0.0.1"
+    port = int(config.get("Website", "Port", default=8000) or 8000)  # pyright: ignore[reportArgumentType]
 
-        hosting_ip = self.config.get("Website", "HostingIP", default="127.0.0.1")
-        hosting_port = self.config.get("Website", "Port", default=8000)
+    server = make_server(host, port, app)  # pyright: ignore[reportArgumentType]
+    ctx = app.app_context()
+    ctx.push()
+    server.timeout = 1.0
+    logger.log_message(f"Flask server listening on http://{host}:{port}", "summary")
+    try:
+        while not stop_event.is_set():
+            server.handle_request()
+    finally:
+        with contextlib.suppress(Exception):
+            server.server_close()
+        logger.log_message("Flask server shutdown complete.", "summary")
 
-        self.server = make_server(hosting_ip, hosting_port, app)  # pyright: ignore[reportArgumentType]
-        self.ctx = app.app_context()
-        self.ctx.push()
 
-    def run(self):
-        """Run the Flask server."""
-        self.logger.log_message(f"Starting Flask server on {self.server.server_address}", "debug")
-        self.server.serve_forever()
+# class FlaskServerThread(Thread):
+#     """Deprecated: Prefer ThreadManager + serve_flask_blocking(). Retained for import compatibility."""
+#     def __init__(self, app: Flask, config: SCConfigManager, logger: SCLogger):
+#         """Initialize the Flask server thread."""
+#         super().__init__(daemon=True)
+#         self.app = app
+#         self.config = config
+#         self.logger = logger
+#         self._stop = Event()
 
-    def shutdown(self):
-        """Shutdown the Flask server."""
-        self.server.shutdown()
-        self.logger.log_message(f"Stopping Flask server on {self.server.server_address}", "debug")
+#     def run(self):
+#         """Run the Flask server."""
+#         self.logger.log_message("FlaskServerThread is deprecated; use ThreadManager.", "warning")
+#         serve_flask_blocking(self.app, self.config, self.logger, self._stop)
+
+#     def shutdown(self):
+#         """Shutdown the Flask server."""
+#         self._stop.set()

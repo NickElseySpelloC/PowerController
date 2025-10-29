@@ -44,12 +44,10 @@ class RunHistory:
         # Now set the min / max / target hours. May throw runtime error
         self.initialise(output_config)
 
-
     def initialise(self, output_config: dict):
         """Initialise or reinitialise the configured values for this object.
 
         Args:
-            target_hours (float | None): The target hours for the run plan.
             output_config (dict): The configuration for the output device.
         """
         self.output_config = output_config

@@ -10,7 +10,8 @@ from sc_utility import SCConfigManager, SCLogger
 from config_schemas import ConfigSchema
 from controller import PowerController
 from local_enumerations import CONFIG_FILE
-from webapp import FlaskServerThread, create_flask_app
+from thread_manager import RestartPolicy, ThreadManager
+from webapp import create_flask_app, serve_flask_blocking
 
 
 def main():
@@ -54,27 +55,49 @@ def main():
     controller = PowerController(config, logger, wake_event)
 
     flask_app = create_flask_app(controller, config, logger)
-    web_thread = FlaskServerThread(flask_app, config, logger)
-    web_thread.start()
 
-    # Handle the SIGINT signal (Ctrl-C) so that we can gracefull shut down when this is received.
-    def handle_sigint(_sig, _frame):  # noqa: ARG001
-        """Handle the SIGINT signal.
+    # Thread management
+    tm = ThreadManager(logger, global_stop=stop_event)
 
-        Args:
-            sig (signal.Signals): The signal number.
-            frame (frame): The current stack frame.
-        """
+    # Manage the controller loop as a thread too (uncomment if desired)
+    tm.add(
+        name="controller",
+        target=controller.run,
+        kwargs={"stop_event": stop_event},
+        restart=RestartPolicy(mode="never"),
+    )
+
+    # Manage Flask as a blocking worker in its own managed thread
+    tm.add(
+        name="webapp",
+        target=serve_flask_blocking,
+        args=(flask_app, config, logger, stop_event),
+        restart=RestartPolicy(mode="on_crash", max_restarts=3, backoff_seconds=2.0),
+    )
+
+    tm.start_all()
+
+    # Handle SIGINT (Ctrl-C) to trigger graceful shutdown via the manager
+    def handle_sigint(_sig, _frame):
+        logger.log_message("SIGINT received; shutting down.", "summary")
         stop_event.set()
         wake_event.set()
     signal.signal(signal.SIGINT, handle_sigint)
 
     try:
-        controller.run(stop_event=stop_event)
-    except Exception as e:  # noqa: BLE001  # Final catch all for any unexpected errors
-        logger.log_fatal_error(f"Unexpected error in main loop: {e}", report_stack=True)
+        # Block until stop_event is set or a managed thread crashes
+        while not stop_event.is_set():
+            if tm.any_crashed():
+                logger.log_fatal_error("A managed thread crashed. Initiating shutdown.", report_stack=False)
+                stop_event.set()
+                wake_event.set()
+                break
+            # Cooperative wait avoids busy loop
+            stop_event.wait(timeout=1.0)
     finally:
-        web_thread.shutdown()
+        tm.stop_all()
+        tm.join_all(timeout_per_thread=10.0)
+        logger.log_message("PowerController application stopped.", "summary")
 
 
 if __name__ == "__main__":

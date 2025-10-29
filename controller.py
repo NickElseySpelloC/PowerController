@@ -1,16 +1,15 @@
 """The PowerController class that orchestrates power management."""
 import csv
+import datetime as dt
 import queue
 
 # from threading import Event
 import time
-import datetime as dt
 from pathlib import Path
 from threading import Event
 
 from org_enums import AppMode
 from sc_utility import (
-    CSVReader,
     DateHelper,
     JSONEncoder,
     SCCommon,
@@ -73,11 +72,9 @@ class PowerController:
         self.pricing = PricingManager(self.config, self.logger)
 
         self._initialise(skip_shelly_initialization=True)
-        self.logger.log_message("Power controller startup complete.", "summary")
 
-    def _initialise(self, skip_shelly_initialization: bool | None = False):
+    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: FBT001, FBT002, PLR0912, PLR0915
         """(re) initialise the power controller."""
-
         # See if we have a system state file to load
         saved_state = self._load_system_state()
         if saved_state:
@@ -539,7 +536,7 @@ class PowerController:
             return
 
         # Find the ealiest date to in the aggregated data
-        existing_dates = {dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() for row in aggregated_data}
+        existing_dates = {dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() for row in aggregated_data}  # noqa: DTZ007
         first_history_date = min(existing_dates) if existing_dates else DateHelper.today()
 
         # Read the existing data if the file exists
@@ -548,14 +545,14 @@ class PowerController:
             with file_path.open("r", newline="", encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
-                    existing_data.append(row)
+                    existing_data.append(row.copy())
 
         # Remove any rows older than the max days or newer than the first history date
         truncated_data = []
         if existing_data:
             max_days = int(self.config.get("General", "ConsumptionDataMaxDays", default=30) or 30)  # pyright: ignore[reportArgumentType]
             earliest_date = DateHelper.today() - dt.timedelta(days=max_days)  # pyright: ignore[reportArgumentType]
-            truncated_data = [row for row in existing_data if row["Date"] and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() >= earliest_date and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() < first_history_date]  # pyright: ignore[reportOptionalOperand]
+            truncated_data = [row for row in existing_data if row["Date"] and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() >= earliest_date and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() < first_history_date]  # pyright: ignore[reportOptionalOperand]  # noqa: DTZ007
 
         # Now write the data to the CSV file
         with file_path.open("w", newline="", encoding="utf-8") as csvfile:
