@@ -46,10 +46,10 @@ class ManagedThread:
         restarts = 0
         while not self.stop_event.is_set():
             try:
-                self.logger and self.logger.log_message(f"[{self.name}] starting.", "summary")  # pyright: ignore[reportUnusedExpression]
+                self.logger.log_message(f"[{self.name}] thread starting.", "debug")
                 self.target(*self.args, **self.kwargs)
                 # Normal exit
-                self.logger and self.logger.log_message(f"[{self.name}] exited normally.", "summary")  # pyright: ignore[reportUnusedExpression]
+                self.logger and self.logger.log_message(f"[{self.name}] exited normally.", "debug")  # pyright: ignore[reportUnusedExpression]
                 if self.restart.mode == "always" and not self.stop_event.is_set():
                     restarts += 1
                     if restarts > self.restart.max_restarts:
@@ -62,9 +62,7 @@ class ManagedThread:
                     continue
                 break
             except Exception as e:  # noqa: BLE001
-                self.logger and self.logger.log_fatal_error(
-                    f"[{self.name}] crashed with error: {e}", report_stack=True
-                )  # pyright: ignore[reportUnusedExpression]
+                self.logger and self.logger.log_message(f"[{self.name}] crashed with error: {e}", "error", report_stack=True)  # pyright: ignore[reportUnusedExpression]
                 self._crash_event.set()
                 if self.restart.mode in {"on_crash", "always"}:
                     restarts += 1

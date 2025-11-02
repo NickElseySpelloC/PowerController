@@ -5,6 +5,7 @@ import queue
 
 # from threading import Event
 import time
+from collections.abc import Callable
 from pathlib import Path
 from threading import Event
 
@@ -15,7 +16,6 @@ from sc_utility import (
     SCCommon,
     SCConfigManager,
     SCLogger,
-    ShellyControl,
 )
 
 from external_services import ExternalServiceHelper
@@ -23,16 +23,24 @@ from local_enumerations import SCHEMA_VERSION, Command, LookupMode
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
+from shelly_view import ShellyView
+from shelly_worker import (
+    ShellySequenceRequest,
+    ShellySequenceResult,
+    ShellyStep,
+    ShellyWorker,
+)
 
 
 class PowerController:
     """The PowerController class that orchestrates power management."""
-    def __init__(self, config: SCConfigManager, logger: SCLogger, wake_event: Event):
+    def __init__(self, config: SCConfigManager, logger: SCLogger, shelly_worker: ShellyWorker, wake_event: Event):
         """Initializes the PowerController.
 
         Args:
             config (SCConfigManager): The configuration manager for the system.
             logger (SCLogger): The logger for the system.
+            shelly_worker: The ShellyWorker obeject that we use to interface to ShellyControl
             wake_event (Event): The event used to wake the controller.
         """
         self.config = config
@@ -40,10 +48,11 @@ class PowerController:
         self.logger = logger
         self.external_service_helper = ExternalServiceHelper(config, logger)
         self.viewer_website_last_post = None
-        self.wake_event = wake_event    # The event used to interrupt the main loop
+        self.wake_event = wake_event
+        self.shelly_worker: ShellyWorker = shelly_worker
+        self.all_shelly_devices_online = None    # This must only be set / queried in _refresh_device_statuses()
         self.cmd_q: queue.Queue[Command] = queue.Queue()    # Used to post commands into the controller's loop
         self.command_pending: bool = False
-        self.shelly_device_concurrent_error_count = 0
         self.report_critical_errors_delay = config.get("General", "ReportCriticalErrorsDelay", default=None)
         if isinstance(self.report_critical_errors_delay, (int, float)):
             self.report_critical_errors_delay = round(self.report_critical_errors_delay, 0)
@@ -54,26 +63,13 @@ class PowerController:
         self.outputs = []   # List of output state managers, each one a OutputStateManager object.
         self.poll_interval = 10.0
 
-        # Create an instance of the ShellyControl class
-        shelly_settings = self.config.get_shelly_settings()
-        if shelly_settings is None:
-            logger.log_fatal_error("No Shelly settings found in the configuration file.")
-            return
-        try:
-            assert isinstance(shelly_settings, dict)
-            self.shelly_control = ShellyControl(logger, shelly_settings, self.wake_event)
-        except RuntimeError as e:
-            logger.log_fatal_error(f"Shelly control initialization error: {e}")
-            return
-        self.all_shelly_devices_online = self._are_all_shelly_devices_online()
-
         # Create the two run_planner types
-        self.scheduler = Scheduler(self.config, self.logger, self.shelly_control)
+        self.scheduler = Scheduler(self.config, self.logger)
         self.pricing = PricingManager(self.config, self.logger)
 
         self._initialise(skip_shelly_initialization=True)
 
-    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: FBT001, FBT002, PLR0912, PLR0915
+    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: FBT001, FBT002, PLR0912
         """(re) initialise the power controller."""
         # See if we have a system state file to load
         saved_state = self._load_system_state()
@@ -86,11 +82,10 @@ class PowerController:
         self.webapp_refresh = int(self.config.get("Website", "PageAutoRefresh", default=10) or 10)  # pyright: ignore[reportArgumentType]
         self.app_label = self.config.get("General", "Label", default="PowerController")
 
+        # Reinitialise if needed
         if not skip_shelly_initialization:
-            # Reinitialise the Shelly controller
-            shelly_settings = self.config.get_shelly_settings()
-            self.shelly_control.initialize_settings(shelly_settings, refresh_status=True)
-            self.all_shelly_devices_online = self._are_all_shelly_devices_online()
+            # Reinitialise the Shelly controller and get the latest status
+            self.shelly_worker.reinitialise_settings()
 
         # Confirm that the configured output names are unique
         output_names = [o["Name"] for o in self.config.get("Outputs", default=[]) or []]
@@ -116,7 +111,7 @@ class PowerController:
                     output_state = next((o for o in saved_state["Outputs"] if o.get("Name") == output_cfg.get("Name")), None)
 
                 # Create a new output manager
-                output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.shelly_control, output_state)
+                output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, output_state)
                 self.outputs.append(output_manager)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")
@@ -311,6 +306,17 @@ class PowerController:
             # Set the new mode, the output will deal with it in the next tick
             # And evaluate the conditions immediately if the mode has changed
             output.set_app_mode(new_mode)
+        elif cmd.kind == "shelly_sequence_completed":
+            seq_id = cmd.payload.get("sequence_id")
+            label = cmd.payload.get("label")
+            ok = bool(cmd.payload.get("ok"))
+            err = cmd.payload.get("error")
+            if ok:
+                self.logger.log_message(f"Shelly sequence {label or seq_id} completed.", "detailed")
+            else:
+                self.logger.log_message(f"Shelly sequence {label or seq_id} failed: {err}", "error")
+            # Optional: trigger a fast evaluation tick if needed
+            # self._run_scheduler_tick()
 
     def run(self, stop_event: Event):
         """The main loop of the power controller.
@@ -358,17 +364,17 @@ class PowerController:
         # Refresh the Amber price data if it's time to do so
         self.pricing.refresh_price_data_if_time()
 
-        # Tell each device to update its physical state
-        self._refresh_device_statuses()
+        # Get a snapshot of all Shelly devices
+        view = self._refresh_device_statuses()
 
         # Calculate the running totals for each output
-        self._calculate_running_totals()
+        self._calculate_running_totals(view)
 
         # Regenerate the run_plan for each output if needed
-        self._review_run_plans()
+        self._review_run_plans(view)
 
         # Evaluate the conditions for each output and make changes if needed
-        self._evaluate_conditions()
+        self._evaluate_conditions(view)
 
         # Deal with config changes including downstream objects
         self._check_for_configuration_changes()
@@ -382,32 +388,32 @@ class PowerController:
         # Check for fatal error recovery
         self._check_fatal_error_recovery()
 
-    def _refresh_device_statuses(self):
-        """Refresh the status of all devices."""
-        max_errors = int(self.config.get("ShellyDevices", "MaxConcurrentErrors", default=4) or 4)  # pyright: ignore[reportArgumentType]
-        for device in self.shelly_control.devices:
-            try:
-                if not self.shelly_control.get_device_status(device) and not device.get("ExpectOffline", False):
-                    self.logger.log_message(f"Failed to refresh status for device {device['Label']} - device offline.", "error")
-            except TimeoutError:
-                if not device.get("ExpectOffline", False):
-                    self.logger.log_message(f"Device {device['Label']} is offline as expected.", "error")
-                self.logger.log_message(f"Failed to refresh status for device {device['Label']} - device offline.", "error")
-            except RuntimeError as e:
-                self.logger.log_message(f"Error refreshing status for device {device['Label']}: {e}", "error")
-                self.shelly_device_concurrent_error_count += 1
+    def _refresh_device_statuses(self) -> ShellyView:
+        """Refresh the status of all devices.
 
-                # Log an issue if we exceed the max allowed errors
-                if self.shelly_device_concurrent_error_count > max_errors and self.report_critical_errors_delay:
-                    assert isinstance(self.report_critical_errors_delay, int)
-                    self.logger.report_notifiable_issue(entity=f"Shelly Device {device['Label']}", issue_type="States Refresh Error", send_delay=self.report_critical_errors_delay * 60, message="Unable to get the status for this This Shelly device.")
+        Returns:
+            A ShellyView object
+        """
+        # Post a refresh job and wait for it to complete (bounded wait)
+        req_id = self.shelly_worker.request_refresh_status()
+        # Make timeout configurable if you like; 3s is a reasonable default
+        done = self.shelly_worker.wait_for_result(req_id, timeout=3.0)
+        if not done:
+            self.logger.log_message("Timed out waiting for Shelly refresh; using last snapshot.", "warning")
 
-        # Tell all the outputs that the device status has been updated
+        # Get a deep copy of all the Shelly devices
+        snapshot = self.shelly_worker.get_latest_status()
+
+        # And create a new ShellyView instance to reference this data
+        view = ShellyView(snapshot)
+
+        # Tell outputs device status updated
         for output in self.outputs:
-            output.tell_device_status_updated()
+            output.tell_device_status_updated(view)
 
         # Now see if we need to reinitialise the Shelly controller because a device that was offline during startup has come back online
-        new_online_status = self._are_all_shelly_devices_online()
+
+        new_online_status = view.all_devices_online()
         if new_online_status and not self.all_shelly_devices_online:
             self.logger.log_message("All Shelly devices are now online, reinitializing...", "detailed")
             self.save_system_state(force_post=True)  # Save state before reinitialising
@@ -416,35 +422,29 @@ class PowerController:
             # Make sure we don't repeat this block again
             self.all_shelly_devices_online = new_online_status
 
-    def _are_all_shelly_devices_online(self) -> bool:
-        """Check if all Shelly devices are online.
+        return view
 
-        Returns:
-            bool: True if all devices are online, False otherwise.
-        """
-        return all(device.get("Online") for device in self.shelly_control.devices)
-
-    def _calculate_running_totals(self):
+    def _calculate_running_totals(self, view: ShellyView):
         """Calculate the running totals for each output."""
         for output in self.outputs:
-            output.calculate_running_totals()
+            output.calculate_running_totals(view)
 
-    def _review_run_plans(self):
+    def _review_run_plans(self, view: ShellyView):
         """Generate / refresh the run plan for each output."""
         for output in self.outputs:
-            output.review_run_plan()
+            output.review_run_plan(view)
 
-    def _evaluate_conditions(self):
+    def _evaluate_conditions(self, view: ShellyView):
         """Evaluate the conditions for each output."""
         # Do the parents first
         for output in self.outputs:
             if output.is_parent:
-                output.evaluate_conditions()
+                output.evaluate_conditions(view)
 
         # Now do the children
         for output in self.outputs:
             if not output.is_parent:
-                output.evaluate_conditions()
+                output.evaluate_conditions(view)
 
     def _check_for_configuration_changes(self):
         """Reload the configuration from disk if it has changed and apply downstream changes."""
@@ -566,3 +566,42 @@ class PowerController:
             # Now write the new aggregated data
             for row in aggregated_data:
                 writer.writerow(row)
+
+    # Helper to post a long-running sequence (for OutputManager to call)
+    def post_shelly_sequence(
+        self,
+        steps: list[ShellyStep],
+        label: str = "",
+        timeout_s: float | None = None,
+        on_complete: Callable[[ShellySequenceResult], None] | None = None,
+    ) -> str | None:
+        if not self.shelly_worker:
+            self.logger.log_message("Shelly worker not available; cannot run sequence.", "error")
+            return None
+
+        # Default callback posts a command back to the controller loop with the result.
+        def default_on_complete(res: ShellySequenceResult):
+            self.post_command(Command("shelly_sequence_completed", {
+                "sequence_id": res.id,
+                "label": label,
+                "ok": res.ok,
+                "error": res.error,
+            }))
+
+        req = ShellySequenceRequest(
+            steps=steps,
+            label=label,
+            timeout_s=timeout_s,
+            on_complete=on_complete or default_on_complete,
+        )
+        return self.shelly_worker.submit(req)
+
+    # Example: schedule “turn on O1, wait 60s, turn on O2” and notify via Command when done
+    def example_long_running_sequence(self):
+        steps = [
+            ShellyStep("change_output", {"output_identity": "Sydney Dev A O1", "state": True}, retries=2, retry_backoff_s=1.0),
+            ShellyStep("sleep", {"seconds": 60}),
+            ShellyStep("change_output", {"output_identity": "Sydney Dev A O2", "state": True}, retries=2, retry_backoff_s=1.0),
+        ]
+        job_id = self.post_shelly_sequence(steps, label="pool-seq", timeout_s=180)
+        self.logger.log_message(f"Submitted pool sequence job_id={job_id}", "debug")

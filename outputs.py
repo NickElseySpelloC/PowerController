@@ -12,7 +12,7 @@ from org_enums import (
     StateReasonOn,
     SystemState,
 )
-from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
+from sc_utility import DateHelper, SCConfigManager, SCLogger
 
 from local_enumerations import (
     FAILED_RUNPLAN_CHECK_INTERVAL,
@@ -25,11 +25,11 @@ from pricing import PricingManager
 from run_history import RunHistory
 from run_plan import RunPlanner
 from scheduler import Scheduler
-
+from shelly_view import ShellyView
 
 class OutputManager:
     """Manages the state of a single Shelly output device and associated resources."""
-    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, shelly_control: ShellyControl, saved_state: dict | None = None):  # noqa: PLR0915
+    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, saved_state: dict | None = None):  # noqa: PLR0915
         """Manages the state of a single Shelly output device.
 
         Args:
@@ -38,7 +38,6 @@ class OutputManager:
             logger (SCLogger): The logger for the system.
             scheduler (Scheduler): The scheduler for managing time-based operations.
             pricing (PricingManager): The pricing manager for handling pricing-related tasks.
-            shelly_control (ShellyControl): The Shelly control interface.
             saved_state (dict | None): The previously saved state of the output manager, if any.
         """
         self.output_config = output_config
@@ -51,7 +50,6 @@ class OutputManager:
             self.report_critical_errors_delay = None
         self.scheduler = scheduler
         self.pricing = pricing
-        self.shelly_control = shelly_control
 
         # Define the output attributes that we will initialise later
         self.system_state: SystemState = SystemState.AUTO  # The overall system state, to be updated
@@ -321,18 +319,18 @@ class OutputManager:
 
         self.is_device_online = new_online_status
 
-    def calculate_running_totals(self):
+    def calculate_running_totals(self, view: ShellyView):
         """Update running totals in run_history object."""
-        data_block = self._get_status_data()
+        data_block = self._get_status_data(view)
 
         if self.run_history.tick(data_block):
             self.invalidate_run_plan = True  # If we've rolled over to a new day, we need a new run plan
 
         # Update the remaining hours in the current run plan if we have one
         if self.run_plan:
-            RunPlanner.tick(self.run_plan)  # Update the run plan's internal state
+            RunPlanner.tick(self.run_plan, view)  # Update the run plan's internal state
 
-    def review_run_plan(self) -> bool:
+    def review_run_plan(self, view: ShellyView) -> bool:
         """Generate / update the run plan for this output if needed.
 
         Returns:
@@ -431,7 +429,7 @@ class OutputManager:
 
         return False
 
-    def evaluate_conditions(self):  # noqa: PLR0912, PLR0915
+    def evaluate_conditions(self, view: ShellyView):  # noqa: PLR0912, PLR0915
         """Evaluate the conditions for this output.
 
         Note: calculate_running_totals should be called before this method.
@@ -529,6 +527,8 @@ class OutputManager:
                 self.print_to_console(f"Output {self.name} has been OFF for less than MinOffTime of {self.min_off_time} minutes. Will remain OFF until minimum time has elapsed.")
         else:  # noqa: PLR5501
             # And finally we're ready to apply our changes
+            # TO DO: Rather than turn on or off, we need to return a request to PowerController to make the change.
+            # Also, PowerController needs to tell us when it's done.
             if new_output_state:
                 assert reason_on is not None
                 self._turn_on(new_system_state, reason_on)
@@ -590,7 +590,7 @@ class OutputManager:
             price = self.scheduler.get_current_price(self.schedule)  # pyright: ignore[reportArgumentType]
         return price
 
-    def _get_status_data(self) -> OutputStatusData:
+    def _get_status_data(self, view: ShellyView) -> OutputStatusData:
         """Get the status data needed by RunHistory.
 
         Returns:
@@ -664,6 +664,7 @@ class OutputManager:
             new_system_state (SystemState): The new system state to set.
             reason (StateReasonOn): The reason for turning on the output device.
         """
+        # TO DO: Much of this needs to move to a new function that updated RunHistory, etc. once PowerController tells us it's done
         assert self.device_output is not None
         assert self.device is not None
 
@@ -705,6 +706,7 @@ class OutputManager:
             new_system_state (SystemState): The new system state to set.
             reason (StateReasonOff): The reason for turning off the output device.
         """
+        # TO DO: Much of this needs to move to a new function that updated RunHistory, etc. once PowerController tells us it's done
         assert self.device_output is not None
         assert self.device is not None
 

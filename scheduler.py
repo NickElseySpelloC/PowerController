@@ -8,7 +8,7 @@ import pytz
 from astral import LocationInfo
 from astral.sun import sun
 from org_enums import RunPlanMode
-from sc_utility import DateHelper, SCConfigManager, SCLogger, ShellyControl
+from sc_utility import DateHelper, SCConfigManager, SCLogger
 
 from local_enumerations import DEFAULT_PRICE, WEEKDAY_ABBREVIATIONS
 from run_plan import RunPlanner
@@ -16,17 +16,15 @@ from run_plan import RunPlanner
 
 class Scheduler:
     """Scheduler class to manage the time based schedules for each switch."""
-    def __init__(self, config: SCConfigManager, logger: SCLogger, shelly_control: ShellyControl):
+    def __init__(self, config: SCConfigManager, logger: SCLogger):
         """Initialise the scheduler class.
 
         Args:
             config (SCConfigManager): The configuration manager for the system.
             logger (SCLogger): The logger for the system.
-            shelly_control (ShellyControl): The Shelly control interface.
         """
         self.config = config
         self.logger = logger
-        self.shelly_control = shelly_control
         self.schedules = []
 
         self.initialise()
@@ -265,18 +263,19 @@ class Scheduler:
         assert isinstance(loc_conf, dict), "Location configuration must be a dictionary"
         tz = lat = lon = None
 
-        shelly_device_name = loc_conf.get("UseShellyDevice")
-        if shelly_device_name:
-            # Get the tz, lat and long from the specified Shelly device
-            try:
-                device = self.shelly_control.get_device(shelly_device_name)
-                shelly_loc = self.shelly_control.get_device_location(device)
-                if shelly_loc:
-                    tz = shelly_loc.get("tz")
-                    lat = shelly_loc.get("lat")
-                    lon = shelly_loc.get("lon")
-            except (RuntimeError, TimeoutError) as e:
-                self.logger.log_message(f"Error getting location from Shelly device {shelly_device_name}: {e}", "warning")
+        # TO DO: Move this to the ShellyWorker thread
+        # shelly_device_name = loc_conf.get("UseShellyDevice")
+        # if shelly_device_name:
+        #     # Get the tz, lat and long from the specified Shelly device
+        #     try:
+        #         device = self.shelly_control.get_device(shelly_device_name)
+        #         shelly_loc = self.shelly_control.get_device_location(device)
+        #         if shelly_loc:
+        #             tz = shelly_loc.get("tz")
+        #             lat = shelly_loc.get("lat")
+        #             lon = shelly_loc.get("lon")
+        #     except (RuntimeError, TimeoutError) as e:
+        #         self.logger.log_message(f"Error getting location from Shelly device {shelly_device_name}: {e}", "warning")
 
         # If we were unable to get the location from the Shelly device, see if we can extract it from the Google Maps url (if supplied)
         if tz is None:

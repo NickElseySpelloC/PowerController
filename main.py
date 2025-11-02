@@ -10,6 +10,7 @@ from sc_utility import SCConfigManager, SCLogger
 from config_schemas import ConfigSchema
 from controller import PowerController
 from local_enumerations import CONFIG_FILE
+from shelly_worker import ShellyWorker
 from thread_manager import RestartPolicy, ThreadManager
 from webapp import create_flask_app, serve_flask_blocking
 
@@ -40,7 +41,9 @@ def main():
     # Initialize the SC_Logger class
     try:
         logger = SCLogger(config.get_logger_settings())
-    except RuntimeError as e:
+        # Setup email
+        logger.register_email_settings(config.get_email_settings())
+    except (RuntimeError, TypeError, ValueError) as e:
         print(f"Logger initialisation error: {e}", file=sys.stderr)
         return
     else:
@@ -48,18 +51,29 @@ def main():
         logger.log_message("", "summary")
         logger.log_message("PowerController application starting.", "summary")
 
-    # Setup email
-    logger.register_email_settings(config.get_email_settings())
+    # Now create instances of the main worked classes
+    try:
+        # Create an instance of the ShellyWorker class
+        shelly_worker = ShellyWorker(config, logger, wake_event)
 
-    # Create an instance of the main PowerController class which orchestrates the power control
-    controller = PowerController(config, logger, wake_event)
+        # Create an instance of the main PowerController class which orchestrates the power control
+        controller = PowerController(config, logger, shelly_worker, wake_event)
 
-    flask_app = create_flask_app(controller, config, logger)
+        flask_app = create_flask_app(controller, config, logger)
+    except (RuntimeError, TypeError) as e:
+        logger.log_fatal_error(f"Fatal error at startup: {e}")
 
-    # Thread management
+    # Now start the thread manager and create our worker threads
     tm = ThreadManager(logger, global_stop=stop_event)
 
-    # Manage the controller loop as a thread too (uncomment if desired)
+    tm.add(
+        name="shelly",
+        target=shelly_worker.run,
+        restart=RestartPolicy(mode="on_crash", max_restarts=3, backoff_seconds=2.0),
+        stop_event=stop_event,  # share global stop
+    )
+
+    # Manage the controller loop as a thread too
     tm.add(
         name="controller",
         target=controller.run,

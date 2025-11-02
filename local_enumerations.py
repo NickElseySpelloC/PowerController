@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 SCHEMA_VERSION = 1  # Version of the system_state schema we expect
 CONFIG_FILE = "config.yaml"
@@ -56,7 +57,7 @@ class OutputStatusData:
 class Command:
     """Define the structure for commands to be posted to Controller."""
     kind: str
-    payload: dict[str, str]
+    payload: dict[str, Any]
 
 
 class LookupMode(StrEnum):
