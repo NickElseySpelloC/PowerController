@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from org_enums import (
+    StateReasonOff,
+    StateReasonOn,
+    SystemState,
+)
+
 SCHEMA_VERSION = 1  # Version of the system_state schema we expect
 CONFIG_FILE = "config.yaml"
 PRICES_DATA_FILE = "latest_prices.json"
@@ -58,6 +64,23 @@ class Command:
     """Define the structure for commands to be posted to Controller."""
     kind: str
     payload: dict[str, Any]
+
+
+class OutputActionType(StrEnum):
+    """Type of action to be taken for an output."""
+    TURN_ON = "Turn On"
+    TURN_OFF = "Turn Off"
+    UPDATE_ON_STATE = "Update state while on"
+    UPDATE_OFF_STATE = "Update state while off"
+
+
+@dataclass
+class OutputAction:
+    """Define the structure for output actions."""
+    worker_request_id: str | None
+    type: OutputActionType
+    system_state: SystemState
+    reason: StateReasonOn | StateReasonOff
 
 
 class LookupMode(StrEnum):

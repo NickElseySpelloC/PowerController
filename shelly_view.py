@@ -1,155 +1,319 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from shelly_worker import ShellyStatus
 
 
 @dataclass(frozen=True)
 class ShellyView:
-    """Read-only facade over a ShellyWorker snapshot.
+    """Read-only facade over a ShellyStatus snapshot.
 
-    Exposes primitive getters by component name or device id.
+    Provides efficient ID-based lookups for all component types.
+    Each component type has a name->ID mapping and ID-based value getters.
     """
-    snapshot: list[dict[str, Any]]
+    snapshot: ShellyStatus
 
-    # Declare internal indexes so type checkers know they exist
-    _devices_by_id: dict[str, dict[str, Any]] = field(init=False, repr=False)
-    _outputs_by_name: dict[str, dict[str, Any]] = field(init=False, repr=False)
-    _meters_by_name: dict[str, dict[str, Any]] = field(init=False, repr=False)
-    _inputs_by_name: dict[str, dict[str, Any]] = field(init=False, repr=False)
-    _output2device: dict[str, str] = field(init=False, repr=False)
+    # Internal indices: name -> ID mappings
+    _device_name_to_id: dict[str, int] = field(init=False, repr=False)
+    _output_name_to_id: dict[str, int] = field(init=False, repr=False)
+    _input_name_to_id: dict[str, int] = field(init=False, repr=False)
+    _meter_name_to_id: dict[str, int] = field(init=False, repr=False)
+    _temp_probe_name_to_id: dict[str, int] = field(init=False, repr=False)
+
+    # Internal indices: ID -> dict mappings
+    _devices_by_id: dict[int, dict[str, Any]] = field(init=False, repr=False)
+    _outputs_by_id: dict[int, dict[str, Any]] = field(init=False, repr=False)
+    _inputs_by_id: dict[int, dict[str, Any]] = field(init=False, repr=False)
+    _meters_by_id: dict[int, dict[str, Any]] = field(init=False, repr=False)
+    _temp_probes_by_id: dict[int, dict[str, Any]] = field(init=False, repr=False)
 
     def __post_init__(self):
-        # Build simple indices for fast lookup by name and device id.
-        object.__setattr__(self, "_devices_by_id", {})
-        object.__setattr__(self, "_outputs_by_name", {})
-        object.__setattr__(self, "_meters_by_name", {})
-        object.__setattr__(self, "_inputs_by_name", {})
-        object.__setattr__(self, "_output2device", {})
+        """Build name->ID and ID->dict indices for fast lookups."""
+        object.__setattr__(self, "_device_name_to_id", self._build_name_index(self.snapshot.devices))
+        object.__setattr__(self, "_output_name_to_id", self._build_name_index(self.snapshot.outputs))
+        object.__setattr__(self, "_input_name_to_id", self._build_name_index(self.snapshot.inputs))
+        object.__setattr__(self, "_meter_name_to_id", self._build_name_index(self.snapshot.meters))
+        object.__setattr__(self, "_temp_probe_name_to_id", self._build_name_index(self.snapshot.temp_probes))
 
-        devices_by_id: dict[str, dict[str, Any]] = {}
-        outputs_by_name: dict[str, dict[str, Any]] = {}
-        meters_by_name: dict[str, dict[str, Any]] = {}
-        inputs_by_name: dict[str, dict[str, Any]] = {}
-        output2device: dict[str, str] = {}
+        object.__setattr__(self, "_devices_by_id", self._build_id_index(self.snapshot.devices))
+        object.__setattr__(self, "_outputs_by_id", self._build_id_index(self.snapshot.outputs))
+        object.__setattr__(self, "_inputs_by_id", self._build_id_index(self.snapshot.inputs))
+        object.__setattr__(self, "_meters_by_id", self._build_id_index(self.snapshot.meters))
+        object.__setattr__(self, "_temp_probes_by_id", self._build_id_index(self.snapshot.temp_probes))
 
-        # To DO: Review all this and make sure it follows the ShellgControl structure
-        for dev in self.snapshot:
-            dev_id = _first_key(dev, "DeviceID", "ID", "Id", "Mac", "MacAddress")
-            if not dev_id:
-                continue
-            devices_by_id[dev_id] = dev
+    @staticmethod
+    def _build_name_index(items: list[dict[str, Any]]) -> dict[str, int]:
+        """Build a name->ID mapping from a list of component dicts.
 
-            # Components may be under "Components" (typed) or split lists
-            comps = dev.get("Components") or []
-            for comp in comps:
-                ctype = comp.get("Type", "").lower()
-                cname = comp.get("Name") or comp.get("Label")
-                if not cname:
-                    continue
-                if ctype == "output":
-                    outputs_by_name[cname] = comp
-                    output2device[cname] = comp.get("DeviceID") or dev_id
-                elif ctype == "meter":
-                    meters_by_name[cname] = comp
-                elif ctype == "input":
-                    inputs_by_name[cname] = comp
+        Args:
+            items: List of component dictionaries with Name and ID keys.
 
-            # Also accept split lists if present
-            for comp in dev.get("Outputs", []) or []:
-                cname = comp.get("Name") or comp.get("Label")
-                if cname:
-                    outputs_by_name[cname] = comp
-                    output2device[cname] = comp.get("DeviceID") or dev_id
-            for comp in dev.get("Meters", []) or []:
-                cname = comp.get("Name") or comp.get("Label")
-                if cname:
-                    meters_by_name[cname] = comp
-            for comp in dev.get("Inputs", []) or []:
-                cname = comp.get("Name") or comp.get("Label")
-                if cname:
-                    inputs_by_name[cname] = comp
+        Returns:
+            Mapping from component name to ID.
+        """
+        return {item["Name"]: item["ID"] for item in items}
 
-        object.__setattr__(self, "_devices_by_id", devices_by_id)
-        object.__setattr__(self, "_outputs_by_name", outputs_by_name)
-        object.__setattr__(self, "_meters_by_name", meters_by_name)
-        object.__setattr__(self, "_inputs_by_name", inputs_by_name)
-        object.__setattr__(self, "_output2device", output2device)
+    @staticmethod
+    def _build_id_index(items: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
+        """Build an ID->dict mapping from a list of component dicts.
 
-    # Output primitives
-    def get_output_state(self, output_name: str) -> bool | None:
-        comp = self._outputs_by_name.get(output_name)
-        if not comp:
-            return None
-        return bool(comp.get("State", False))
+        Args:
+            items: List of component dictionaries with Name and ID keys.
 
-    def get_output_device_id(self, output_name: str) -> str | None:
-        return self._output2device.get(output_name)
+        Returns:
+            Mapping from component ID to component dictionary.
+        """
+        return {item["ID"]: item for item in items}
 
-    # Device primitives
-    def get_device_online(self, device_id: str) -> bool | None:
-        dev = self._devices_by_id.get(device_id)
-        if not dev:
-            return None
-        return bool(dev.get("Online", False))
+    # Name lookup methods - return None if not found
+    def get_device_id(self, name: str) -> int:
+        """Get device ID by name.
 
-    def get_device_name(self, device_id: str) -> str | None:
-        dev = self._devices_by_id.get(device_id)
-        return None if not dev else (dev.get("Name") or dev.get("Label"))
+        Args:
+            name: Device name to lookup.
 
-    def get_device_client_name(self, device_id: str) -> str | None:
-        dev = self._devices_by_id.get(device_id)
-        return None if not dev else dev.get("ClientName")
+        Returns:
+            Device ID, or 0 if not found.
+        """
+        return self._device_name_to_id.get(name, 0)
 
-    def get_device_expect_offline(self, device_id: str) -> bool:
-        dev = self._devices_by_id.get(device_id)
-        if not dev:
-            return False
-        return bool(dev.get("ExpectOffline", False))
+    def get_output_id(self, name: str) -> int:
+        """Get output ID by name.
 
-    def get_device_online_for_output(self, output_name: str) -> bool | None:
-        dev_id = self.get_output_device_id(output_name)
-        return None if not dev_id else self.get_device_online(dev_id)
-    
+        Args:
+            name: Output name to lookup.
+
+        Returns:
+            Output ID, or 0 if not found.
+        """
+        return self._output_name_to_id.get(name, 0)
+
+    def get_input_id(self, name: str) -> int:
+        """Get input ID by name.
+
+        Args:
+            name: Input name to lookup.
+
+        Returns:
+            Input ID, or 0 if not found.
+        """
+        return self._input_name_to_id.get(name, 0)
+
+    def get_meter_id(self, name: str) -> int:
+        """Get meter ID by name.
+
+        Args:
+            name: Meter name to lookup.
+
+        Returns:
+            Meter ID, or 0 if not found.
+        """
+        return self._meter_name_to_id.get(name, 0)
+
+    def get_temp_probe_id(self, name: str) -> int:
+        """Get temperature probe ID by name.
+
+        Args:
+            name: Temperature probe name to lookup.
+
+        Returns:
+            Temperature probe ID, or 0 if not found.
+        """
+        return self._temp_probe_name_to_id.get(name, 0)
+
+    # Device value getters
+    def get_device_online(self, device_id: int) -> bool:
+        """Get device online status by ID.
+
+        Args:
+            device_id: Device ID to lookup.
+
+        Returns:
+            True if device is online, False otherwise.
+
+        Raises:
+            IndexError: If device_id is invalid.
+        """
+        if device_id not in self._devices_by_id:
+            error_msg = f"Invalid device ID: {device_id}"
+            raise IndexError(error_msg)
+        return bool(self._devices_by_id[device_id].get("Online", False))
+
+    def get_device_name(self, device_id: int) -> str:
+        """Get device name by ID.
+
+        Args:
+            device_id: Device ID to lookup.
+
+        Returns:
+            Device name.
+
+        Raises:
+            IndexError: If device_id is invalid.
+        """
+        if device_id not in self._devices_by_id:
+            error_msg = f"Invalid device ID: {device_id}"
+            raise IndexError(error_msg)
+        return str(self._devices_by_id[device_id]["Name"])
+
+    def get_device_expect_offline(self, device_id: int) -> bool:
+        """Get device expect_offline flag by ID.
+
+        Args:
+            device_id: Device ID to lookup.
+
+        Returns:
+            True if device is expected to be offline, False otherwise.
+
+        Raises:
+            IndexError: If device_id is invalid.
+        """
+        if device_id not in self._devices_by_id:
+            error_msg = f"Invalid device ID: {device_id}"
+            raise IndexError(error_msg)
+        return bool(self._devices_by_id[device_id].get("ExpectOffline", False))
+
     def all_devices_online(self) -> bool:
-        for dev in self._devices_by_id.values():
-            if not dev.get("Online", False):
-                return False
-        return True
+        """Check if all devices are online.
 
-    # Meter primitives
-    def get_meter_energy(self, meter_name: str) -> float:
-        comp = self._meters_by_name.get(meter_name)
-        if not comp:
-            return 0.0
-        # Wh or kWh depends on source; your code expects Wh in RunHistory
-        val = comp.get("Energy") or 0
+        Returns:
+            True if all devices are online, False otherwise.
+        """
+        return all(dev.get("Online", False) for dev in self._devices_by_id.values())
+
+    def get_json_snapshot(self) -> dict[str, Any]:
+        """Get the full JSON snapshot of the Shelly status.
+
+        Returns:
+            The snapshot as a dictionary.
+        """
+        return {
+            "devices": self.snapshot.devices,
+            "outputs": self.snapshot.outputs,
+            "inputs": self.snapshot.inputs,
+            "meters": self.snapshot.meters,
+            "temp_probes": self.snapshot.temp_probes,
+        }
+
+    # Output value getters
+    def get_output_state(self, output_id: int) -> bool:
+        """Get output state by ID.
+
+        Args:
+            output_id: Output ID to lookup.
+
+        Returns:
+            True if output is on, False if off.
+
+        Raises:
+            IndexError: If output_id is invalid.
+        """
+        if output_id not in self._outputs_by_id:
+            error_msg = f"Invalid output ID: {output_id}"
+            raise IndexError(error_msg)
+        return bool(self._outputs_by_id[output_id].get("State", False))
+
+    def get_output_device_id(self, output_id: int) -> int:
+        """Get the device ID that owns this output.
+
+        Args:
+            output_id: Output ID to lookup.
+
+        Returns:
+            Device ID that owns this output.
+
+        Raises:
+            IndexError: If output_id is invalid.
+        """
+        if output_id not in self._outputs_by_id:
+            error_msg = f"Invalid output ID: {output_id}"
+            raise IndexError(error_msg)
+        return int(self._outputs_by_id[output_id].get("DeviceID", 0))
+
+    # Input value getters
+    def get_input_state(self, input_id: int) -> bool:
+        """Get input state by ID.
+
+        Args:
+            input_id: Input ID to lookup.
+
+        Returns:
+            True if input is active, False otherwise.
+
+        Raises:
+            IndexError: If input_id is invalid.
+        """
+        if input_id not in self._inputs_by_id:
+            error_msg = f"Invalid input ID: {input_id}"
+            raise IndexError(error_msg)
+        return bool(self._inputs_by_id[input_id].get("State", False))
+
+    # Meter value getters
+    def get_meter_energy(self, meter_id: int) -> float:
+        """Get meter energy reading (Wh) by ID.
+
+        Args:
+            meter_id: Meter ID to lookup.
+
+        Returns:
+            Energy reading in Wh, or 0.0 if unavailable.
+
+        Raises:
+            IndexError: If meter_id is invalid.
+        """
+        if meter_id not in self._meters_by_id:
+            error_msg = f"Invalid meter ID: {meter_id}"
+            raise IndexError(error_msg)
+        val = self._meters_by_id[meter_id].get("Energy", 0) or 0
         try:
             return float(val)
         except (ValueError, TypeError):
             return 0.0
 
-    def get_meter_power(self, meter_name: str) -> float:
-        comp = self._meters_by_name.get(meter_name)
-        if not comp:
-            return 0.0
-        val = comp.get("Power", 0) or 0
+    def get_meter_power(self, meter_id: int) -> float:
+        """Get meter power reading (W) by ID.
+
+        Args:
+            meter_id: Meter ID to lookup.
+
+        Returns:
+            Power reading in W, or 0.0 if unavailable.
+
+        Raises:
+            IndexError: If meter_id is invalid.
+        """
+        if meter_id not in self._meters_by_id:
+            error_msg = f"Invalid meter ID: {meter_id}"
+            raise IndexError(error_msg)
+        val = self._meters_by_id[meter_id].get("Power", 0) or 0
         try:
             return float(val)
         except (ValueError, TypeError):
             return 0.0
 
-    # Input primitives
-    def get_input_state(self, input_name: str) -> bool | None:
-        comp = self._inputs_by_name.get(input_name)
-        if not comp:
+    # Temperature probe value getters
+    def get_temp_probe_temperature(self, temp_probe_id: int) -> float | None:
+        """Get temperature probe reading (°C) by ID.
+
+        Args:
+            temp_probe_id: Temperature probe ID to lookup.
+
+        Returns:
+            Temperature in °C, or None if unavailable.
+
+        Raises:
+            IndexError: If temp_probe_id is invalid.
+        """
+        if temp_probe_id not in self._temp_probes_by_id:
+            error_msg = f"Invalid temperature probe ID: {temp_probe_id}"
+            raise IndexError(error_msg)
+        val = self._temp_probes_by_id[temp_probe_id].get("Temperature")
+        if val is None:
             return None
-        return bool(comp.get("State", False))
-
-
-def _first_key(d: dict[str, Any], *keys: str) -> str | None:
-    for k in keys:
-        v = d.get(k)
-        if isinstance(v, str) and v:
-            return v
-    return None
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None

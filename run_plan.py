@@ -10,6 +10,8 @@ from local_enumerations import AmberChannel
 
 class RunPlanner:
     """Class to calculate a run plan based on either Amber pricing or a defined schedule."""
+
+    # Public Functions ============================================================================
     def __init__(self, logger: SCLogger, plan_type: RunPlanMode, channel: AmberChannel | None = None):
         """Initializes the RunPlanner.
 
@@ -27,27 +29,6 @@ class RunPlanner:
         self.plan_type = plan_type
         self.channel = channel if plan_type == RunPlanMode.BEST_PRICE else None
         self.logger = logger
-
-    def _create_run_plan_object(self) -> dict:
-        """Return a new empty run plan object."""
-        new_run_plan = {
-            "Source": self.plan_type,
-            "Channel": self.channel,
-            "LastUpdate": DateHelper.now(),
-            "Status": None,
-            "RequiredHours": 0.0,
-            "PriorityHours": 0.0,
-            "PlannedHours": 0.0,
-            "RemainingHours": 0.0,
-            "NextStartDateTime": None,
-            "NextStopDateTime": None,
-            "ForecastAveragePrice": 0.0,
-            "ForecastEnergyUsage": 0.0,
-            "EstimatedCost": 0.0,
-
-            "RunPlan": []
-        }
-        return new_run_plan
 
     def calculate_run_plan(self, sorted_slot_data: list[dict], required_hours: float, priority_hours: float, max_price: float,
                            max_priority_price: float, hourly_energy_usage: float = 0.0, slot_min_minutes: int = 0, slot_min_gap_minutes: int = 0) -> dict:
@@ -129,6 +110,101 @@ class RunPlanner:
 
         # Step 4: Calculate final plan metrics
         return self._finalize_run_plan(run_plan, final_slots, required_mins, int(priority_hours * 60))
+
+    @staticmethod
+    def tick(run_plan: dict) -> dict:
+        """Perform any periodic tasks needed by the RunPlanner.
+
+        Args:
+            run_plan (dict): The current run plan.
+
+        Returns:
+            dict: The updated run plan.
+        """
+        future_minutes = 0
+        now = DateHelper.now()
+
+        for slot in run_plan.get("RunPlan", []):
+            # Add to future minutes for the portion of the slot that is in the future
+            minutes = slot["Minutes"]
+            if slot["EndDateTime"] > now:
+                if slot["StartDateTime"] >= now:
+                    future_minutes += minutes
+                else:
+                    future_minutes += int((slot["EndDateTime"] - now).total_seconds() / 60)
+
+        run_plan["RemainingHours"] = future_minutes / 60.0
+
+        return run_plan
+
+    @staticmethod
+    def print_info(run_plan: dict, title: str | None) -> str:
+        """
+        Print the run plan in a readable format.
+
+        Args:
+            run_plan (dict): The run plan to print.
+            title (str): The title to display before the run plan.
+
+        Returns:
+            str: The formatted run plan string that can be printed or logged.
+        """
+        return_str = f"{title} run plan:\n" if title else "Run Plan:\n"
+
+        return_str += f"  - Source: {run_plan['Source']}\n"
+        return_str += f"  - Channel: {run_plan['Channel']}\n"
+        return_str += f"  - Status: {run_plan['Status']}\n"
+        return_str += f"  - RequiredHours: {run_plan['RequiredHours']}\n"
+        return_str += f"  - PriorityHours: {run_plan['PriorityHours']}\n"
+        return_str += f"  - PlannedHours: {run_plan['PlannedHours']}\n"
+        return_str += f"  - RemainingHours: {run_plan['RemainingHours']}\n"
+        return_str += f"  - NextStartDateTime: {run_plan['NextStartDateTime']}\n"
+        return_str += f"  - NextStopDateTime: {run_plan['NextStopDateTime']}\n"
+        return_str += f"  - ForecastAveragePrice: {run_plan['ForecastAveragePrice']}\n"
+        return_str += "   - Run Plan Slots:\n"
+        for slot in run_plan.get("RunPlan", []):
+            return_str += f"     - Start: {slot['StartDateTime']}, End: {slot['EndDateTime']}, Duration: {slot['Minutes']}, Price: {slot['Price']}\n"
+
+        return return_str
+
+    @staticmethod
+    def get_current_slot(run_plan: dict) -> tuple[dict | None, bool]:
+        """
+        Get the current active slot from the run plan.
+
+        Args:
+            run_plan (dict): The run plan to check.
+
+        Returns:
+            tuple(dict | None, bool): The current active slot if found, otherwise None. Also returns a boolean indicating if a slot is currently active (i.e. should be running now).
+        """
+        current_time = DateHelper.now()
+        for slot in run_plan.get("RunPlan", []):
+            if slot["StartDateTime"] <= current_time <= slot["EndDateTime"]:
+                return slot, True
+        return None, False
+
+    # Private Functions ============================================================================
+    def _create_run_plan_object(self) -> dict:
+        """Return a new empty run plan object."""
+        new_run_plan = {
+            "Source": self.plan_type,
+            "Channel": self.channel,
+            "LastUpdate": DateHelper.now(),
+            "Status": None,
+            "RequiredHours": 0.0,
+            "PriorityHours": 0.0,
+            "PlannedHours": 0.0,
+            "RemainingHours": 0.0,
+            "NextStartDateTime": None,
+            "NextStopDateTime": None,
+            "ForecastAveragePrice": 0.0,
+            "ForecastEnergyUsage": 0.0,
+            "EstimatedCost": 0.0,
+
+            "RunPlan": []
+        }
+        return new_run_plan
 
     def _select_qualifying_slots(self, sorted_slot_data: list[dict], remaining_required_mins: int,  # noqa: PLR6301
                             max_price: float, max_priority_price: float,
@@ -455,32 +531,6 @@ class RunPlanner:
         return run_plan
 
     @staticmethod
-    def tick(run_plan: dict) -> dict:
-        """Perform any periodic tasks needed by the RunPlanner.
-
-        Args:
-            run_plan (dict): The current run plan.
-
-        Returns:
-            dict: The updated run plan.
-        """
-        future_minutes = 0
-        now = DateHelper.now()
-
-        for slot in run_plan.get("RunPlan", []):
-            # Add to future minutes for the portion of the slot that is in the future
-            minutes = slot["Minutes"]
-            if slot["EndDateTime"] > now:
-                if slot["StartDateTime"] >= now:
-                    future_minutes += minutes
-                else:
-                    future_minutes += int((slot["EndDateTime"] - now).total_seconds() / 60)
-
-        run_plan["RemainingHours"] = future_minutes / 60.0
-
-        return run_plan
-
-    @staticmethod
     def _calculate_required_minutes(required_hours: float) -> int:
         """
         Calculate the required minutes for the run plan.
@@ -503,50 +553,3 @@ class RunPlanner:
         remaining_required_mins = max(0, remaining_required_mins)
 
         return int(remaining_required_mins)
-
-    @staticmethod
-    def print_info(run_plan: dict, title: str | None) -> str:
-        """
-        Print the run plan in a readable format.
-
-        Args:
-            run_plan (dict): The run plan to print.
-            title (str): The title to display before the run plan.
-
-        Returns:
-            str: The formatted run plan string that can be printed or logged.
-        """
-        return_str = f"{title} run plan:\n" if title else "Run Plan:\n"
-
-        return_str += f"  - Source: {run_plan['Source']}\n"
-        return_str += f"  - Channel: {run_plan['Channel']}\n"
-        return_str += f"  - Status: {run_plan['Status']}\n"
-        return_str += f"  - RequiredHours: {run_plan['RequiredHours']}\n"
-        return_str += f"  - PriorityHours: {run_plan['PriorityHours']}\n"
-        return_str += f"  - PlannedHours: {run_plan['PlannedHours']}\n"
-        return_str += f"  - RemainingHours: {run_plan['RemainingHours']}\n"
-        return_str += f"  - NextStartDateTime: {run_plan['NextStartDateTime']}\n"
-        return_str += f"  - NextStopDateTime: {run_plan['NextStopDateTime']}\n"
-        return_str += f"  - ForecastAveragePrice: {run_plan['ForecastAveragePrice']}\n"
-        return_str += "   - Run Plan Slots:\n"
-        for slot in run_plan.get("RunPlan", []):
-            return_str += f"     - Start: {slot['StartDateTime']}, End: {slot['EndDateTime']}, Duration: {slot['Minutes']}, Price: {slot['Price']}\n"
-
-        return return_str
-
-    @staticmethod
-    def get_current_slot(run_plan: dict) -> tuple[dict | None, bool]:
-        """
-        Get the current active slot from the run plan.
-
-        Args:
-            run_plan (dict): The run plan to check.
-
-        Returns:
-            tuple(dict | None, bool): The current active slot if found, otherwise None. Also returns a boolean indicating if a slot is currently active (i.e. should be running now).
-        """
-        current_time = DateHelper.now()
-        for slot in run_plan.get("RunPlan", []):
-            if slot["StartDateTime"] <= current_time <= slot["EndDateTime"]:
-                return slot, True
-        return None, False

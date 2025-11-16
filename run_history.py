@@ -15,6 +15,8 @@ from local_enumerations import OutputStatusData
 
 class RunHistory:
     """Manages the history of executed run plans for an output device."""
+
+    # Public Functions ============================================================================
     def __init__(self, logger: SCLogger, output_config: dict, saved_history: dict | None = None):
         """Initializes the RunHistory.
 
@@ -55,96 +57,6 @@ class RunHistory:
         self.output_name = output_config.get("Name") or "Unknown"
         self.max_shortfall_hours = 0 if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else output_config.get("MaxShortfallHours", 12) or 12
         self.max_history_days = output_config.get("DaysOfHistory", 7)
-
-    @staticmethod
-    def _create_history_object() -> dict:
-        """Return a new empty history object. This is the parent object holding data for all days and the summaries."""
-        new_history = {
-            "LastUpdate": DateHelper.now(),   # When was this object last updated?
-            "HistoryDays": 0,  # How many days of history so we have = len(self['DailyData'])
-            "LastStartTime": None,   # StartTime of the most recent event if event is open
-            "LastMeterRead": 0,  # Most recently available meter read
-            "CurrentPrice": 0.0,  # Most recently available current price
-            "CurrentTotals": {    # Totals for all the days in the current history
-                "EnergyUsed": 0,  # Energy used (in Wh)
-                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
-                "TotalCost": 0.0,  # Total cost in $
-                "AveragePrice": 0.0,  # Average price in c/kWh
-                "ActualHours": 0.0,
-                "ActualDays": 0,
-                "ActualHoursPerDay": 0.0
-
-            },
-            "EarlierTotals": {   # Totals for all the days prior to the current history that have rolled off
-                "EnergyUsed": 0,
-                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
-                "TotalCost": 0.0,
-                "AveragePrice": 0.0,
-                "ActualHours": 0.0,
-                "ActualDays": 0,
-            },
-            "AlltimeTotals": {   # Sum of CurrentTotals and EarlierTotals
-                "EnergyUsed": 0,
-                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
-                "TotalCost": 0.0,
-                "AveragePrice": 0.0,
-                "ActualHours": 0.0,
-                "ActualDays": 0
-            },
-            "DailyData": []  # List of day objects as created by _create_day_object
-        }
-        return new_history
-
-    @staticmethod
-    def _create_day_object(obj_date: dt.date, status_data: OutputStatusData):
-        """Create the object that represents a single day of date within the run history.
-
-        Args:
-            obj_date (dt.date): The date for the history day object.
-            status_data (OutputStatusData): The status data for the associated output.
-
-        Returns:
-            dict: The created history day object.
-        """
-        new_day = {
-            "Date": obj_date,
-            "TargetHours": status_data.target_hours,
-            "PriorShortfall": 0.0,  # Total shortfall hours carried over from prior days
-            "ActualHours": 0.0,  # Total hours actually run on this day
-            "EnergyUsed": 0,   # Energy used (in Wh) on this day
-            "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
-            "TotalCost": 0.0,  # Total cost incurred for the energy used on this day in $
-            "AveragePrice": 0.0,  # Average price paid in c/kWh for the energy on this day
-            "DeviceRuns": []  # The individual run instances for this day
-        }
-        return new_day
-
-    @staticmethod
-    def _create_run_object(start_time: dt.datetime, status_data: OutputStatusData) -> dict:
-        """Create the object that represents a single run instance within the run history.
-
-        Args:
-            start_time (dt.datetime | None): The start time of the run.
-            status_data (OutputStatusData): The status data for the associated output.
-
-        Returns:
-            dict: The created run object.
-        """
-        new_run = {
-            "SystemState": None,       # SystemState enum value when the run started
-            "ReasonStarted": None,    # StateReasonOn enum value why the output was turned on
-            "ReasonStopped": None,    # StateReasonOff enum value why the output was turned
-            "StartTime": start_time,    # Datetime object, not just time
-            "EndTime": None,            # Datetime object, not just time
-            "ActualHours": 0.0,
-            "MeterReadAtStart": status_data.meter_reading,
-            "PriorMeterRead": status_data.meter_reading,     # This should only be changed by _calculate_values_for_open_run()
-            "LastActualPrice": 0.0,
-            "EnergyUsed": 0,        # Energy used (in Wh)
-            "TotalCost": 0.0,       # Total cost in $
-            "AveragePrice": 0.0,    # Average price in c/kWh
-        }
-        return new_run
 
     def tick(self, status_data: OutputStatusData) -> bool:
         """Perform periodic updates to the run history.
@@ -187,32 +99,6 @@ class RunHistory:
         self.last_tick = DateHelper.now()
 
         return have_rolled
-
-    def _have_rolled_over_to_new_day(self) -> bool:
-        """Check if the current date has rolled over to a new day compared to the last update.
-
-        Returns:
-            bool: True if a new day has started, False otherwise.
-        """
-        if not self.history["DailyData"]:
-            return False
-        last_date = self.history["DailyData"][-1]["Date"]
-        current_date = DateHelper.now().date()
-        return current_date > last_date
-
-    def _check_yesterday_energy_usage(self):
-        """Check if the energy used yesterday was more than expected."""
-        prior_energy_used = self.history["DailyData"][-1]["EnergyUsed"] if self.history["DailyData"] else 0
-        threashold = self.output_config.get("MaxDailyEnergyUse", 0) or 0
-        if prior_energy_used == 0 or threashold == 0:
-            return  # No data to check
-
-        if prior_energy_used > threashold:
-            warning_msg = f"{self.output_config.get("Name")} output used on {prior_energy_used:.0f}W, which exceeded the expected limit of {threashold}W."
-            self.logger.log_message(warning_msg, "warning")
-
-            # Send an email notification if configured
-            self.logger.send_email("Energy Usage Alert", warning_msg)
 
     def get_current_day(self) -> dict | None:
         """Get the current day object if there is one.
@@ -329,6 +215,171 @@ class RunHistory:
 
         # Now immediately start a new run with the same state and reason
         self.start_run(current_system_state, current_reason_on, status_data)
+
+    def get_actual_hours(self) -> float:
+        """Returns the total actual hours from the run history."""
+        if self.history["DailyData"]:
+            return self.history["DailyData"][-1]["ActualHours"]
+        return 0.0
+
+    def get_prior_shortfall(self) -> tuple[float, float]:
+        """Returns the total prior shortfall from the run history. Amount is adjusted for any maximum shortfall hours configured.
+
+        Returns:
+            tuple[float, float]: The prior shortfall hours and the maximum shortfall hours.
+        """
+        if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS:
+            return 0.0, 0.0
+
+        if self.history["DailyData"]:
+            return self.history["DailyData"][-1]["PriorShortfall"], self.max_shortfall_hours
+        return 0.0, self.max_shortfall_hours
+
+    def get_hourly_energy_used(self) -> float:
+        """Returns the average hourly energy used from the run history. Returns data for the most recent day or prior day if today has only recently started."""
+        if self.history["DailyData"]:
+            for day in reversed(self.history["DailyData"]):
+                if day["ActualHours"] >= 2 and day["HourlyEnergyUsed"] > 0.0:
+                    return day["HourlyEnergyUsed"]
+        return 0.0
+
+    def get_consumption_data(self) -> list[dict]:
+        """Returns a list of historic usage data for each day in the run history.
+
+        Data is returned in a CSV friendly format.
+
+        Returns:
+            list[dict]: A list of dictionaries containing date, energy used (Wh), total cost ($), average price (c/kWh), and actual hours for each day.
+        """
+        usage_list = []
+        for day in self.history["DailyData"]:
+            usage_list.append({
+                "Date": day["Date"].isoformat(),
+                "OutputName": self.output_name,
+                "ActualHours": day["ActualHours"],
+                "TargetHours": day["TargetHours"] or "All Hours",
+                "EnergyUsed": day["EnergyUsed"] / 1000,  # Convert to kWh
+                "TotalCost": day["TotalCost"],
+                "AveragePrice": day["AveragePrice"],
+            })
+        return usage_list
+
+    @staticmethod
+    def calc_cost(energy_used: float, price: float) -> float:
+        """Calculate the cost in $ given energy used in Wh and price in c/kWh.
+
+        Args:
+            energy_used (float): The energy used in Wh.
+            price (float): The price in c/kWh.
+
+        Returns:
+            float: Total cost in $.
+        """
+        return (energy_used / 1000) * (price / 100) if energy_used > 0 else 0
+
+    @staticmethod
+    def calc_price(energy_used: float, total_cost: float) -> float:
+        """Calculate the average price in c/kWh given energy used in Wh and total cost in cents.
+
+        Args:
+            energy_used (float): The energy used in Wh.
+            total_cost (float): The total cost in $.
+
+        Returns:
+            float: The average price in c/kWh.
+        """
+        return (total_cost / (energy_used / 1000)) * 100 if energy_used > 0 else 0
+
+    # Private Functions ============================================================================
+    @staticmethod
+    def _create_history_object() -> dict:
+        """Return a new empty history object. This is the parent object holding data for all days and the summaries."""
+        new_history = {
+            "LastUpdate": DateHelper.now(),   # When was this object last updated?
+            "HistoryDays": 0,  # How many days of history so we have = len(self['DailyData'])
+            "LastStartTime": None,   # StartTime of the most recent event if event is open
+            "LastMeterRead": 0,  # Most recently available meter read
+            "CurrentPrice": 0.0,  # Most recently available current price
+            "CurrentTotals": {    # Totals for all the days in the current history
+                "EnergyUsed": 0,  # Energy used (in Wh)
+                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
+                "TotalCost": 0.0,  # Total cost in $
+                "AveragePrice": 0.0,  # Average price in c/kWh
+                "ActualHours": 0.0,
+                "ActualDays": 0,
+                "ActualHoursPerDay": 0.0
+
+            },
+            "EarlierTotals": {   # Totals for all the days prior to the current history that have rolled off
+                "EnergyUsed": 0,
+                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
+                "TotalCost": 0.0,
+                "AveragePrice": 0.0,
+                "ActualHours": 0.0,
+                "ActualDays": 0,
+            },
+            "AlltimeTotals": {   # Sum of CurrentTotals and EarlierTotals
+                "EnergyUsed": 0,
+                "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
+                "TotalCost": 0.0,
+                "AveragePrice": 0.0,
+                "ActualHours": 0.0,
+                "ActualDays": 0
+            },
+            "DailyData": []  # List of day objects as created by _create_day_object
+        }
+        return new_history
+
+    @staticmethod
+    def _create_day_object(obj_date: dt.date, status_data: OutputStatusData):
+        """Create the object that represents a single day of date within the run history.
+
+        Args:
+            obj_date (dt.date): The date for the history day object.
+            status_data (OutputStatusData): The status data for the associated output.
+
+        Returns:
+            dict: The created history day object.
+        """
+        new_day = {
+            "Date": obj_date,
+            "TargetHours": status_data.target_hours,
+            "PriorShortfall": 0.0,  # Total shortfall hours carried over from prior days
+            "ActualHours": 0.0,  # Total hours actually run on this day
+            "EnergyUsed": 0,   # Energy used (in Wh) on this day
+            "HourlyEnergyUsed": 0.0,  # Average energy used per hour in Wh
+            "TotalCost": 0.0,  # Total cost incurred for the energy used on this day in $
+            "AveragePrice": 0.0,  # Average price paid in c/kWh for the energy on this day
+            "DeviceRuns": []  # The individual run instances for this day
+        }
+        return new_day
+
+    @staticmethod
+    def _create_run_object(start_time: dt.datetime, status_data: OutputStatusData) -> dict:
+        """Create the object that represents a single run instance within the run history.
+
+        Args:
+            start_time (dt.datetime | None): The start time of the run.
+            status_data (OutputStatusData): The status data for the associated output.
+
+        Returns:
+            dict: The created run object.
+        """
+        new_run = {
+            "SystemState": None,       # SystemState enum value when the run started
+            "ReasonStarted": None,    # StateReasonOn enum value why the output was turned on
+            "ReasonStopped": None,    # StateReasonOff enum value why the output was turned
+            "StartTime": start_time,    # Datetime object, not just time
+            "EndTime": None,            # Datetime object, not just time
+            "ActualHours": 0.0,
+            "MeterReadAtStart": status_data.meter_reading,
+            "PriorMeterRead": status_data.meter_reading,     # This should only be changed by _calculate_values_for_open_run()
+            "LastActualPrice": 0.0,
+            "EnergyUsed": 0,        # Energy used (in Wh)
+            "TotalCost": 0.0,       # Total cost in $
+            "AveragePrice": 0.0,    # Average price in c/kWh
+        }
+        return new_run
 
     def _calculate_values_for_open_run(self, status_data: OutputStatusData):
         """Calculate the values for the current open run.
@@ -459,76 +510,28 @@ class RunHistory:
         self.history["LastMeterRead"] = status_data.meter_reading
         self.history["CurrentPrice"] = status_data.current_price
 
-    def get_actual_hours(self) -> float:
-        """Returns the total actual hours from the run history."""
-        if self.history["DailyData"]:
-            return self.history["DailyData"][-1]["ActualHours"]
-        return 0.0
-
-    def get_prior_shortfall(self) -> tuple[float, float]:
-        """Returns the total prior shortfall from the run history. Amount is adjusted for any maximum shortfall hours configured.
+    def _have_rolled_over_to_new_day(self) -> bool:
+        """Check if the current date has rolled over to a new day compared to the last update.
 
         Returns:
-            tuple[float, float]: The prior shortfall hours and the maximum shortfall hours.
+            bool: True if a new day has started, False otherwise.
         """
-        if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS:
-            return 0.0, 0.0
+        if not self.history["DailyData"]:
+            return False
+        last_date = self.history["DailyData"][-1]["Date"]
+        current_date = DateHelper.now().date()
+        return current_date > last_date
 
-        if self.history["DailyData"]:
-            return self.history["DailyData"][-1]["PriorShortfall"], self.max_shortfall_hours
-        return 0.0, self.max_shortfall_hours
+    def _check_yesterday_energy_usage(self):
+        """Check if the energy used yesterday was more than expected."""
+        prior_energy_used = self.history["DailyData"][-1]["EnergyUsed"] if self.history["DailyData"] else 0
+        threashold = self.output_config.get("MaxDailyEnergyUse", 0) or 0
+        if prior_energy_used == 0 or threashold == 0:
+            return  # No data to check
 
-    def get_hourly_energy_used(self) -> float:
-        """Returns the average hourly energy used from the run history. Returns data for the most recent day or prior day if today has only recently started."""
-        if self.history["DailyData"]:
-            for day in reversed(self.history["DailyData"]):
-                if day["ActualHours"] >= 2 and day["HourlyEnergyUsed"] > 0.0:
-                    return day["HourlyEnergyUsed"]
-        return 0.0
+        if prior_energy_used > threashold:
+            warning_msg = f"{self.output_config.get("Name")} output used on {prior_energy_used:.0f}W, which exceeded the expected limit of {threashold}W."
+            self.logger.log_message(warning_msg, "warning")
 
-    def get_consumption_data(self) -> list[dict]:
-        """Returns a list of historic usage data for each day in the run history.
-
-        Data is returned in a CSV friendly format.
-
-        Returns:
-            list[dict]: A list of dictionaries containing date, energy used (Wh), total cost ($), average price (c/kWh), and actual hours for each day.
-        """
-        usage_list = []
-        for day in self.history["DailyData"]:
-            usage_list.append({
-                "Date": day["Date"].isoformat(),
-                "OutputName": self.output_name,
-                "ActualHours": day["ActualHours"],
-                "TargetHours": day["TargetHours"] or "All Hours",
-                "EnergyUsed": day["EnergyUsed"] / 1000,  # Convert to kWh
-                "TotalCost": day["TotalCost"],
-                "AveragePrice": day["AveragePrice"],
-            })
-        return usage_list
-
-    @staticmethod
-    def calc_cost(energy_used: float, price: float) -> float:
-        """Calculate the cost in $ given energy used in Wh and price in c/kWh.
-
-        Args:
-            energy_used (float): The energy used in Wh.
-            price (float): The price in c/kWh.
-
-        Returns:
-            float: Total cost in $.
-        """
-        return (energy_used / 1000) * (price / 100) if energy_used > 0 else 0
-
-    @staticmethod
-    def calc_price(energy_used: float, total_cost: float) -> float:
-        """Calculate the average price in c/kWh given energy used in Wh and total cost in cents.
-
-        Args:
-            energy_used (float): The energy used in Wh.
-            total_cost (float): The total cost in $.
-
-        Returns:
-            float: The average price in c/kWh.
-        """
-        return (total_cost / (energy_used / 1000)) * 100 if energy_used > 0 else 0
+            # Send an email notification if configured
+            self.logger.send_email("Energy Usage Alert", warning_msg)

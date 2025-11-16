@@ -330,6 +330,7 @@ Configure each switched output that controls your devices and how they behave. T
 | StopOnExit | If True, attempt to turn off the outputs when the application exits |
 | MinOnTime | Minimum minutes to stay on once turned on |
 | MinOffTime | Minimum minutes to stay off (prevent rapid cycling) |
+| ParentOutput | This output is slaved to the designated parent output. In addition to the other criteria defined for this output, it'll only run when the parent is running. | 
 
 ### Section: Location
 

@@ -12,7 +12,7 @@ from controller import PowerController
 from local_enumerations import Command
 
 
-def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:
+def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:  # noqa: PLR0915
     """Create and configure the Flask web application.
 
     Args:
@@ -81,9 +81,13 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
     def list_outputs():
         # Validate the access key if provided
         if not validate_access_key(request.args):
-            return "Access forbidden.", 403
+            return jsonify({"error": "Access forbidden."}), 403
 
         snapshot = controller.get_webapp_data()
+        if not snapshot:
+            logger.log_message("No web output data available yet", "warning")
+            return jsonify({"error": "no output data available yet"}), 503
+
         json_data = jsonify(snapshot)
         logger.log_message("API call list_output() for all output data", "debug")
         return json_data
@@ -92,13 +96,17 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
     def get_output(output_id):
         # Validate the access key if provided
         if not validate_access_key(request.args):
-            return "Access forbidden.", 403
+            return jsonify({"error": "Access forbidden."}), 403
 
         if not is_valid_output_id(output_id):
             logger.log_message(f"Output ID {output_id} not found", "warning")
             return jsonify({"error": "invalid output_id"}), 400
 
         snapshot = controller.get_webapp_data()
+        if not snapshot:
+            logger.log_message("No web output data available yet", "warning")
+            return jsonify({"error": "no output data available yet"}), 503
+
         json_data = jsonify(snapshot["outputs"][output_id])
         logger.log_message(f"API call get_output() for output for {output_id}", "debug")
         return json_data
@@ -106,7 +114,7 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
     @app.post("/api/outputs/<output_id>/mode")
     def set_mode(output_id):
         if not validate_access_key(request.args):
-            return "Access forbidden.", 403
+            return jsonify({"error": "Access forbidden."}), 403
 
         if not controller.is_valid_output_id(output_id):
             return jsonify({"error": "invalid output_id"}), 400
@@ -118,8 +126,12 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
 
         controller.post_command(Command("set_mode", {"output_id": output_id, "mode": mode}))
 
-        webapp_data = controller.get_webapp_data()
-        output_data = webapp_data["outputs"].get(output_id)
+        snapshot = controller.get_webapp_data()
+        if not snapshot:
+            logger.log_message("No web output data available yet", "warning")
+            return jsonify({"error": "no output data available yet"}), 503
+
+        output_data = snapshot["outputs"].get(output_id)
 
         logger.log_message(f"API call set_mode() for {output_id}, changing mode to to {mode}.", "debug")
         return jsonify(output_data or {"status": "ok"})
@@ -131,6 +143,10 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
             return "Access forbidden.", 403
 
         snapshot = controller.get_webapp_data()
+        if not snapshot:
+            logger.log_message("No web output data available yet", "warning")
+            return "no output data available yet", 503
+
         logger.log_message("API call get() returning home page", "debug")
         return render_template("index.html",
                              global_data=snapshot["global"],
