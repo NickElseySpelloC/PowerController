@@ -65,6 +65,7 @@ class OutputManager:
         self.output_config = output_config
         self.device_mode = RunPlanMode.SCHEDULE
         self.device_input_mode = InputMode.IGNORE
+        self.parent_output = None  # The parent OutputManager, if any
 
         # pricing and scheduling
         self.schedule_name = None
@@ -118,8 +119,6 @@ class OutputManager:
         # The required state of the device
         # TO DO: Get rid of this - we should always be reading the actual device state
         self.is_on = saved_state.get("IsOn") if saved_state else None
-        # TO DO: Get rid of this - we should always be reading the actual device state
-        self.is_device_online = False  # If device is offline, assume the output is off
 
         self.last_changed = None
         self.reason = None
@@ -127,8 +126,11 @@ class OutputManager:
         self.initialise(output_config, view)
         self.logger.log_message(f"Output {self.name} initialised.", "debug")
 
+        # TO DO: Get rid of this - we should always be reading the actual device state
+        self.is_device_online = view.get_device_online(self.device_id)  # If device is offline, assume the output is off
+
         # See if the output's saved state matches the actual device state
-        if saved_state and view.get_device_online(self.device_id) != self.is_on:
+        if saved_state and view.get_device_online(self.device_id) and view.get_output_state(self.device_output_id) != self.is_on:
             self.logger.log_message(f"Output {self.name} saved state does not match actual device state. Saved: {'On' if self.is_on else 'Off'}, Actual: {'On' if view.get_device_online(self.device_id) else 'Off'}. Output relay may have been changed by another application.", "warning")
 
     def initialise(self, output_config: dict, view: ShellyView):  # noqa: PLR0912, PLR0915
@@ -651,15 +653,14 @@ class OutputManager:
         """
         if action.type == OutputActionType.TURN_ON:
             self.last_turned_on = DateHelper.now()
-            self.logger.log_message(f"Output {self.name} state changed to On - {action.reason}.", "detailed")
             self.is_on = True
+            self.logger.log_message(f"Output {self.name} state changed to ON - {action.reason}.", "detailed")
 
         if action.type in {OutputActionType.TURN_ON, OutputActionType.UPDATE_ON_STATE} and (self.system_state != action.system_state or self.reason != action.reason):
             self.system_state = action.system_state
             self.reason = action.reason
             self.last_changed = DateHelper.now()
             data_block = self._get_status_data(view)
-            self.logger.log_message(f"Output {self.name} state changed to ON - {action.reason}.", "detailed")
             self.run_history.start_run(self.system_state, self.reason, data_block)  # pyright: ignore[reportArgumentType]
 
             current_run = self.run_history.get_current_run()

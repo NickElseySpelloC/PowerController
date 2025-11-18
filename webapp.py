@@ -172,7 +172,7 @@ def serve_flask_blocking(app: Flask, config: SCConfigManager, logger: SCLogger, 
     finally:
         with contextlib.suppress(Exception):
             server.server_close()
-        logger.log_message("Flask server shutdown complete.", "summary")
+        logger.log_message("Flask web server shutdown complete.", "detailed")
 
 
 # class FlaskServerThread(Thread):

@@ -106,7 +106,7 @@ class ShellyWorker:
                 if not device.get("Online", False):
                     self.all_shelly_devices_online = False
 
-        # Publish snapshot, making a deep copy
+        # Immedaietly save the latest status so that we always have something to return
         self._save_latest_status()
 
     # Public API (thread-safe)
@@ -197,7 +197,7 @@ class ShellyWorker:
                 self._execute_request(req)
         # Allow ThreadManager to log + restart on crash
         finally:
-            self.logger.log_message("Shelly worker stopped", "detailed")
+            self.logger.log_message("Shelly worker shutdown complete.", "detailed")
 
     def stop(self):
         self.stop_event.set()
@@ -309,8 +309,10 @@ class ShellyWorker:
             except RuntimeError as e:     # A more serious ShellyControl error
                 runtime_msg = f"Step '{step.kind}' threw RunTime error - skipping retry attempts: {e}"
                 raise RuntimeError(runtime_msg) from e
+            else:
+                # If there were no exceptions, we're done. Return reinitialise_reqd flag.
+                return reinitialise_reqd
 
-        # If there were no exceptions, we're done. Return reinitialise_reqd flag.
         return reinitialise_reqd
 
     def _refresh_all_status(self):

@@ -20,6 +20,7 @@ from sc_utility import (
 
 from external_services import ExternalServiceHelper
 from local_enumerations import (
+    DUMP_SHELLY_SNAPSHOT,
     SCHEMA_VERSION,
     Command,
     LookupMode,
@@ -59,7 +60,6 @@ class PowerController:
         self.viewer_website_last_post = None
         self.wake_event = wake_event
         self.shelly_worker: ShellyWorker = shelly_worker
-        self.all_shelly_devices_online = None    # This must only be set / queried in _refresh_device_statuses()
         self.cmd_q: queue.Queue[Command] = queue.Queue()    # Used to post commands into the controller's loop
         self.command_pending: bool = False
         self.report_critical_errors_delay = config.get("General", "ReportCriticalErrorsDelay", default=None)
@@ -152,7 +152,6 @@ class PowerController:
 
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
-        self.logger.log_message("Interrupt received, shutting down power controller...", "summary")
         view = self._get_latest_status_view()
         for output in self.outputs:
             if output.shutdown(view):
@@ -165,6 +164,7 @@ class PowerController:
                 self._execute_action_on_output(output, requested_action, view)
 
         self._save_system_state(force_post=True)
+        self.logger.log_message("PowerController shutdown complete.", "detailed")
 
     def print_to_console(self, message: str):
         """Print a message to the console if PrintToConsole is enabled.
@@ -449,35 +449,27 @@ class PowerController:
         req_id = self.shelly_worker.request_refresh_status()
         # Make timeout configurable if you like; 3s is a reasonable default
         done = self.shelly_worker.wait_for_result(req_id, timeout=3.0)
-        if not done:
+        if done:
+            self.logger.log_message("Completed Shelly refresh.", "debug")
+        else:
             self.logger.log_message("Timed out waiting for Shelly refresh; using last snapshot.", "warning")
 
         view = self._get_latest_status_view()
 
-        # TO DO: Remove this
-        view_snapshot = view.get_json_snapshot()
-        # Save the JSON snapshot to a file for debugging
-        debug_file_path = SCCommon.select_file_location("debug_shelly_view_snapshot.json")
-        if debug_file_path:
-            try:
-                JSONEncoder.save_to_file(view_snapshot, debug_file_path)
-                self.logger.log_message(f"Saved Shelly view snapshot to {debug_file_path}", "debug")
-            except (TypeError, ValueError, RuntimeError, OSError) as e:
-                self.logger.log_message(f"Failed to save Shelly view snapshot: {e}", "warning")
+        if DUMP_SHELLY_SNAPSHOT:
+            view_snapshot = view.get_json_snapshot()
+            # Save the JSON snapshot to a file for debugging
+            debug_file_path = SCCommon.select_file_location("debug_shelly_view_snapshot.json")
+            if debug_file_path:
+                try:
+                    JSONEncoder.save_to_file(view_snapshot, debug_file_path)
+                    self.logger.log_message(f"Saved Shelly view snapshot to {debug_file_path}", "debug")
+                except (TypeError, ValueError, RuntimeError, OSError) as e:
+                    self.logger.log_message(f"Failed to save Shelly view snapshot: {e}", "warning")
 
         # Tell outputs device status updated
         for output in self.outputs:
             output.tell_device_status_updated(view)
-
-        # Now see if we need to reinitialise the Shelly controller because a device that was offline during startup has come back online
-        new_online_status = view.all_devices_online()
-        if new_online_status and not self.all_shelly_devices_online:
-            self.logger.log_message("All Shelly devices are now online, reinitializing...", "detailed")
-            self._save_system_state(force_post=True)  # Save state before reinitialising
-            self._initialise()
-
-            # Make sure we don't repeat this block again
-            self.all_shelly_devices_online = new_online_status
 
         return view
 
@@ -490,30 +482,8 @@ class PowerController:
         # Get a deep copy of all the Shelly devices
         snapshot = self.shelly_worker.get_latest_status()
 
-        # TO DO: Deal with the fact that snapshot may be empty / invalid if the refresh failed or devices are offline
-
         # And create a new ShellyView instance to reference this data
-        view = ShellyView(snapshot)
-
-        # TO DO: Remove debug code
-        # try:
-        #     device_name_pool_solar = "Sydney Pool Solar"
-        #     print(f"Device ID of {device_name_pool_solar} is {view.get_device_id(device_name_pool_solar)}")
-
-        #     meter_name_pool_pump = "Sydney Pool M1"
-        #     meter_id_pool_pump = view.get_meter_id(meter_name_pool_pump)
-        #     meter_reading_pool_pump = view.get_meter_energy(meter_id_pool_pump)
-        #     print(f"Meter ID of {meter_name_pool_pump} is {meter_id_pool_pump} and reading is {meter_reading_pool_pump} Wh")
-
-        #     temp_probe_name = "Temp Solar Return"
-        #     temp_probe_id = view.get_temp_probe_id(temp_probe_name)
-        #     temp_probe_reading = view.get_temp_probe_temperature(temp_probe_id)
-        #     print(f"Temp Probe ID of {temp_probe_name} is {temp_probe_id} and reading is {temp_probe_reading} C")
-
-        # except IndexError as e:
-        #     print(f"Debug error: {e}")
-
-        return view
+        return ShellyView(snapshot)
 
     def _calculate_running_totals(self, view: ShellyView):
         """Calculate the running totals for each output."""
@@ -534,12 +504,10 @@ class PowerController:
                 self._execute_action_on_output(output, requested_action, view)
 
     def _execute_action_on_output(self, output: OutputManager, requested_action: OutputAction, view: ShellyView):
-        self.logger.log_message(f"Output {output.name} requests action {requested_action.type}", "detailed")
-
         # If the Output requests a change, post it to the ShellyWorker and wait for it to complete
         if requested_action.type in {OutputActionType.TURN_ON, OutputActionType.TURN_OFF}:
             new_state = requested_action.type == OutputActionType.TURN_ON
-            # TO DO: Deal with failure to post request
+
             req_id = self.shelly_worker.request_output_change(output.device_output_id, new_state)
 
             # TO DO: Change this to make it async. Save the request ID in the OutputManager and check for completion in the main loop
