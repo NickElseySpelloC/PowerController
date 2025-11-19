@@ -140,6 +140,38 @@ class Scheduler:
         else:
             return run_plan
 
+    def get_current_price(self, schedule: dict) -> float:
+        """Get the current price from the pricing manager.
+
+        Args:
+            schedule (dict): The schedule dictionary.
+
+        Returns:
+            float: The current price in AUD/kWh, or 0 if not available.
+        """
+        # Get the slots for the current time
+        slots = self._get_schedule_slots(schedule)
+        if not slots:
+            return self.default_price  # pyright: ignore[reportReturnType]
+
+        # See if we have a slot that encompasses the current time
+        current_time = DateHelper.now().time()
+        for slot in slots:
+            if slot["StartTime"] <= current_time <= slot["EndTime"]:
+                # Get the current price from the pricing manager
+                return slot["Price"]
+
+        return self.default_price  # pyright: ignore[reportReturnType]
+
+    def save_device_location_info(self, loc_info: dict[str, dict]):
+        """Accept the device location info dictionary from the controller and store it for use in dawn/dusk calculations.
+
+        Args:
+            loc_info (dict): The location information dictionary. A dict of location data, keyed by Shelly device name.
+        """
+        self.dusk_dawn = self._get_dusk_dawn_times(loc_info)
+
+    # Private Functions ===========================================================================
     def _get_schedule_slots(self, schedule: dict) -> list[dict]:
         """Evaluate the schedule and return a list of time slots when the schedule is active for today.
 
@@ -252,8 +284,11 @@ class Scheduler:
 
         return base_time  # pyright: ignore[reportPossiblyUnboundVariable]
 
-    def _get_dusk_dawn_times(self) -> dict:
+    def _get_dusk_dawn_times(self, loc_info: dict[str, dict] | None = None) -> dict:
         """Get the dawn and dusk times based on the location returned from the specified shelly switch or the manually configured location configuration.
+
+        Args:
+            loc_info (dict): The location information dictionary. A dict of location data, keyed by Shelly device name.
 
         Returns:
             dict: A dictionary with 'dawn' and 'dusk' times.
@@ -263,19 +298,15 @@ class Scheduler:
         assert isinstance(loc_conf, dict), "Location configuration must be a dictionary"
         tz = lat = lon = None
 
-        # TO DO: Move this to the ShellyWorker thread
-        # shelly_device_name = loc_conf.get("UseShellyDevice")
-        # if shelly_device_name:
-        #     # Get the tz, lat and long from the specified Shelly device
-        #     try:
-        #         device = self.shelly_control.get_device(shelly_device_name)
-        #         shelly_loc = self.shelly_control.get_device_location(device)
-        #         if shelly_loc:
-        #             tz = shelly_loc.get("tz")
-        #             lat = shelly_loc.get("lat")
-        #             lon = shelly_loc.get("lon")
-        #     except (RuntimeError, TimeoutError) as e:
-        #         self.logger.log_message(f"Error getting location from Shelly device {shelly_device_name}: {e}", "warning")
+        # See if we have a Shelly device specified to get the location from
+        shelly_device_name = loc_conf.get("UseShellyDevice")
+        if shelly_device_name:
+            # Get the tz, lat and long from the specified Shelly device
+            shelly_loc = loc_info.get(shelly_device_name, {}) if loc_info else None
+            if shelly_loc:
+                tz = shelly_loc.get("tz")
+                lat = shelly_loc.get("lat")
+                lon = shelly_loc.get("lon")
 
         # If we were unable to get the location from the Shelly device, see if we can extract it from the Google Maps url (if supplied)
         if tz is None:
@@ -304,26 +335,3 @@ class Scheduler:
             "dawn": s["dawn"].time(),
             "dusk": s["dusk"].time(),
         }
-
-    def get_current_price(self, schedule: dict) -> float:
-        """Get the current price from the pricing manager.
-
-        Args:
-            schedule (dict): The schedule dictionary.
-
-        Returns:
-            float: The current price in AUD/kWh, or 0 if not available.
-        """
-        # Get the slots for the current time
-        slots = self._get_schedule_slots(schedule)
-        if not slots:
-            return self.default_price  # pyright: ignore[reportReturnType]
-
-        # See if we have a slot that encompasses the current time
-        current_time = DateHelper.now().time()
-        for slot in slots:
-            if slot["StartTime"] <= current_time <= slot["EndTime"]:
-                # Get the current price from the pricing manager
-                return slot["Price"]
-
-        return self.default_price  # pyright: ignore[reportReturnType]

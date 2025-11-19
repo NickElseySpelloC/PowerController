@@ -21,6 +21,7 @@ class StepKind(StrEnum):
     CHANGE_OUTPUT = "Change Output State"
     SLEEP = "Sleep"
     REFRESH_STATUS = "Refresh Status"
+    GET_LOCATION = "Get Location"
 
 
 @dataclass
@@ -29,6 +30,7 @@ class ShellyStep:
     # CHANGE_OUTPUT: {"output_identity": "Label", "state": True|False}
     # SLEEP: {"seconds": float}
     # REFRESH_STATUS: {}
+    # GET_LOCATION: {"device_identity": "Label"}
     params: dict[str, Any] = field(default_factory=dict)
     timeout_s: float | None = None
     retries: int = 0
@@ -98,6 +100,7 @@ class ShellyWorker:
         # Latest status snapshot (thread-safe)
         self._lookup_lock = threading.Lock()
         self._latest_status: ShellyStatus = ShellyStatus(devices=[], outputs=[], inputs=[], meters=[], temp_probes=[])
+        self._location_data: dict[str, dict] = {}
 
         # Set the inital setting for online status. This will be updated in _refresh_all_status()
         self.all_shelly_devices_online = True
@@ -150,8 +153,16 @@ class ShellyWorker:
 
     def get_latest_status(self) -> ShellyStatus:
         with self._lookup_lock:
-            # shallow copy
             return self._latest_status
+
+    def get_location_info(self) -> dict[str, dict]:
+        """Get the latest device location information.
+
+        Returns:
+             A dict of location data, keyed by Shelly device name.
+        """
+        with self._lookup_lock:
+            return self._location_data
 
     def request_refresh_status(self) -> str:
         """Enqueue a refresh job and return its request id.
@@ -178,6 +189,26 @@ class ShellyWorker:
             ShellyStep(StepKind.CHANGE_OUTPUT, {"output_identity": output_id, "state": output_state}, retries=2, retry_backoff_s=1.0),
         ]
         label = f"change_output_{output_id}_to_{output_state}"
+        sequence_request = ShellySequenceRequest(
+            steps=steps,
+            label=label,
+            timeout_s=10.0
+        )
+        return self.submit(sequence_request)
+
+    def request_device_location(self, device_name: str) -> str:
+        """Enqueue a get location job and return its request id.
+
+        Args:
+            device_name (str): The device identity.
+
+        Returns:
+            A request ID.
+        """
+        steps = [
+            ShellyStep(StepKind.GET_LOCATION, {"device_identity": device_name}, retries=1, retry_backoff_s=1.0),
+        ]
+        label = f"get_location_for_{device_name}"
         sequence_request = ShellySequenceRequest(
             steps=steps,
             label=label,
@@ -295,6 +326,13 @@ class ShellyWorker:
 
                 elif step.kind == StepKind.REFRESH_STATUS:   # Refresh status for all devices
                     reinitialise_reqd = self._refresh_all_status()
+
+                elif step.kind == StepKind.GET_LOCATION:   # Get location info for a device
+                    device_name = step.params["device_identity"]
+                    loc_info = self._shelly.get_device_location(device_name)
+                    if loc_info:
+                        with self._lookup_lock:
+                            self._location_data[device_name] = copy.deepcopy(loc_info)
 
                 else:
                     error_msg = f"Unknown step kind: {step.kind}"

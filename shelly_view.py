@@ -214,6 +214,11 @@ class ShellyView:
         if output_id not in self._outputs_by_id:
             error_msg = f"Invalid output ID: {output_id}"
             raise IndexError(error_msg)
+
+        # If the device is offline, output is off by definition
+        device_id = self.get_output_device_id(output_id)
+        if not self.get_device_online(device_id):
+            return False
         return bool(self._outputs_by_id[output_id].get("State", False))
 
     def get_output_device_id(self, output_id: int) -> int:

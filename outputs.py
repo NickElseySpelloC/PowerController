@@ -117,21 +117,19 @@ class OutputManager:
             self.logger.log_fatal_error(f"Error initializing RunHistory for output {self.name}: {e}")
 
         # The required state of the device
-        # TO DO: Get rid of this - we should always be reading the actual device state
-        self.is_on = saved_state.get("IsOn") if saved_state else None
-
         self.last_changed = None
         self.reason = None
 
         self.initialise(output_config, view)
         self.logger.log_message(f"Output {self.name} initialised.", "debug")
 
-        # TO DO: Get rid of this - we should always be reading the actual device state
-        self.is_device_online = view.get_device_online(self.device_id)  # If device is offline, assume the output is off
+        # Only access this in tell_device_status_updated()
+        self._last_device_online_status = view.get_device_online(self.device_id)  # If device is offline, assume the output is off
 
         # See if the output's saved state matches the actual device state
-        if saved_state and view.get_device_online(self.device_id) and view.get_output_state(self.device_output_id) != self.is_on:
-            self.logger.log_message(f"Output {self.name} saved state does not match actual device state. Saved: {'On' if self.is_on else 'Off'}, Actual: {'On' if view.get_device_online(self.device_id) else 'Off'}. Output relay may have been changed by another application.", "warning")
+        device_output_saved_state = saved_state.get("IsOn") if saved_state else None
+        if saved_state and view.get_device_online(self.device_id) and view.get_output_state(self.device_output_id) != device_output_saved_state:
+            self.logger.log_message(f"Output {self.name} saved state does not match actual device state. Saved: {'On' if device_output_saved_state else 'Off'}, Actual: {'On' if view.get_device_online(self.device_id) else 'Off'}. Output relay may have been changed by another application.", "warning")
 
     def initialise(self, output_config: dict, view: ShellyView):  # noqa: PLR0912, PLR0915
         """Initializes the output manager with the given configuration.
@@ -272,7 +270,7 @@ class OutputManager:
                 raise RuntimeError(error_msg)
             self.calculate_running_totals(view)   # Finally calculate all running totals
 
-    def get_save_object(self) -> dict:
+    def get_save_object(self, view: ShellyView) -> dict:
         """Returns the representation of this output object that can be saved to disk.
 
         Returns:
@@ -281,7 +279,7 @@ class OutputManager:
         output_dict = {
             "Name": self.name,
             "SystemState": self.system_state,
-            "IsOn": self.is_on,
+            "IsOn": view.get_output_state(self.device_output_id),
             "LastChanged": self.last_changed,
             "Reason": self.reason,
             "AppMode": self.app_mode,
@@ -318,6 +316,7 @@ class OutputManager:
         Returns:
             dict: The web application data.
         """
+        is_device_output_on = view.get_output_state(self.device_output_id)
         target_hours = self._get_target_hours()
         current_day = self.run_history.get_current_day()
         actual_cost = current_day["TotalCost"] if current_day else 0
@@ -327,12 +326,12 @@ class OutputManager:
         forecast_price = self.run_plan.get("ForecastAveragePrice", 0) if self.run_plan else 0
 
         next_start_dt = self.run_plan.get("NextStartDateTime") if self.run_plan else None
-        if next_start_dt and not self.is_on:
+        if next_start_dt and not is_device_output_on:
             next_start = next_start_dt.strftime("%H:%M")
         else:
             next_start = None
         stopping_at_dt = self.run_plan.get("NextStopDateTime") if self.run_plan else None
-        if stopping_at_dt and self.is_on:
+        if stopping_at_dt and is_device_output_on:
             stopping_at = stopping_at_dt.strftime("%H:%M")
         else:
             stopping_at = None
@@ -340,7 +339,7 @@ class OutputManager:
         data = {
             "id": self.id,
             "name": self.name,
-            "is_on": self.is_on,
+            "is_on": is_device_output_on,
             "mode": self.app_mode.value,
 
             # Information on the run history and plan
@@ -378,7 +377,7 @@ class OutputManager:
         if not self.device_id:
             return
         new_online_status = view.get_device_online(self.device_id)
-        if new_online_status != self.is_device_online:
+        if new_online_status != self._last_device_online_status:
             self.invalidate_run_plan = True
             if new_online_status:
                 self.logger.log_message(f"Device {self.device_name} for output {self.name} is now online.", "debug")
@@ -390,11 +389,13 @@ class OutputManager:
                     assert isinstance(self.report_critical_errors_delay, int)
                     self.logger.report_notifiable_issue(entity=f"Device {self.device_name}", issue_type="Device Offline", send_delay=self.report_critical_errors_delay * 60, message=f"Device is offline when trying to turn output {self.device_output_name} on.")  # pyright: ignore[reportArgumentType]
 
-        self.is_device_online = new_online_status
+        self._last_device_online_status = new_online_status
 
     def calculate_running_totals(self, view: ShellyView):
         """Update running totals in run_history object."""
         data_block = self._get_status_data(view)
+
+        self.print_to_console(f"Calculating running totals for output {self.name}. Device online: {view.get_device_online(self.device_id)}. Output device state: {data_block.is_on}")
 
         if self.run_history.tick(data_block):
             self.invalidate_run_plan = True  # If we've rolled over to a new day, we need a new run plan
@@ -403,13 +404,13 @@ class OutputManager:
         if self.run_plan:
             RunPlanner.tick(self.run_plan)  # Update the run plan's internal state
 
-    def review_run_plan(self) -> bool:
+    def review_run_plan(self, view: ShellyView) -> bool:
         """Generate / update the run plan for this output if needed.
 
         Returns:
             bool: True if the run plan was successfully generated or updated, False otherwise.
         """
-        if not self._new_runplan_needed():
+        if not self._new_runplan_needed(view):
             return False
 
         self.logger.log_message(f"Generating new run plan for output {self.name}", "debug")
@@ -477,8 +478,10 @@ class OutputManager:
         new_output_state = None  # This is the new state. Once it's set, we are blocked from further checks
         new_system_state = None
         reason_on = reason_off = None
+        is_device_online = view.get_device_online(self.device_id)
+        is_device_output_on = view.get_output_state(self.device_output_id)
         # See if the app has overridden our state. Only allow changes if the device is online
-        if self.is_device_online:
+        if is_device_online:
             if self.app_mode == AppMode.ON:
                 new_output_state = True
                 new_system_state = SystemState.APP_OVERRIDE
@@ -489,7 +492,7 @@ class OutputManager:
                 reason_off = StateReasonOff.APP_MODE_OFF
 
         # Otherwise see if the Input switch has overridden our state. Only allow changes if the device is online
-        if new_output_state is None and self.is_device_online:
+        if new_output_state is None and is_device_online:
             input_state = self._get_input_state(view)
             if isinstance(input_state, bool):
                 if input_state and self.device_input_mode == InputMode.TURN_ON:
@@ -510,7 +513,7 @@ class OutputManager:
         # If new_output_state hasn't been set at this point, we're in auto mode
         if new_output_state is None:
             new_system_state = SystemState.AUTO
-            if not self.is_device_online:
+            if not is_device_online:
                 # Device is offline, so we have to remain off
                 new_output_state = False
                 reason_off = StateReasonOff.DEVICE_OFFLINE
@@ -551,14 +554,16 @@ class OutputManager:
             self.logger.log_fatal_error(f"Output {self.name} state evaluates to Off but reason_off not set.")
 
         # If we're proposing to turn on and the system_state is AUTO, then make sure our parent output allows this
-        if new_system_state == SystemState.AUTO and new_output_state and self.parent_output and not self.parent_output.is_on:
-            # The output of the parent device is off, so we have to remain off
-            new_output_state = False
-            reason_off = StateReasonOff.PARENT_OFF
+        if new_system_state == SystemState.AUTO and new_output_state and self.parent_output:
+            is_parent_device_output_on = view.get_output_state(self.parent_output.device_output_id)
+            if not is_parent_device_output_on:
+                # The output of the parent device is off, so we have to remain off
+                new_output_state = False
+                reason_off = StateReasonOff.PARENT_OFF
 
         # Check minimum runtime constraints before applying changes
-        if new_system_state == SystemState.AUTO and self._should_respect_minimum_runtime(new_output_state):
-            if self.is_on:
+        if new_system_state == SystemState.AUTO and self._should_respect_minimum_runtime(new_output_state, view):
+            if is_device_output_on:
                 self.reason = StateReasonOn.MIN_ON_TIME
                 self.print_to_console(f"Output {self.name} has been ON for less than MinOnTime of {self.min_on_time} minutes. Will remain ON until minimum time has elapsed.")
             else:
@@ -569,7 +574,7 @@ class OutputManager:
             # TO DO: Rather than turn on or off, we need to return a request to PowerController to make the change.
             # Also, PowerController needs to tell us when it's done.
             if new_output_state:
-                if not self.is_device_online:
+                if not is_device_online:
                     self.logger.log_message(f"Device {self.device_name} is offline, cannot turn on output {self.device_output_name} _turn_on() should not have been called.", "error")
                     return None
 
@@ -581,7 +586,7 @@ class OutputManager:
                     reason=reason_on)
 
                 # if the output is already turned on, just record the reason change
-                if self.is_on:
+                if is_device_output_on:
                     action.type = OutputActionType.UPDATE_ON_STATE
 
             else:
@@ -593,7 +598,7 @@ class OutputManager:
                     reason=reason_off)
 
                 # if the output is already off or the device is offline, just record the reason change
-                if not self.is_on or not self.is_device_online:
+                if not is_device_output_on or not is_device_online:
                     action.type = OutputActionType.UPDATE_OFF_STATE
 
             return action
@@ -634,7 +639,7 @@ class OutputManager:
             self.logger.log_message(f"Invalid AppMode {new_mode} for output {self.name}.", "error")
             return
 
-        if not self.is_device_online:
+        if not view.get_device_online(self.device_id):
             self.logger.log_message(f"Cannot set AppMode to {new_mode.value} for output {self.name} because the device is offline.", "warning")
             return
 
@@ -653,7 +658,6 @@ class OutputManager:
         """
         if action.type == OutputActionType.TURN_ON:
             self.last_turned_on = DateHelper.now()
-            self.is_on = True
             self.logger.log_message(f"Output {self.name} state changed to ON - {action.reason}.", "detailed")
 
         if action.type in {OutputActionType.TURN_ON, OutputActionType.UPDATE_ON_STATE} and (self.system_state != action.system_state or self.reason != action.reason):
@@ -669,7 +673,6 @@ class OutputManager:
 
         if action.type == OutputActionType.TURN_OFF:
             self.last_turned_off = DateHelper.now()
-            self.is_on = False
             self.logger.log_message(f"Output {self.name} state changed to OFF - {action.reason}.", "detailed")
 
         if action.type in {OutputActionType.TURN_OFF, OutputActionType.UPDATE_OFF_STATE} and (self.system_state != action.system_state or self.reason != action.reason):
@@ -692,16 +695,20 @@ class OutputManager:
         """
         return bool(self.output_config.get("StopOnExit", False) and view.get_device_online(self.device_id) and view.get_output_state(self.device_output_id))
 
-    def get_info(self) -> str:
+    def get_info(self, view: ShellyView | None = None) -> str:
         """Print the information of the output.
+
+        Args:
+            view (ShellyView | None): The current view of the Shelly devices.
 
         Returns:
             str: The formatted output information.
         """
+        device_output_state = ("ON" if view.get_output_state(self.device_output_id) else "OFF") if view else "Unknown"
         current_day = self.run_history.get_current_day()
         return_str = f"{self.name} Output Information:\n"
         return_str += f"   - System State: {self.system_state}, reason: {self.reason} (since {self.last_changed.strftime('%H:%M:%S') if self.last_changed else 'N/A'})\n"
-        return_str += f"   - Device Output: {self.device_output_name}, currently {'ON' if self.is_on else 'OFF'}\n"
+        return_str += f"   - Device Output: {self.device_output_name}, currently {device_output_state}\n"
         return_str += f"   - Device Scheduling Mode: {self.device_mode}\n"
         return_str += f"   - Schedule: {self.schedule_name}\n"
         return_str += f"   - Amber Channel: {self.amber_channel}\n"
@@ -798,24 +805,27 @@ class OutputManager:
             print(f"Self Test Schedule Run Plan: No run plan could be generated for output {self.name}.")
 
     # Private Functions ===========================================================================
-    def _should_respect_minimum_runtime(self, proposed_state: bool) -> bool:  # noqa: FBT001
+    def _should_respect_minimum_runtime(self, proposed_state: bool, view: ShellyView) -> bool:  # noqa: FBT001
         """Check if we should delay state change due to minimum runtime constraints.
 
         Args:
             proposed_state (bool): The proposed new state of the output (True for ON, False for OFF).
+            view (ShellyView): The current view of the Shelly devices.
 
         Returns:
             bool: True if we should delay the state change, False otherwise.
         """
         now = DateHelper.now()
+        is_device_online = view.get_device_online(self.device_id)
+        is_device_output_on = view.get_output_state(self.device_output_id)
 
         # If proposing to turn OFF but haven't met minimum ON time
         if (
             not proposed_state
-            and self.is_on
+            and is_device_output_on
             and self.min_on_time > 0
             and self.last_turned_on
-            and self.is_device_online
+            and is_device_online
         ):
             time_on = (now - self.last_turned_on).total_seconds() / 60  # minutes
             if time_on < self.min_on_time:
@@ -829,10 +839,10 @@ class OutputManager:
         # If proposing to turn ON but haven't met minimum OFF time
         if (
             proposed_state
-            and not self.is_on
+            and not is_device_output_on
             and self.min_off_time > 0
             and self.last_turned_off
-            and self.is_device_online
+            and is_device_online
         ):
             time_off = (now - self.last_turned_off).total_seconds() / 60  # minutes
             if time_off < self.min_off_time:
@@ -866,15 +876,17 @@ class OutputManager:
         """
         return threading.current_thread().name
 
-    def _new_runplan_needed(self) -> bool:
+    def _new_runplan_needed(self, view: ShellyView) -> bool:
         """See if we need to regenerate the run plan.
 
         Returns:
             bool: True if we need a new run plan, False otherwise.
         """
         # If the device is currently offline, we can't generate a run plan
-        if not self.is_device_online:
+        if not view.get_device_online(self.device_id):
             return False
+
+        is_device_output_on = view.get_output_state(self.device_output_id)
 
         # If some other task has already invalidated the run plan, we need to regenerate it.
         # Also if we don't have a run plan at all
@@ -896,7 +908,7 @@ class OutputManager:
                 return True
 
         # Output is on but the run plan is inactive, so we've just gone out of a run plan slot
-        if not current_slot and self.is_on and self.system_state == SystemState.AUTO:
+        if not current_slot and is_device_output_on and self.system_state == SystemState.AUTO:
             return True
 
         # Check if it's been a while since we last checked the run plan
@@ -913,7 +925,7 @@ class OutputManager:
         """
         if not self.device_input_id:
             return None
-        if not self.is_device_online:
+        if not view.get_device_online(self.device_id):
             return None
         return view.get_input_state(self.device_input_id)
 

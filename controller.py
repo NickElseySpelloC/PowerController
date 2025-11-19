@@ -77,6 +77,7 @@ class PowerController:
         self.pricing = PricingManager(self.config, self.logger)
 
         self._initialise(skip_shelly_initialization=True)
+        self.update_device_locations = True
 
     def get_webapp_data(self) -> dict:
         """Returns a dict object with a snapshot of the current state of all outputs.
@@ -163,7 +164,8 @@ class PowerController:
 
                 self._execute_action_on_output(output, requested_action, view)
 
-        self._save_system_state(force_post=True)
+        view = self._get_latest_status_view()
+        self._save_system_state(view, force_post=True)
         self.logger.log_message("PowerController shutdown complete.", "detailed")
 
     def print_to_console(self, message: str):
@@ -355,10 +357,11 @@ class PowerController:
             self.logger.log_message(f"Loaded system state from {system_state_path}", "debug")
             return state_data
 
-    def _save_system_state(self, force_post: bool = False):  # noqa: FBT001, FBT002
+    def _save_system_state(self, view: ShellyView, force_post: bool = False):  # noqa: FBT001, FBT002
         """Saves the system state to disk.
 
         Args:
+            view (ShellyView): The current ShellyView snapshot.
             force_post (bool): If True, force posting the state to the web viewer.
         """
         # Save the output consumption data if needed
@@ -378,7 +381,7 @@ class PowerController:
                 "Scheduler": self.scheduler.get_save_object(),
             }
             for output in self.outputs:
-                output_save_object = output.get_save_object()
+                output_save_object = output.get_save_object(view)
                 save_object["Outputs"].append(output_save_object)
 
             # Save the file
@@ -418,20 +421,23 @@ class PowerController:
         # Get a snapshot of all Shelly devices
         view = self._refresh_device_statuses()
 
+        # Get the location data for all devices and save it to each OutputManager if needed
+        self._save_device_location_data()
+
         # Calculate the running totals for each output
         self._calculate_running_totals(view)
 
         # Regenerate the run_plan for each output if needed
-        self._review_run_plans()
+        self._review_run_plans(view)
 
         # Evaluate the conditions for each output and make changes if needed
         self._evaluate_conditions(view)
 
         # Deal with config changes including downstream objects
-        self._check_for_configuration_changes()
+        self._check_for_configuration_changes(view)
 
         # Save the system state to disk
-        self._save_system_state()
+        self._save_system_state(view)
 
         # Ping the heartbeat monitor - this function takes care of frequency checks
         self.external_service_helper.ping_heatbeat()
@@ -473,6 +479,27 @@ class PowerController:
 
         return view
 
+    def _save_device_location_data(self):
+        """Get the location data for all devices and save it to each OutputManager."""
+        if self.update_device_locations:
+            for output in self.outputs:
+                device_name = output.device_name
+
+                req_id = self.shelly_worker.request_device_location(device_name)
+                done = self.shelly_worker.wait_for_result(req_id, timeout=4.0)
+                if done:
+                    self.logger.log_message(f"Completed Shelly device {device_name} information retrieval.", "debug")
+                else:
+                    self.logger.log_message(f"Timed out waiting for Shelly device {device_name} information.", "warning")
+
+            # Now get the fully populated location data dict for all devices
+            loc_info = self.shelly_worker.get_location_info()
+
+            # And save it to the Scheduler
+            self.scheduler.save_device_location_info(loc_info)
+
+            self.update_device_locations = False
+
     def _get_latest_status_view(self) -> ShellyView:
         """Get the latest ShellyView snapshot from the ShellyWorker.
 
@@ -490,10 +517,10 @@ class PowerController:
         for output in self.outputs:
             output.calculate_running_totals(view)
 
-    def _review_run_plans(self):
+    def _review_run_plans(self, view: ShellyView):
         """Generate / refresh the run plan for each output."""
         for output in self.outputs:
-            output.review_run_plan()
+            output.review_run_plan(view)
 
     def _evaluate_conditions(self, view: ShellyView):
         """Evaluate the conditions for each output."""
@@ -520,14 +547,15 @@ class PowerController:
         # Now tell the output to update its state based on the action taken and also deal with a requested action to just update the reason
         output.record_action_complete(requested_action, view)
 
-    def _check_for_configuration_changes(self):
+    def _check_for_configuration_changes(self, view: ShellyView):
         """Reload the configuration from disk if it has changed and apply downstream changes."""
         last_modified = self.config.check_for_config_changes(self.last_config_check)
         if last_modified:
             self.last_config_check = last_modified
             self.logger.log_message("Configuration file has changed, reloading...", "detailed")
-            self._save_system_state(force_post=True)  # Save state before reinitialising
+            self._save_system_state(view, force_post=True)  # Save state before reinitialising
             self._initialise()
+            self.update_device_locations = True
 
     def _apply_command(self, cmd: Command) -> None:
         """Apply a command posted to the controller."""
