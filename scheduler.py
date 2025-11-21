@@ -123,10 +123,11 @@ class Scheduler:
 
         # Get the available window time slots for this schedule
         time_slots = self._get_schedule_slots(schedule)
-        sorted_slots = sorted(time_slots, key=operator.itemgetter("Price"))
         if not time_slots:
             self.logger.log_message(f"No available time slots found for schedule {operating_schedule_name} for today.", "debug")
-            return None
+            sorted_slots = []
+        else:
+            sorted_slots = sorted(time_slots, key=operator.itemgetter("Price"))
 
         try:
             # Create a run planner instance

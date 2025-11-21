@@ -2,12 +2,12 @@
 import csv
 import datetime as dt
 import queue
-
-# from threading import Event
 import time
 from collections.abc import Callable
+from enum import StrEnum
 from pathlib import Path
 from threading import Event
+from typing import Any
 
 from org_enums import AppMode, StateReasonOff, SystemState
 from sc_utility import (
@@ -22,22 +22,29 @@ from external_services import ExternalServiceHelper
 from local_enumerations import (
     DUMP_SHELLY_SNAPSHOT,
     SCHEMA_VERSION,
+    STEP_TYPE_MAP,
     Command,
-    LookupMode,
     OutputAction,
     OutputActionType,
+    ShellySequenceRequest,
+    ShellySequenceResult,
+    ShellyStep,
+    StepKind,
 )
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
 from shelly_view import ShellyView
-from shelly_worker import (
-    ShellySequenceRequest,
-    ShellySequenceResult,
-    ShellyStep,
-    ShellyWorker,
-    StepKind,
-)
+from shelly_worker import ShellyWorker
+
+
+class LookupMode(StrEnum):
+    """Lookup mode used for PowerController._find_output()."""
+    ID = "id"
+    NAME = "name"
+    OUTPUT = "output"
+    METER = "meter"
+    INPUT = "input"
 
 
 class PowerController:
@@ -71,6 +78,7 @@ class PowerController:
         # Setup the environment
         self.outputs = []   # List of output state managers, each one a OutputStateManager object.
         self.poll_interval = 10.0
+        self._shelly_sequence_requests: dict[str, ShellySequenceRequest] = {}
 
         # Create the two run_planner types
         self.scheduler = Scheduler(self.config, self.logger)
@@ -109,6 +117,9 @@ class PowerController:
             "outputs": outputs_data,
         }
 
+        # self.logger.log_message("Generated webapp data snapshot.", "debug")
+        # self.logger.log_message(json.dumps(return_dict), "debug")
+
         return return_dict
 
     def is_valid_output_id(self, output_id: str) -> bool:
@@ -129,6 +140,11 @@ class PowerController:
         """Post a command to the controller from the web app."""
         self.cmd_q.put(cmd)
         self.command_pending: bool = True
+        self.wake_event.set()
+
+    def set_wake_event(self, seq_result: ShellySequenceResult) -> None:
+        """Set the wake event to wake the controller loop."""
+        self.logger.log_message(f"Waking power controller loop - Shelly Sequence {seq_result.id} has finished.", "debug")
         self.wake_event.set()
 
     def run(self, stop_event: Event):
@@ -156,13 +172,7 @@ class PowerController:
         view = self._get_latest_status_view()
         for output in self.outputs:
             if output.shutdown(view):
-                requested_action = OutputAction(
-                    worker_request_id=None,
-                    type=OutputActionType.TURN_OFF,
-                    system_state=SystemState.AUTO,
-                    reason=StateReasonOff.SHUTDOWN)
-
-                self._execute_action_on_output(output, requested_action, view)
+                self._force_output_off(output, view)
 
         view = self._get_latest_status_view()
         self._save_system_state(view, force_post=True)
@@ -259,6 +269,12 @@ class PowerController:
             self.logger.log_fatal_error("Output names must be unique.")
             return
 
+        # Read the shelly output sequences from the config
+        try:
+            self._read_shelly_sequences_from_config(view)
+        except RuntimeError as e:
+            self.logger.log_fatal_error(f"Error reading OutputSequences from configuration file: {e}")
+
         # Loop through each output read from the config file
         # Create an instance of a OutputStateManager manager object for each output we're managing
         outputs_config = self.config.get("Outputs", default=[]) or []
@@ -313,6 +329,9 @@ class PowerController:
             list_meter_devices = self._find_output(LookupMode.METER, output.device_meter_name)
             if len(list_meter_devices) > 1:
                 self.logger.log_message(f"Meter device {output.device_meter_name} is used by {output.name} and at least one other output.", "warning")
+
+            # Validate that the output's OutputSequence exists
+            # TO DO: Do this for On and Off if defined
 
         # Sort outputs so parents are evaluated first
         list.sort(self.outputs, key=lambda x: not x.is_parent)
@@ -453,8 +472,8 @@ class PowerController:
         """
         # Post a refresh job and wait for it to complete (bounded wait)
         req_id = self.shelly_worker.request_refresh_status()
-        # Make timeout configurable if you like; 3s is a reasonable default
-        done = self.shelly_worker.wait_for_result(req_id, timeout=3.0)
+        # Give a long timeout as we may be blocked by a long running sequence
+        done = self.shelly_worker.wait_for_result(req_id, timeout=90.0)
         if done:
             self.logger.log_message("Completed Shelly refresh.", "debug")
         else:
@@ -525,7 +544,27 @@ class PowerController:
     def _evaluate_conditions(self, view: ShellyView):
         """Evaluate the conditions for each output."""
         for output in self.outputs:
-            requested_action = output.evaluate_conditions(view)
+            # See if we have a requested action from the output
+            pending_action = output.get_action_request()
+            if pending_action:
+                # See if the action has completed
+                request_result = self.shelly_worker.get_result(pending_action.worker_request_id)
+                if not request_result:
+                    # Still pending
+                    self.logger.log_message(f"Action {pending_action.type} for output {output.device_output_name} still pending.", "debug")
+                    continue  # Go to next output, don't evaluate conditions yet
+
+                # Request has completed, successfully or not. Clear the request ID in the output
+                output.clear_action_request()
+                view = self._refresh_device_statuses()  # Refresh the view after the change
+
+                if request_result.ok:
+                    output.record_action_complete(pending_action, view)  # Record the action complete
+                else:
+                    output.action_request_failed(request_result.error)
+
+            # Now evaluate conditions
+            requested_action = output.evaluate_conditions(view=view, output_sequences=self._shelly_sequence_requests, on_complete=self.set_wake_event)
 
             if requested_action:
                 self._execute_action_on_output(output, requested_action, view)
@@ -533,19 +572,38 @@ class PowerController:
     def _execute_action_on_output(self, output: OutputManager, requested_action: OutputAction, view: ShellyView):
         # If the Output requests a change, post it to the ShellyWorker and wait for it to complete
         if requested_action.type in {OutputActionType.TURN_ON, OutputActionType.TURN_OFF}:
-            new_state = requested_action.type == OutputActionType.TURN_ON
+            if not requested_action.request:
+                error_msg = f"No request defined for action {requested_action.type} on output {output.device_output_name}."
+                self.logger.log_message(error_msg, "error")
+                raise RuntimeError(error_msg)
 
-            req_id = self.shelly_worker.request_output_change(output.device_output_id, new_state)
+            # Queue the and get the request ID
+            requested_action.worker_request_id = self.shelly_worker.submit(requested_action.request)
 
-            # TO DO: Change this to make it async. Save the request ID in the OutputManager and check for completion in the main loop
-            done = self.shelly_worker.wait_for_result(req_id, timeout=3.0)
-            if not done:
-                self.logger.log_message(f"Timed out waiting for change to output {output.device_output_name} to {requested_action.type}", "warning")
+            # And record the pending action in the output
+            output.record_action_request(requested_action)
+        else:
+            # It's an action that we can deal with synchronously here
+            output.record_action_complete(requested_action, view)
 
-            view = self._refresh_device_statuses()  # Refresh the view after the change
+    def _force_output_off(self, output: OutputManager, view: ShellyView):
+        """Force an output off immediately."""
+        is_device_online = view.get_device_online(output.device_id)
+        is_device_output_on = view.get_output_state(output.device_output_id)
 
-        # Now tell the output to update its state based on the action taken and also deal with a requested action to just update the reason
-        output.record_action_complete(requested_action, view)
+        if not is_device_online or not is_device_output_on:
+            # Device is offline or already off, nothing to do
+            return
+        requested_action = output.formulate_output_sequence(system_state=SystemState.AUTO, reason=StateReasonOff.SHUTDOWN, output_state=False, output_sequences=self._shelly_sequence_requests, view=view)
+
+        requested_action.worker_request_id = self.shelly_worker.submit(requested_action.request)  # pyright: ignore[reportArgumentType]
+
+        # Make timeout configurable if you like; 3s is a reasonable default
+        done = self.shelly_worker.wait_for_result(requested_action.worker_request_id, timeout=3.0)
+        if done:
+            output.record_action_complete(requested_action, view)
+        else:
+            self.logger.log_message(f"Timed out waiting for force shutdown of output {output.device_output_name}.", "warning")
 
     def _check_for_configuration_changes(self, view: ShellyView):
         """Reload the configuration from disk if it has changed and apply downstream changes."""
@@ -683,3 +741,104 @@ class PowerController:
         if mode == LookupMode.INPUT:
             return [o for o in self.outputs if o.device_input_name == identity]
         return []
+
+    def _read_shelly_sequences_from_config(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
+        """Read the OutputSequences from the configuration, validates and builds a list of ShellySequenceRequest objects.
+
+        Args:
+            view (ShellyView): The current ShellyView snapshot.
+
+        Raises:
+            RuntimeError: If there is an error in the configuration.
+        """
+        self._shelly_sequence_requests.clear()
+
+        config_data = self.config.get("OutputSequences", default=[]) or []
+        if not config_data or not isinstance(config_data, list):
+            return
+
+        for sequence in config_data:
+            error_msg = ""
+            try:
+                # Get the basics for the ShellySequenceRequest object
+                name = sequence.get("Name")
+                if not name:
+                    error_msg = "Output sequence missing 'Name' field."
+                    raise RuntimeError(error_msg)
+                timeout = sequence.get("Timeout", 10.0)
+
+                steps_config = sequence.get("Steps")
+                if not steps_config or not isinstance(steps_config, list):
+                    error_msg = f"Output sequence '{name}' has invalid or missing 'Steps' field."
+                    raise RuntimeError(error_msg)
+
+                steps = []
+                # Loop through the steps and build the ShellyStep objects
+                for step_cfg in steps_config:
+                    step_type_str = step_cfg.get("Type").upper()
+                    if not step_type_str:
+                        error_msg = f"Output sequence '{name}' has a step missing 'Type' field."
+                        raise RuntimeError(error_msg)
+                    step_kind = STEP_TYPE_MAP.get(step_type_str)
+                    if not step_kind:
+                        error_msg = f"Output sequence '{name}' has a step with invalid 'Type' value '{step_type_str}'."
+                        raise RuntimeError(error_msg)
+
+                    # Build the parameters dict based on the step type
+                    parameters: dict[str, Any] = {}
+                    if step_kind == StepKind.SLEEP:
+                        seconds = step_cfg.get("Seconds")
+                        if seconds is None:
+                            error_msg = f"Output sequence '{name}' has a SLEEP step missing 'Seconds' field."
+                            raise RuntimeError(error_msg)
+                        parameters["seconds"] = float(seconds)
+                    elif step_kind == StepKind.CHANGE_OUTPUT:
+                        output_identity = step_cfg.get("OutputIdentity")
+                        if not view.validate_output_id(output_identity):
+                            error_msg = f"Output sequence '{name}' has a CHANGE_OUTPUT step with invalid 'OutputIdentity' value '{output_identity}'."
+                            raise RuntimeError(error_msg)
+                        state = bool(step_cfg.get("State"))
+                        if output_identity is None or state is None:
+                            error_msg = f"Output sequence '{name}' has a CHANGE_OUTPUT step missing 'OutputIdentity' or 'State' field."
+                            raise RuntimeError(error_msg)
+                        parameters["output_identity"] = output_identity
+                        parameters["state"] = bool(state)
+                    elif step_kind == StepKind.REFRESH_STATUS:
+                        pass  # No parameters needed
+                    elif step_kind == StepKind.GET_LOCATION:
+                        device_identity = step_cfg.get("DeviceIdentity")
+                        if device_identity is None:
+                            error_msg = f"Output sequence '{name}' has a GET_LOCATION step missing 'DeviceIdentity' field."
+                            raise RuntimeError(error_msg)
+                        if not view.validate_device_id(device_identity):
+                            error_msg = f"Output sequence '{name}' has a GET_LOCATION step with invalid 'DeviceIdentity' value '{device_identity}'."
+                            raise RuntimeError(error_msg)
+                        parameters["device_identity"] = device_identity
+                    else:
+                        error_msg = f"Output sequence '{name}' has a step with unsupported 'Type' value '{step_type_str}'."
+                        raise RuntimeError(error_msg)
+                    retries = int(step_cfg.get("Retries", 0) or 0)  # pyright: ignore[reportArgumentType]
+                    retry_backoff = float(step_cfg.get("RetryBackoffS", 0.0) or 0.0)  # pyright: ignore[reportArgumentType]
+
+                    shelly_step = ShellyStep(
+                        kind=step_kind,
+                        params=parameters,
+                        retries=retries,
+                        retry_backoff_s=retry_backoff,
+                    )
+                    steps.append(shelly_step)
+
+                # Now build the final request object
+                shelly_sequence = ShellySequenceRequest(
+                    steps=steps,
+                    label=name,
+                    timeout_s=timeout,
+                )
+
+                # And save it to our list
+                self.logger.log_message(f"Configured Shelly sequence {name}", "debug")
+                self._shelly_sequence_requests[name] = shelly_sequence
+
+            except KeyError as e:
+                error_msg = f"Output sequence '{name}' has invalid step type configuration."
+                raise RuntimeError(error_msg) from e

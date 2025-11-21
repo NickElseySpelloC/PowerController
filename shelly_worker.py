@@ -4,64 +4,16 @@ import copy
 import queue
 import threading
 import time
-import uuid
-from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import TYPE_CHECKING, Any
 
 from sc_utility import SCConfigManager, SCLogger, ShellyControl
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-
-# Step kinds supported by the worker
-class StepKind(StrEnum):
-    """Mode for Amber API."""
-    CHANGE_OUTPUT = "Change Output State"
-    SLEEP = "Sleep"
-    REFRESH_STATUS = "Refresh Status"
-    GET_LOCATION = "Get Location"
-
-
-@dataclass
-class ShellyStep:
-    kind: StepKind
-    # CHANGE_OUTPUT: {"output_identity": "Label", "state": True|False}
-    # SLEEP: {"seconds": float}
-    # REFRESH_STATUS: {}
-    # GET_LOCATION: {"device_identity": "Label"}
-    params: dict[str, Any] = field(default_factory=dict)
-    timeout_s: float | None = None
-    retries: int = 0
-    retry_backoff_s: float = 0.5
-
-
-@dataclass
-class ShellySequenceRequest:
-    steps: list[ShellyStep]
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    label: str = ""
-    timeout_s: float | None = None
-    on_complete: Callable[[ShellySequenceResult], None] | None = None  # optional callback
-
-
-@dataclass
-class ShellySequenceResult:
-    id: str
-    ok: bool
-    error: str | None = None
-    started_ts: float = field(default_factory=time.time)
-    finished_ts: float = 0.0
-
-
-@dataclass
-class ShellyStatus:
-    devices: list[dict]
-    outputs: list[dict]
-    inputs: list[dict]
-    meters: list[dict]
-    temp_probes: list[dict]
+from local_enumerations import (
+    ShellySequenceRequest,
+    ShellySequenceResult,
+    ShellyStatus,
+    ShellyStep,
+    StepKind,
+)
 
 
 class ShellyWorker:
@@ -175,26 +127,28 @@ class ShellyWorker:
         sequence_request = ShellySequenceRequest(steps=[ShellyStep(StepKind.REFRESH_STATUS)], label="refresh_status")
         return self.submit(sequence_request)
 
-    def request_output_change(self, output_id: int, output_state: bool) -> str:  # noqa: FBT001
-        """Enqueue a change output job and return its request id.
+    # def request_output_change(self, output_id: int, output_state: bool, on_complete: Callable[[ShellySequenceResult], None] | None = None) -> str:
+    #     """Enqueue a change output job and return its request id.
 
-        Args:
-            output_id (int): The device output identity.
-            output_state (bool): The desired output state.
+    #     Args:
+    #         output_id (int): The device output identity.
+    #         output_state (bool): The desired output state.
+    #         on_complete: Optional callback function to invoke when the sequence completes.
 
-        Returns:
-            A request ID.
-        """
-        steps = [
-            ShellyStep(StepKind.CHANGE_OUTPUT, {"output_identity": output_id, "state": output_state}, retries=2, retry_backoff_s=1.0),
-        ]
-        label = f"change_output_{output_id}_to_{output_state}"
-        sequence_request = ShellySequenceRequest(
-            steps=steps,
-            label=label,
-            timeout_s=10.0
-        )
-        return self.submit(sequence_request)
+    #     Returns:
+    #         A request ID.
+    #     """
+    #     steps = [
+    #         ShellyStep(StepKind.CHANGE_OUTPUT, {"output_identity": output_id, "state": output_state}, retries=2, retry_backoff_s=1.0),
+    #     ]
+    #     label = f"change_output_{output_id}_to_{output_state}"
+    #     sequence_request = ShellySequenceRequest(
+    #         steps=steps,
+    #         label=label,
+    #         timeout_s=10.0,
+    #         on_complete=on_complete
+    #     )
+    #     return self.submit(sequence_request)
 
     def request_device_location(self, device_name: str) -> str:
         """Enqueue a get location job and return its request id.
@@ -312,11 +266,13 @@ class ShellyWorker:
             error_msg = None
             try:
                 if step.kind == StepKind.SLEEP:    # Sleep for the specified duration
+                    self.logger.log_message(f"ShellyWorker sleeping for {step.params.get('seconds', 0)} seconds", "debug")
                     time.sleep(float(step.params.get("seconds", 0)))
 
                 elif step.kind == StepKind.CHANGE_OUTPUT:  # Change the output state of a device
                     output_identity = step.params["output_identity"]
                     state = bool(step.params.get("state", True))
+                    self.logger.log_message(f"ShellyWorker changing output {output_identity} to state {state}", "debug")
                     result, did_change = self._shelly.change_output(output_identity, state)
                     if not result:
                         error_msg = f"change_output failed for {output_identity}"
@@ -325,10 +281,12 @@ class ShellyWorker:
                         self.logger.log_message(f"Requested changing output {output_identity} to {state} but it was already in that state.", "warning")
 
                 elif step.kind == StepKind.REFRESH_STATUS:   # Refresh status for all devices
+                    self.logger.log_message("ShellyWorker refreshing all device status", "debug")
                     reinitialise_reqd = self._refresh_all_status()
 
                 elif step.kind == StepKind.GET_LOCATION:   # Get location info for a device
                     device_name = step.params["device_identity"]
+                    self.logger.log_message(f"ShellyWorker getting location info for device {device_name}", "debug")
                     loc_info = self._shelly.get_device_location(device_name)
                     if loc_info:
                         with self._lookup_lock:

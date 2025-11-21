@@ -2,6 +2,7 @@
 import datetime as dt
 import threading
 import urllib.parse
+from collections.abc import Callable
 
 from org_enums import (
     AppMode,
@@ -22,6 +23,10 @@ from local_enumerations import (
     OutputAction,
     OutputActionType,
     OutputStatusData,
+    ShellySequenceRequest,
+    ShellySequenceResult,
+    ShellyStep,
+    StepKind,
 )
 from pricing import PricingManager
 from run_history import RunHistory
@@ -30,7 +35,7 @@ from scheduler import Scheduler
 from shelly_view import ShellyView
 
 
-class OutputManager:
+class OutputManager:  # noqa: PLR0904
     """Manages the state of a single Shelly output device and associated resources."""
 
     # Public Functions ============================================================================
@@ -104,7 +109,8 @@ class OutputManager:
         self.min_on_time = 0  # minutes
         self.min_off_time = 0  # minutes
 
-        # Track state change times
+        # Track state changes
+        self._output_action_request: OutputAction | None = None
         self.last_turned_on = saved_state.get("LastTurnedOn") if saved_state else None
         self.last_turned_off = saved_state.get("LastTurnedOff") if saved_state else None
 
@@ -317,6 +323,11 @@ class OutputManager:
             dict: The web application data.
         """
         is_device_output_on = view.get_output_state(self.device_output_id)
+        current_action = self.get_action_request()
+        if current_action and current_action.request:
+            reason_text = "Sequence running: " + current_action.request.label
+        else:
+            reason_text = self.reason.value if self.reason else "Unknown"
         target_hours = self._get_target_hours()
         current_day = self.run_history.get_current_day()
         actual_cost = current_day["TotalCost"] if current_day else 0
@@ -360,7 +371,7 @@ class OutputManager:
             # Information on the current run
             "next_start_time": next_start,
             "stopping_at": stopping_at,
-            "reason": self.reason.value if self.reason else "Unknown",
+            "reason": reason_text,
             "power_draw": f"{power_draw:.0f}W" if power_draw else "None",
             "current_price": f"{self._get_current_price():.1f} c/kWh",
         }
@@ -394,8 +405,6 @@ class OutputManager:
     def calculate_running_totals(self, view: ShellyView):
         """Update running totals in run_history object."""
         data_block = self._get_status_data(view)
-
-        self.print_to_console(f"Calculating running totals for output {self.name}. Device online: {view.get_device_online(self.device_id)}. Output device state: {data_block.is_on}")
 
         if self.run_history.tick(data_block):
             self.invalidate_run_plan = True  # If we've rolled over to a new day, we need a new run plan
@@ -464,13 +473,15 @@ class OutputManager:
         self.invalidate_run_plan = False
         return bool(self.run_plan)
 
-    def evaluate_conditions(self, view: ShellyView) -> OutputAction | None:  # noqa: PLR0912, PLR0915
+    def evaluate_conditions(self, view: ShellyView, output_sequences: dict[str, ShellySequenceRequest] | None = None, on_complete: Callable[[ShellySequenceResult], None] | None = None) -> OutputAction | None:  # noqa: PLR0912, PLR0915
         """Evaluate the conditions for this output.
 
         Note: calculate_running_totals should be called before this method.
 
         Args:
             view (ShellyView): The current view of the Shelly devices.
+            output_sequences (dict[str, ShellySequenceRequest] | None): Optional dictionary of the available output sequences.
+            on_complete (Callable[[ShellySequenceResult], None] | None): Optional callback to be called when the action is complete.
 
         Returns:
             OutputAction: The action to be taken for the output, or None if no action is needed.
@@ -482,14 +493,17 @@ class OutputManager:
         is_device_output_on = view.get_output_state(self.device_output_id)
         # See if the app has overridden our state. Only allow changes if the device is online
         if is_device_online:
-            if self.app_mode == AppMode.ON:
-                new_output_state = True
-                new_system_state = SystemState.APP_OVERRIDE
-                reason_on = StateReasonOn.APP_MODE_ON
-            if self.app_mode == AppMode.OFF:
-                new_output_state = False
-                new_system_state = SystemState.APP_OVERRIDE
-                reason_off = StateReasonOff.APP_MODE_OFF
+            if self._should_revert_app_override(view):  # Revert to auto mode if currently AppMode.ON | AppMode.OFF and time's up
+                self.app_mode = AppMode.AUTO
+            else:
+                if self.app_mode == AppMode.ON:
+                    new_output_state = True
+                    new_system_state = SystemState.APP_OVERRIDE
+                    reason_on = StateReasonOn.APP_MODE_ON
+                if self.app_mode == AppMode.OFF:
+                    new_output_state = False
+                    new_system_state = SystemState.APP_OVERRIDE
+                    reason_off = StateReasonOff.APP_MODE_OFF
 
         # Otherwise see if the Input switch has overridden our state. Only allow changes if the device is online
         if new_output_state is None and is_device_online:
@@ -571,35 +585,24 @@ class OutputManager:
                 self.print_to_console(f"Output {self.name} has been OFF for less than MinOffTime of {self.min_off_time} minutes. Will remain OFF until minimum time has elapsed.")
         else:
             # And finally we're ready to apply our changes
-            # TO DO: Rather than turn on or off, we need to return a request to PowerController to make the change.
-            # Also, PowerController needs to tell us when it's done.
             if new_output_state:
                 if not is_device_online:
                     self.logger.log_message(f"Device {self.device_name} is offline, cannot turn on output {self.device_output_name} _turn_on() should not have been called.", "error")
                     return None
 
-                assert reason_on is not None
-                action = OutputAction(
-                    worker_request_id=None,
-                    type=OutputActionType.TURN_ON,
-                    system_state=new_system_state,
-                    reason=reason_on)
-
-                # if the output is already turned on, just record the reason change
-                if is_device_output_on:
-                    action.type = OutputActionType.UPDATE_ON_STATE
-
+                action = self.formulate_output_sequence(system_state=new_system_state,
+                                                        reason=reason_on,     # pyright: ignore[reportArgumentType]
+                                                        output_state=new_output_state,
+                                                        view=view,
+                                                        output_sequences=output_sequences,
+                                                        on_complete=on_complete)
             else:
-                assert reason_off is not None
-                action = OutputAction(
-                    worker_request_id=None,
-                    type=OutputActionType.TURN_OFF,
-                    system_state=new_system_state,
-                    reason=reason_off)
-
-                # if the output is already off or the device is offline, just record the reason change
-                if not is_device_output_on or not is_device_online:
-                    action.type = OutputActionType.UPDATE_OFF_STATE
+                action = self.formulate_output_sequence(system_state=new_system_state,
+                                                        reason=reason_off,    # pyright: ignore[reportArgumentType]
+                                                        output_state=new_output_state,
+                                                        view=view,
+                                                        output_sequences=output_sequences,
+                                                        on_complete=on_complete)
 
             return action
 
@@ -648,6 +651,118 @@ class OutputManager:
             self.logger.log_message(f"Output {self.name} app mode changed to {self.app_mode.value}.", "debug")
             # If the app mode has changed, we need to re-evaluate our state
             self.evaluate_conditions(view)
+
+    def formulate_output_sequence(self,
+                                  system_state: SystemState,
+                                  reason: StateReasonOn | StateReasonOff,
+                                  output_state: bool,     # noqa: FBT001
+                                  view: ShellyView,
+                                  output_sequences: dict[str, ShellySequenceRequest] | None = None,
+                                  on_complete: Callable[[ShellySequenceResult], None] | None = None) -> OutputAction:
+        """Formulate the output action sequence to change the output state.
+
+        Args:
+            system_state (SystemState): The desired new system state.
+            reason (StateReasonOn | StateReasonOff): The reason for the state change.
+            output_state (bool): The desired new state of the output (True for ON, False for OFF).
+            view (ShellyView): The current view of the Shelly devices.
+            output_sequences (dict[str, ShellySequenceRequest] | None): Optional dictionary of the available output sequences.
+            on_complete (Callable[[ShellySequenceResult], None] | None): Optional callback to be called when the sequence is complete.
+
+        Returns:
+            OutputAction: The formulated output action.
+        """
+        is_device_online = view.get_device_online(self.device_id)
+        is_device_output_on = view.get_output_state(self.device_output_id)
+
+        # See if there's a predefined output sequence for this action
+        if output_state:  # Turn the output ON
+            sequence_key = self.output_config.get("TurnOnSequence")
+        else:  # Turn the output OFF
+            sequence_key = self.output_config.get("TurnOffSequence")
+
+        # If we have a valid configured sequence, use it
+        if output_sequences and sequence_key and sequence_key in output_sequences:
+            sequence_request = output_sequences[sequence_key]
+        else:   # Otherwise, create a simple change output step
+            steps = [
+                ShellyStep(StepKind.CHANGE_OUTPUT, {"output_identity": self.device_output_id, "state": output_state}, retries=2, retry_backoff_s=1.0),
+            ]
+            label = f"Change output {self.device_output_name} to {output_state}"
+            sequence_request = ShellySequenceRequest(
+                steps=steps,
+                label=label,
+                timeout_s=10.0,
+                on_complete=on_complete
+            )
+
+        if output_state:  # Turn the output ON
+            action = OutputAction(
+                worker_request_id=None,
+                request=sequence_request,
+                type=OutputActionType.TURN_ON,
+                system_state=system_state,
+                reason=reason)
+
+            # if the output is already turned on, just record the reason change
+            if is_device_output_on:
+                action.type = OutputActionType.UPDATE_ON_STATE
+
+        else:  # Turn the output OFF
+            action = OutputAction(
+                worker_request_id=None,
+                request=sequence_request,
+                type=OutputActionType.TURN_OFF,
+                system_state=system_state,
+                reason=reason)
+
+            # if the output is already off or the device is offline, just record the reason change
+            if not is_device_output_on or not is_device_online:
+                action.type = OutputActionType.UPDATE_OFF_STATE
+
+        return action
+
+    def record_action_request(self, action: OutputAction):
+        """Records a requested output action.
+
+        Args:
+            action (OutputAction): The requested output action.
+        """
+        self._output_action_request = action
+
+    def get_action_request(self) -> OutputAction | None:
+        """Gets the requested output action.
+
+        Returns:
+            OutputAction | None: The requested output action, or None if no action is requested.
+        """
+        return self._output_action_request
+
+    def action_request_failed(self, error_message: str):
+        """Handles a failed output action request.
+
+        Args:
+            error_message (str): The error message.
+
+        Raises:
+            RuntimeError: If no action request is recorded.
+        """
+        if not self._output_action_request:
+            exception_msg = f"Output {self.name} action_request_failed() called but no action request is recorded."
+            raise RuntimeError(exception_msg)
+
+        full_msg = f"Action {self._output_action_request.type} for output {self.device_output_name} failed: {error_message}"
+        self.logger.log_message(full_msg, "error")
+
+        if self.report_critical_errors_delay:
+            assert isinstance(self.report_critical_errors_delay, int)
+            self.logger.report_notifiable_issue(entity=f"Output {self.device_output_name}", issue_type="Action Request Failed", send_delay=self.report_critical_errors_delay * 60, message=full_msg)  # pyright: ignore[reportArgumentType]
+
+        self.clear_action_request()
+
+    def clear_action_request(self):
+        """Clears the requested output action."""
+        self._output_action_request = None
 
     def record_action_complete(self, action: OutputAction, view: ShellyView):
         """Records the completion of an output action.
@@ -805,6 +920,39 @@ class OutputManager:
             print(f"Self Test Schedule Run Plan: No run plan could be generated for output {self.name}.")
 
     # Private Functions ===========================================================================
+    def _should_revert_app_override(self, view: ShellyView) -> bool:
+        """Check if we should revert an app override based on device online status.
+
+        Args:
+            view (ShellyView): The current view of the Shelly devices.
+
+        Returns:
+            bool: True if we should revert the app override, False otherwise.
+        """
+        is_device_online = view.get_device_online(self.device_id)
+
+        # If the device is offline, we cannot revert the app override
+        if not is_device_online:
+            return False
+
+        time_now = DateHelper.now()
+        if self.app_mode == AppMode.ON:
+            max_on_time = self.output_config.get("MaxAppOnTime", 0)
+            if max_on_time > 0 and self.last_turned_on and self.system_state == SystemState.APP_OVERRIDE and self.reason == StateReasonOn.APP_MODE_ON:
+                time_on = (time_now - self.last_turned_on).total_seconds() / 60  # minutes
+                if time_on >= max_on_time:
+                    self.logger.log_message(f"Reverting AppMode ON for output {self.name} after {time_on:.1f} minutes (MaxAppOnTime: {max_on_time})", "debug")
+                    return True
+        if self.app_mode == AppMode.OFF:
+            max_off_time = self.output_config.get("MaxAppOffTime", 0)
+            if max_off_time > 0 and self.last_turned_off and self.system_state == SystemState.APP_OVERRIDE and self.reason == StateReasonOff.APP_MODE_OFF:
+                time_off = (time_now - self.last_turned_off).total_seconds() / 60  # minutes
+                if time_off >= max_off_time:
+                    self.logger.log_message(f"Reverting AppMode ON for output {self.name} after {time_on:.1f} minutes (MaxAppOffTime: {max_off_time})", "debug")
+                    return True
+
+        return False
+
     def _should_respect_minimum_runtime(self, proposed_state: bool, view: ShellyView) -> bool:  # noqa: FBT001
         """Check if we should delay state change due to minimum runtime constraints.
 

@@ -173,23 +173,3 @@ def serve_flask_blocking(app: Flask, config: SCConfigManager, logger: SCLogger, 
         with contextlib.suppress(Exception):
             server.server_close()
         logger.log_message("Flask web server shutdown complete.", "detailed")
-
-
-# class FlaskServerThread(Thread):
-#     """Deprecated: Prefer ThreadManager + serve_flask_blocking(). Retained for import compatibility."""
-#     def __init__(self, app: Flask, config: SCConfigManager, logger: SCLogger):
-#         """Initialize the Flask server thread."""
-#         super().__init__(daemon=True)
-#         self.app = app
-#         self.config = config
-#         self.logger = logger
-#         self._stop = Event()
-
-#     def run(self):
-#         """Run the Flask server."""
-#         self.logger.log_message("FlaskServerThread is deprecated; use ThreadManager.", "warning")
-#         serve_flask_blocking(self.app, self.config, self.logger, self._stop)
-
-#     def shutdown(self):
-#         """Shutdown the Flask server."""
-#         self._stop.set()

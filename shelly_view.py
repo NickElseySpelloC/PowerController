@@ -69,6 +69,26 @@ class ShellyView:
         return {item["ID"]: item for item in items}
 
     # Name lookup methods - return None if not found
+    def validate_device_id(self, device_id: int | str) -> bool:
+        """Validate if an device ID exists.
+
+        Args:
+            device_id: Device ID (int) or name (str) to validate.
+
+        Returns:
+            True if device ID/name exists, False otherwise.
+        """
+        if isinstance(device_id, str):
+            # If it's a string, try to look up by name first
+            resolved_id = self.get_device_id(device_id)
+            return resolved_id != 0
+        # If it's not a string, try to convert to int and check ID
+        try:
+            device_id_int = int(device_id)
+        except (ValueError, TypeError):
+            return False
+        return device_id_int in self._devices_by_id
+
     def get_device_id(self, name: str) -> int:
         """Get device ID by name.
 
@@ -199,6 +219,26 @@ class ShellyView:
         }
 
     # Output value getters
+    def validate_output_id(self, output_id: int | str) -> bool:
+        """Validate if an output ID exists.
+
+        Args:
+            output_id: Output ID (int) or name (str) to validate.
+
+        Returns:
+            True if output ID/name exists, False otherwise.
+        """
+        if isinstance(output_id, str):
+            # If it's a string, try to look up by name first
+            resolved_id = self.get_output_id(output_id)
+            return resolved_id != 0
+        # If it's not a string, try to convert to int and check ID
+        try:
+            output_id_int = int(output_id)
+        except (ValueError, TypeError):
+            return False
+        return output_id_int in self._outputs_by_id
+
     def get_output_state(self, output_id: int) -> bool:
         """Get output state by ID.
 
