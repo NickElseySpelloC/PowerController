@@ -109,6 +109,9 @@ class OutputManager:  # noqa: PLR0904
         self.min_on_time = 0  # minutes
         self.min_off_time = 0  # minutes
 
+        # Temp probe constraints
+        self.temp_probe_constraints: list[dict[str, str | int | float]] = []
+
         # Track state changes
         self._output_action_request: OutputAction | None = None
         self.last_turned_on = saved_state.get("LastTurnedOn") if saved_state else None
@@ -259,6 +262,25 @@ class OutputManager:  # noqa: PLR0904
                 self.device_input_mode = output_config.get("DeviceInputMode", InputMode.IGNORE) or InputMode.IGNORE
                 if self.device_input_mode not in InputMode:
                     error_msg = f"Invalid DeviceInputMode {self.device_input_mode} for output {self.name}. Must be one of {', '.join([m.value for m in InputMode])}."
+
+            # TempProbeConstraints
+            if not error_msg:
+                temp_probe_constraints = output_config.get("TempProbeConstraints", [])
+                for constraint in temp_probe_constraints:
+                    temp_probe_name = constraint.get("TempProbe")
+                    condition = constraint.get("Condition")
+                    temperature = constraint.get("Temperature")
+                    if not temp_probe_name or condition not in {"GreaterThan", "LessThan"} or not isinstance(temperature, (int, float)):
+                        error_msg = f"Invalid TempProbeConstraint in output {self.name}."
+                    else:
+                        temp_probe_id = view.get_temp_probe_id(temp_probe_name)
+                        if not temp_probe_id:
+                            error_msg = f"TempProbe {temp_probe_name} not found for output {self.name}."
+                        else:
+                            # Add the TempProbeID to the constraint
+                            constraint["ProbeID"] = temp_probe_id
+                            # Store the constraint for later use
+                            self.temp_probe_constraints.append(constraint)
 
             # ParentDeviceOutput
             if not error_msg:
@@ -491,6 +513,7 @@ class OutputManager:  # noqa: PLR0904
         reason_on = reason_off = None
         is_device_online = view.get_device_online(self.device_id)
         is_device_output_on = view.get_output_state(self.device_output_id)
+
         # See if the app has overridden our state. Only allow changes if the device is online
         if is_device_online:
             if self._should_revert_app_override(view):  # Revert to auto mode if currently AppMode.ON | AppMode.OFF and time's up
@@ -574,6 +597,12 @@ class OutputManager:  # noqa: PLR0904
                 # The output of the parent device is off, so we have to remain off
                 new_output_state = False
                 reason_off = StateReasonOff.PARENT_OFF
+
+        # If we're proposing to turn on and the system_state is AUTO, then make sure we don't have any temp probe constraints
+        if new_system_state == SystemState.AUTO and new_output_state and self._are_there_temp_probe_constraints(view):
+            # One or more temp probe constraints are active, so we have to remain off
+            new_output_state = False
+            reason_off = StateReasonOff.TEMP_PROBE_CONSTRAINT
 
         # Check minimum runtime constraints before applying changes
         if new_system_state == SystemState.AUTO and self._should_respect_minimum_runtime(new_output_state, view):
@@ -1013,6 +1042,39 @@ class OutputManager:  # noqa: PLR0904
         for rng in self.dates_off:
             if rng["StartDate"] <= today <= rng["EndDate"]:
                 return True
+        return False
+
+    def _are_there_temp_probe_constraints(self, view: ShellyView) -> bool:
+        """Evaluate the temperature probe constraints to see if they require the output to be off.
+
+        Args:
+            view (ShellyView): The current view of the Shelly devices.
+
+        Returns:
+            bool: True if a temperature constraint applied, False otherwise.
+        """
+        for constraint in self.temp_probe_constraints:
+            probe_name = constraint.get("TempProbe", "Unknown Probe")
+            probe_id = constraint.get("ProbeID")
+            condition = constraint.get("Condition")
+            set_temp = constraint.get("Temperature")
+
+            if not probe_id or not isinstance(probe_id, int) or not set_temp or not isinstance(set_temp, int | float) or condition not in {"GreaterThan", "LessThan"}:
+                continue
+
+            probe_temp = view.get_temp_probe_temperature(probe_id)
+            if probe_temp is None:
+                self.logger.log_message(f"Temperature probe {probe_name} not available for output {self.name}.", "debug")
+                continue
+
+            if condition == "GreaterThan" and probe_temp < set_temp:
+                self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
+                return True
+
+            if condition == "LessThan" and probe_temp > set_temp:
+                self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a maximum temperature of {set_temp}°C.", "debug")
+                return True
+
         return False
 
     @staticmethod

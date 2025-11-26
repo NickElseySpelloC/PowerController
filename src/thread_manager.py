@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -29,6 +30,7 @@ class ManagedThread:
     stop_event: threading.Event = field(default_factory=threading.Event)
     logger: Any = None
     restart: RestartPolicy = field(default_factory=RestartPolicy)
+    on_fatal_crash: Callable[[str], None] | None = None  # NEW: callback for unrecoverable crashes
 
     _thread: threading.Thread | None = field(init=False, default=None)
     _crash_event: threading.Event = field(init=False, default_factory=threading.Event)
@@ -57,12 +59,15 @@ class ManagedThread:
                             f"[{self.name}] exceeded max restarts ({self.restart.max_restarts}).", report_stack=False
                         )  # pyright: ignore[reportUnusedExpression]
                         self._crash_event.set()
+                        # NEW: trigger fatal crash handler
+                        if self.on_fatal_crash:
+                            self.on_fatal_crash(self.name)
                         break
                     time.sleep(self.restart.backoff_seconds * restarts)
                     continue
                 break
             except Exception as e:  # noqa: BLE001
-                self.logger and self.logger.log_message(f"[{self.name}] crashed with error: {e}", "error", report_stack=True)  # pyright: ignore[reportUnusedExpression]
+                self.logger and self.logger.log_message(f"[{self.name}] crashed with error: {e}", "error")  # pyright: ignore[reportUnusedExpression]
                 self._crash_event.set()
                 if self.restart.mode in {"on_crash", "always"}:
                     restarts += 1
@@ -70,9 +75,15 @@ class ManagedThread:
                         self.logger and self.logger.log_fatal_error(
                             f"[{self.name}] exceeded max restarts ({self.restart.max_restarts}).", report_stack=False
                         )  # pyright: ignore[reportUnusedExpression]
+                        # NEW: trigger fatal crash handler
+                        if self.on_fatal_crash:
+                            self.on_fatal_crash(self.name)
                         break
                     time.sleep(self.restart.backoff_seconds * restarts)
                     continue
+                # NEW: no restart policy, crash is fatal
+                if self.on_fatal_crash:
+                    self.on_fatal_crash(self.name)
                 break
 
     def stop(self):
@@ -87,9 +98,10 @@ class ManagedThread:
 
 
 class ThreadManager:
-    def __init__(self, logger: Any, global_stop: threading.Event | None = None):
+    def __init__(self, logger: Any, global_stop: threading.Event | None = None, exit_on_fatal: bool = True):  # NEW: exit_on_fatal parameter  # noqa: FBT001, FBT002
         self.logger = logger
         self.global_stop = global_stop or threading.Event()
+        self.exit_on_fatal = exit_on_fatal  # NEW
         self._threads: list[ManagedThread] = []
         self._lock = threading.Lock()
 
@@ -111,10 +123,24 @@ class ThreadManager:
             stop_event=stop_event or self.global_stop,
             logger=self.logger,
             restart=restart or RestartPolicy(mode="never"),
+            on_fatal_crash=self._handle_fatal_crash if self.exit_on_fatal else None,  # NEW
         )
         with self._lock:
             self._threads.append(mt)
         return mt
+
+    # NEW: fatal crash handler
+    def _handle_fatal_crash(self, thread_name: str):
+        """Called when a thread crashes fatally (no restart or max restarts exceeded)."""
+        # Signal all threads to stop
+        self.stop_all()
+
+        # Give threads a moment to exit gracefully
+        time.sleep(2.0)
+
+        # Force exit
+        self.logger.log_fatal_error(f"Thread [{thread_name}] crashed fatally. Shutting down application.", report_stack=True)
+        os._exit(1)
 
     def start_all(self):
         """Set the stop_event for each thread."""

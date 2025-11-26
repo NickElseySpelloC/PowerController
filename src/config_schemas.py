@@ -19,6 +19,18 @@ class ConfigSchema:
         }
 
         self.validation = {
+            "Files": {
+                "type": "dict",
+                "schema": {
+                    "SavedStateFile": {"type": "string", "required": True},
+                },
+            },
+            "ShellyDevices": {
+                "type": "dict",
+                "schema": {
+                    "MaxConcurrentErrors": {"type": "number", "required": False, "nullable": True, "min": 0},
+                },
+            },
             "General": {
                 "type": "dict",
                 "schema": {
@@ -54,90 +66,6 @@ class ConfigSchema:
                     "UsageDataFile": {"type": "string", "required": False, "nullable": True},
                     "UsageMaxDays": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 365},
                 },
-            },
-            "ShellyDevices": {
-                "type": "dict",
-                "schema": {
-                    "AllowDebugLogging": {"type": "boolean", "required": False, "nullable": True},
-                    "ResponseTimeout": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 120},
-                    "RetryCount": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 10},
-                    "RetryDelay": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 10},
-                    "PingAllowed": {"type": "boolean", "required": False, "nullable": True},
-                    "MaxConcurrentErrors": {"type": "number", "required": False, "nullable": True, "min": 0},
-                    "WebhooksEnabled": {"type": "boolean", "required": False, "nullable": True},
-                    "WebhookHost": {"type": "string", "required": False, "nullable": True},
-                    "WebhookPort": {"type": "number", "required": False, "nullable": True},
-                    "WebhookPath": {"type": "string", "required": False, "nullable": True},
-                    "Devices": {
-                        "type": "list",
-                        "required": True,
-                        "nullable": False,
-                        "schema": {
-                            "type": "dict",
-                            "schema": {
-                                "Name": {"type": "string", "required": False, "nullable": True},
-                                "Model": {"type": "string", "required": True},
-                                "Hostname": {"type": "string", "required": False, "nullable": True},
-                                "Port": {"type": "number", "required": False, "nullable": True},
-                                "ID": {"type": "number", "required": False, "nullable": True},
-                                "Simulate": {"type": "boolean", "required": False, "nullable": True},
-                                "ExpectOffline": {"type": "boolean", "required": False, "nullable": True},
-                                "Inputs": {
-                                    "type": "list",
-                                    "required": False,
-                                    "nullable": True,
-                                    "schema": {
-                                        "type": "dict",
-                                        "schema": {
-                                            "Name": {"type": "string", "required": False, "nullable": True},
-                                            "ID": {"type": "number", "required": False, "nullable": True},
-                                            "Webhooks": {"type": "boolean", "required": False, "nullable": True},
-                                        },
-                                    },
-                                },
-                                "Outputs": {
-                                    "type": "list",
-                                    "required": False,
-                                    "nullable": True,
-                                    "schema": {
-                                        "type": "dict",
-                                        "schema": {
-                                            "Name": {"type": "string", "required": False, "nullable": True},
-                                            "Group": {"type": "string", "required": False, "nullable": True},
-                                            "ID": {"type": "number", "required": False, "nullable": True},
-                                            "Webhooks": {"type": "boolean", "required": False, "nullable": True},
-                                        },
-                                    },
-                                },
-                                "Meters": {
-                                    "type": "list",
-                                    "required": False,
-                                    "nullable": True,
-                                    "schema": {
-                                        "type": "dict",
-                                        "schema": {
-                                            "Name": {"type": "string", "required": False, "nullable": True},
-                                            "ID": {"type": "number", "required": False, "nullable": True},
-                                            "MockRate": {"type": "number", "required": False, "nullable": True},
-                                        },
-                                    },
-                                },
-                                "TempProbes": {
-                                    "type": "list",
-                                    "required": False,
-                                    "nullable": True,
-                                    "schema": {
-                                        "type": "dict",
-                                        "schema": {
-                                            "Name": {"type": "string", "required": False, "nullable": True},
-                                            "ID": {"type": "number", "required": False, "nullable": True},
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                }
             },
             "Location": {
                 "type": "dict",
@@ -219,6 +147,19 @@ class ConfigSchema:
                         "MaxAppOffTime": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 2880},
                         "TurnOnSequence": {"type": "string", "required": False, "nullable": True},
                         "TurnOffSequence": {"type": "string", "required": False, "nullable": True},
+                        "TempProbeConstraints": {
+                            "type": "list",
+                            "required": False,
+                            "nullable": True,
+                            "schema": {
+                                "type": "dict",
+                                "schema": {
+                                    "TempProbe": {"type": "string", "required": True},
+                                    "Condition": {"type": "string", "required": True, "allowed": ["GreaterThan", "LessThan"]},
+                                    "Temperature": {"type": "number", "required": True, "min": -50.0, "max": 150.0},
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -251,29 +192,25 @@ class ConfigSchema:
                     },
                 },
             },
-            "Files": {
+            "TempProbeLogging": {
                 "type": "dict",
                 "schema": {
-                    "SavedStateFile": {"type": "string", "required": True},
-                    "LogfileName": {"type": "string", "required": False, "nullable": True},
-                    "LogfileMaxLines": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100000},
-                    "LogProcessID": {"type": "boolean", "required": False, "nullable": True},
-                    "LogThreadID": {"type": "boolean", "required": False, "nullable": True},
-                    "LogfileVerbosity": {"type": "string", "required": True, "allowed": ["none", "error", "warning", "summary", "detailed", "debug", "all"]},
-                    "ConsoleVerbosity": {"type": "string", "required": True, "allowed": ["error", "warning", "summary", "detailed", "debug", "all"]},
-                },
-            },
-            "Email": {
-                "type": "dict",
-                "schema": {
-                    "EnableEmail": {"type": "boolean", "required": False, "nullable": True},
-                    "DailyEnergyUseThreshold": {"type": "number", "required": False, "nullable": True, "min": 1000, "max": 25000},
-                    "SendEmailsTo": {"type": "string", "required": False, "nullable": True},
-                    "SMTPServer":  {"type": "string", "required": False, "nullable": True},
-                    "SMTPPort": {"type": "number", "required": False, "nullable": True, "min": 25, "max": 10000},
-                    "SMTPUsername": {"type": "string", "required": False, "nullable": True},
-                    "SMTPPassword": {"type": "string", "required": False, "nullable": True},
-                    "SubjectPrefix": {"type": "string", "required": False, "nullable": True},
+                    "Enable": {"type": "boolean", "required": False, "nullable": True},
+                    "Probes": {
+                        "type": "list",
+                        "required": True,
+                        "nullable": False,
+                        "schema": {
+                            "type": "dict",
+                            "schema": {
+                                "Name": {"type": "string", "required": True},
+                            },
+                        },
+                    },
+                    "LoggingInterval": {"type": "number", "required": True, "min": 1, "max": 1440},
+                    "SavedStateFileMaxDays": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 14},
+                    "HistoryDataFile": {"type": "string", "required": False, "nullable": True},
+                    "HistoryDataFileMaxDays": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 365},
                 },
             },
             "HeartbeatMonitor": {

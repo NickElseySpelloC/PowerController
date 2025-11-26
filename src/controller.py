@@ -80,6 +80,10 @@ class PowerController:
         self.poll_interval = 10.0
         self._shelly_sequence_requests: dict[str, ShellySequenceRequest] = {}
 
+        # Temp probe logging
+        self.temp_probe_logging = {}
+        self.temp_probe_history: list[dict] = []
+
         # Create the two run_planner types
         self.scheduler = Scheduler(self.config, self.logger)
         self.pricing = PricingManager(self.config, self.logger)
@@ -336,9 +340,47 @@ class PowerController:
         # Sort outputs so parents are evaluated first
         list.sort(self.outputs, key=lambda x: not x.is_parent)
 
+        # Temp probe logging
+        self.temp_probe_logging = self._configure_temp_probe_logging(saved_state, view)
+
         # Reinitialize the scheduler and pricing manager
         self.scheduler.initialise()
         self.pricing.initialise()
+
+    def _configure_temp_probe_logging(self, saved_state: dict | None, view: ShellyView) -> dict:
+        """Configure the temp probes to log.
+
+        Args:
+            saved_state (dict): The system state restrieved from disk.
+            view (ShellyView): The current ShellyView snapshot.
+
+        Returns:
+            dict: The temp probe logging configuration.
+        """
+        temp_probe_logging = {
+            "enabled": self.config.get("TempProbeLogging", "Enable", default=False),
+            "probes": self.config.get("TempProbeLogging", "Probes", default=[]) or [],
+            "logging_interval": self.config.get("TempProbeLogging", "LoggingInterval", default=60),  # minutes
+            "saved_state_file_max_days": self.config.get("TempProbeLogging", "SavedStateFileMaxDays", default=7),
+            "history_data_file_name": self.config.get("TempProbeLogging", "HistoryDataFile", default=""),
+            "history_data_file_max_days": self.config.get("TempProbeLogging", "SavedStateFileMaxDays", default=0),
+            "last_log_time": None,
+            "history": saved_state.get("TempProbeLogging", {}).get("history", []) if saved_state else [],
+        }
+
+        # Validate the temp probes
+        if temp_probe_logging["enabled"]:
+            for probe in temp_probe_logging["probes"]:
+                probe_name = probe.get("Name")
+                if probe_name:
+                    temp_probe_id = view.get_temp_probe_id(probe_name)
+                    if not temp_probe_id:
+                        self.logger.log_fatal_error(f"TempProbe {probe_name} referenced in TempProbeLogging section of config file is invalid.")
+                    else:
+                        # Add the TempProbeID to the probe
+                        probe["ProbeID"] = temp_probe_id
+                        probe["Temperature"] = None
+        return temp_probe_logging
 
     def _get_system_state_path(self) -> Path | None:
         """Get the path to the system state file from the configuration.
@@ -398,6 +440,7 @@ class PowerController:
                 "SaveTime": DateHelper.now(),
                 "Outputs": [],
                 "Scheduler": self.scheduler.get_save_object(),
+                "TempProbeLogging": self.temp_probe_logging,
             }
             for output in self.outputs:
                 output_save_object = output.get_save_object(view)
@@ -431,7 +474,6 @@ class PowerController:
                     self.external_service_helper.post_state_to_web_viewer(post_object)
                 self.viewer_website_last_post = DateHelper.now()
 
-    # Private Functions ===========================================================================
     def _run_scheduler_tick(self):
         """Do all the control processing of the main loop."""
         # Refresh the Amber price data if it's time to do so
@@ -442,6 +484,9 @@ class PowerController:
 
         # Get the location data for all devices and save it to each OutputManager if needed
         self._save_device_location_data()
+
+        # Log the temp probe data if needed
+        self._log_temp_probes(view)
 
         # Calculate the running totals for each output
         self._calculate_running_totals(view)
@@ -842,3 +887,92 @@ class PowerController:
             except KeyError as e:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
+
+    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0914
+        """Log the temperature probes if enabled."""
+        if not self.temp_probe_logging.get("enabled"):
+            return
+
+        current_time = DateHelper.now()
+        last_log_time = self.temp_probe_logging.get("last_log_time")
+        logging_interval = int(self.temp_probe_logging.get("logging_interval", 60) or 60)  # pyright: ignore[reportArgumentType]
+        if last_log_time and (current_time - last_log_time).total_seconds() < logging_interval * 60:
+            return  # Not time to log yet
+
+        # Update the last log time
+        self.temp_probe_logging["last_log_time"] = current_time
+
+        # Read the temperatures and log them
+        for probe in self.temp_probe_logging.get("probes", []):
+            probe_id = probe.get("ProbeID")
+            probe_name = probe.get("Name")
+            if not probe_id or not probe_name:
+                continue
+            temperature = view.get_temp_probe_temperature(probe_id)
+            if temperature is not None:
+                probe["Temperature"] = temperature
+                self.logger.log_message(f"{probe_name} = {temperature:.1f} °C", "debug")
+
+            # Get the max days to keep
+            max_saved_state_days = int(self.temp_probe_logging.get("saved_state_file_max_days"))  # pyright: ignore[reportArgumentType]
+
+            if max_saved_state_days:
+                # Append the current reading to the history
+                history_entry = {
+                    "Timestamp": current_time,
+                    "ProbeName": probe_name,
+                    "Temperature": temperature,
+                }
+                self.temp_probe_logging["history"].append(history_entry)
+                self.logger.log_message(f"Logged temp probe {probe_name} at {temperature:.1f} °C", "debug")
+
+                # Remove old entries from history
+                cutoff_time = current_time - dt.timedelta(days=max_saved_state_days)
+                self.temp_probe_logging["history"] = [entry for entry in self.temp_probe_logging["history"] if entry["Timestamp"] >= cutoff_time]
+
+        # Save to history file if configured
+        history_file_name = self.temp_probe_logging.get("history_data_file_name")
+        max_history_days = int(self.temp_probe_logging.get("history_data_file_max_days"))  # pyright: ignore[reportArgumentType]
+        if history_file_name and max_history_days:
+            history_file_path = SCCommon.select_file_location(history_file_name)  # pyright: ignore[reportArgumentType]
+            if not history_file_path:
+                return
+            cutoff_time = current_time - dt.timedelta(days=max_history_days)
+            try:
+                # Read existing history data
+                existing_history = []
+                if history_file_path.exists():
+                    with history_file_path.open("r", newline="", encoding="utf-8") as csvfile:
+                        reader = csv.DictReader(csvfile)
+                        for row in reader:
+                            existing_history.append(row.copy())
+
+                # Append the new entries
+                for probe in self.temp_probe_logging.get("probes", []):
+                    probe_name = probe.get("Name")
+                    temperature = probe["Temperature"]
+                    if not probe_name or not temperature:
+                        continue
+
+                    existing_history.append({
+                        "Timestamp": current_time.isoformat(),
+                        "ProbeName": probe_name,
+                        "Temperature": f"{temperature:.1f}",
+                    })
+
+                # Remove old entries based on max days
+                existing_history = [
+                    row for row in existing_history
+                    if dt.datetime.fromisoformat(row["Timestamp"]) >= cutoff_time
+                ]
+
+                # Write back to CSV file
+                with history_file_path.open("w", newline="", encoding="utf-8") as csvfile:
+                    fieldnames = ["Timestamp", "ProbeName", "Temperature"]
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    for row in existing_history:
+                        writer.writerow(row)
+            # Add TypeError in case of bad data in existing file
+            except (OSError, ValueError) as e:
+                self.logger.log_message(f"Error saving temp probe history to {history_file_path}: {e}", "error")

@@ -8,7 +8,7 @@ Requires Python and UV to be installed
 set -euo pipefail
 
 # --- config ---
-ScriptName="main.py"
+ScriptName="src/main.py"
 
 # Resolve script dir and cd there
 HomeDir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
