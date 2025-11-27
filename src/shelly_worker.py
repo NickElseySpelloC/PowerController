@@ -181,7 +181,7 @@ class ShellyWorker:
                     res.ok = False
                     res.error = "sequence timeout"
                 else:
-                    self._run_step(step)
+                    reinitialise_reqd = self._run_step(step)
             # If we get here without exceptions, the sequence succeeded
             res.ok = True
         except (RuntimeError, TimeoutError) as e:   # _run_step() can raised a knonw exception. Retries have been exceeded.
@@ -258,7 +258,7 @@ class ShellyWorker:
                         self.logger.log_message(f"Requested changing output {output_identity} to {state} but it was already in that state.", "warning")
 
                 elif step.kind == StepKind.REFRESH_STATUS:   # Refresh status for all devices
-                    self.logger.log_message("ShellyWorker refreshing all device status", "debug")
+                    # self.logger.log_message("ShellyWorker refreshing all device status", "debug")
                     reinitialise_reqd = self._refresh_all_status()
 
                 elif step.kind == StepKind.GET_LOCATION:   # Get location info for a device

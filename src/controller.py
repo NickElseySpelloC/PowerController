@@ -460,7 +460,8 @@ class PowerController:
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             self.logger.log_fatal_error(f"Error saving system state: {e}")
         else:
-            self.logger.log_message(f"System state saved to {system_state_path}", "debug")
+            # self.logger.log_message(f"System state saved to {system_state_path}", "debug")
+            pass
 
         # Post to the web server if needed - this function takes care of frequency checks
         # Break each output into a seperate post to reduce the size of each post
@@ -529,7 +530,8 @@ class PowerController:
         # Give a long timeout as we may be blocked by a long running sequence
         done = self.shelly_worker.wait_for_result(req_id, timeout=90.0)
         if done:
-            self.logger.log_message("Completed Shelly refresh.", "debug")
+            # self.logger.log_message("Completed Shelly refresh.", "debug")
+            pass
         else:
             self.logger.log_message("Timed out waiting for Shelly refresh; using last snapshot.", "warning")
 

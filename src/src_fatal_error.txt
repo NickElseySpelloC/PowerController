@@ -1,0 +1,20 @@
+Thread [controller] crashed fatally. Shutting down application.
+
+Stack trace:
+Traceback (most recent call last):
+  File "/Users/nick/dev/PowerController/src/thread_manager.py", line 53, in _runner
+    self.target(*self.args, **self.kwargs)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nick/dev/PowerController/src/controller.py", line 181, in run
+    self.shutdown()
+    ~~~~~~~~~~~~~^^
+  File "/Users/nick/dev/PowerController/src/controller.py", line 191, in shutdown
+    self._save_system_state(view, force_post=True)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nick/dev/PowerController/src/controller.py", line 438, in _save_system_state
+    self._save_output_consumption_data()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/nick/dev/PowerController/src/controller.py", line 756, in _save_output_consumption_data
+    truncated_data = [row for row in existing_data if row["Date"] and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() >= earliest_date and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() < first_history_date]  # pyright: ignore[reportOptionalOperand]  # noqa: DTZ007
+                                                      ~~~^^^^^^^^
+KeyError: 'Date'
