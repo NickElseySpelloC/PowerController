@@ -116,9 +116,18 @@ class PowerController:
             for output in self.outputs
         }
 
+        temp_probe_data = []
+        if self.temp_probe_logging.get("enabled", False):
+            for probe in self.temp_probe_logging.get("probes", []):
+                temp_probe_data.append({
+                    "name": probe.get("Name", ""),
+                    "temperature": probe.get("Temperature"),
+                })
+
         return_dict = {
             "global": global_data,
             "outputs": outputs_data,
+            "temp_probes": temp_probe_data,
         }
 
         # self.logger.log_message("Generated webapp data snapshot.", "debug")

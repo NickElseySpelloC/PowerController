@@ -693,7 +693,8 @@ class PricingManager:
                      channel_id: AmberChannel = AmberChannel.GENERAL,
                      hourly_energy_usage: float = 0.0,
                      slot_min_minutes: int = 0,
-                     slot_min_gap_minutes: int = 0) -> dict | None:
+                     slot_min_gap_minutes: int = 0,
+                     constraint_slots: list[dict] | None = None) -> dict | None:
         """Determines when to run based on the best pricing strategy.
 
         Args:
@@ -705,6 +706,7 @@ class PricingManager:
             hourly_energy_usage (float): The average hourly energy usage in Wh. Used to estimate cost of the run plan.
             slot_min_minutes (int): The minimum length of each time slot in minutes.
             slot_min_gap_minutes (int): The minimum gap between time slots in minutes.
+            constraint_slots (list[dict]): A list of constraint slots to consider when calculating the run plan.
 
         Returns:
             plan (list[dict]): A list of dictionaries containing the run plan.
@@ -718,7 +720,7 @@ class PricingManager:
 
             sorted_price_data = self._get_channel_prices(channel_id=channel_id, which_type=PriceFetchMode.SORTED)
             self.logger.log_message(f"Calculating best price run plan for {required_hours} hours ({priority_hours} priority) on channel {channel_id} with max prices {max_price} / {max_priority_price}.", "debug")
-            run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes)
+            run_plan = run_planner.calculate_run_plan(sorted_price_data, required_hours, priority_hours, max_price, max_priority_price, hourly_energy_usage, slot_min_minutes, slot_min_gap_minutes, constraint_slots)
         except RuntimeError as e:
             self.logger.log_message(f"Error occurred while calculating best price run plan: {e}", "error")
             return None

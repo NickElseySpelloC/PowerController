@@ -122,7 +122,7 @@ class Scheduler:
             return None
 
         # Get the available window time slots for this schedule
-        time_slots = self._get_schedule_slots(schedule)
+        time_slots = self.get_schedule_slots(schedule)
         if not time_slots:
             self.logger.log_message(f"No available time slots found for schedule {operating_schedule_name} for today.", "debug")
             sorted_slots = []
@@ -151,7 +151,7 @@ class Scheduler:
             float: The current price in AUD/kWh, or 0 if not available.
         """
         # Get the slots for the current time
-        slots = self._get_schedule_slots(schedule)
+        slots = self.get_schedule_slots(schedule)
         if not slots:
             return self.default_price  # pyright: ignore[reportReturnType]
 
@@ -172,8 +172,7 @@ class Scheduler:
         """
         self.dusk_dawn = self._get_dusk_dawn_times(loc_info)
 
-    # Private Functions ===========================================================================
-    def _get_schedule_slots(self, schedule: dict) -> list[dict]:
+    def get_schedule_slots(self, schedule: dict) -> list[dict]:
         """Evaluate the schedule and return a list of time slots when the schedule is active for today.
 
         Args:
@@ -228,6 +227,7 @@ class Scheduler:
 
         return time_slots
 
+    # Private Functions ===========================================================================
     def _parse_time(self, time_str, schedule_name, window_index) -> dt.time:
         """Parse a time string. Exits if the time string is invalid.
 

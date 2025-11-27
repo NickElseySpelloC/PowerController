@@ -75,6 +75,8 @@ class OutputManager:  # noqa: PLR0904
         # pricing and scheduling
         self.schedule_name = None
         self.schedule = None
+        self.constaint_schedule_name = None
+        self.constaint_schedule = None
         self.amber_channel = AmberChannel.GENERAL
         self.max_best_price = self.max_priority_price = 0
 
@@ -192,6 +194,16 @@ class OutputManager:  # noqa: PLR0904
                         error_msg = f"Schedule {self.schedule_name} for output {self.name} not found in OperatingSchedules."
                 elif self.device_mode == RunPlanMode.SCHEDULE:
                     error_msg = f"Schedule is not set for output {self.name}. This is required if Mode is Schedule."
+
+            # ConstraintSchedule
+            if not error_msg:
+                self.constaint_schedule_name = output_config.get("ConstraintSchedule")
+                if self.constaint_schedule_name:
+                    self.constaint_schedule = self.scheduler.get_schedule_by_name(self.constaint_schedule_name)
+                    if not self.constaint_schedule:
+                        error_msg = f"Constraint schedule {self.constaint_schedule_name} for output {self.name} not found in OperatingSchedules."
+                    elif self.device_mode != RunPlanMode.BEST_PRICE:
+                        self.logger.log_message(f"Constraint schedule {self.constaint_schedule_name} will be ignored for for output {self.name} since the device mode is not BestPrice.", "warning")
 
             # AmberChannel
             if not error_msg:
@@ -378,7 +390,8 @@ class OutputManager:  # noqa: PLR0904
             # Information on the run history and plan
             "target_hours": f"{target_hours:.1f}" if target_hours is not None else "Rest of Day",
             "actual_hours": f"{self.run_history.get_actual_hours():.1f}",
-            "planned_hours": f"{(self.run_plan.get("RequiredHours", 0) if self.run_plan else 0):.1f}",
+            "required_hours": f"{(self.run_plan.get("RequiredHours", 0) if self.run_plan else 0):.1f}",
+            "planned_hours": f"{(self.run_plan.get("PlannedHours", 0) if self.run_plan else 0):.1f}",
             "actual_energy_used": f"{actual_energy_used / 1000:.3f}kWh",
             "actual_cost": f"${actual_cost:.2f}",
             "forecast_energy_used": f"{forecast_energy_used / 1000:.3f}kWh",
@@ -472,7 +485,11 @@ class OutputManager:  # noqa: PLR0904
 
         # If we're in the Best Price mode, get a best price run plan
         if self.device_mode == RunPlanMode.BEST_PRICE:
-            self.run_plan = self.pricing.get_run_plan(required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, channel_id=self.amber_channel, hourly_energy_usage=hourly_energy_used)  # pyright: ignore[reportArgumentType]
+            constraint_slots = None
+            if self.constaint_schedule:
+                # Apply the constraint schedule to limit available time slots
+                constraint_slots = self.scheduler.get_schedule_slots(self.constaint_schedule)
+            self.run_plan = self.pricing.get_run_plan(required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, channel_id=self.amber_channel, hourly_energy_usage=hourly_energy_used, constraint_slots=constraint_slots)  # pyright: ignore[reportArgumentType]
 
         # If we're in Schedule mode or we get nothing back from Best Price, generate a Schedule
         if self.device_mode == RunPlanMode.SCHEDULE or not self.run_plan:

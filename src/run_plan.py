@@ -30,8 +30,16 @@ class RunPlanner:
         self.channel = channel if plan_type == RunPlanMode.BEST_PRICE else None
         self.logger = logger
 
-    def calculate_run_plan(self, sorted_slot_data: list[dict], required_hours: float, priority_hours: float, max_price: float,
-                           max_priority_price: float, hourly_energy_usage: float = 0.0, slot_min_minutes: int = 0, slot_min_gap_minutes: int = 0) -> dict:
+    def calculate_run_plan(self,
+                           sorted_slot_data: list[dict],
+                           required_hours: float,
+                           priority_hours: float,
+                           max_price: float,
+                           max_priority_price: float,
+                           hourly_energy_usage: float = 0.0,
+                           slot_min_minutes: int = 0,
+                           slot_min_gap_minutes: int = 0,
+                           constraint_slots: list[dict] | None = None) -> dict:
         """Determines when to run based on the best pricing strategy.
 
         Honours slot_min_minutes (minimum final slot length) and slot_gap_minutes
@@ -51,6 +59,9 @@ class RunPlanner:
             hourly_energy_usage (float): The estimated energy usage in Watts when the task is running. Default is 0.0 (unknown).
             slot_min_minutes (int): The minimum length of a final slot in minutes. Default is 0 (no minimum).
             slot_min_gap_minutes (int): The minimum gap between final slots in minutes. Gaps smaller than this are eliminated by merging. Default is 0 (no gap merging).
+            constraint_slots (list[dict]): A list of constraint slots to consider when calculating the run plan. Each dictionary contains:
+                - "StartDateTime" (datetime.datetime): The start time of the constraint slot.
+                - "EndDateTime" (datetime.datetime): The end time of the constraint slot.
 
         Raises:
             RuntimeError: If the price parameters are invalid.
@@ -87,13 +98,14 @@ class RunPlanner:
             error_msg = "Invalid price parameters for run plan."
             raise RuntimeError(error_msg)
 
-        # Step 1: Select qualifying slots based on price criteria
+        # Step 1: Select qualifying slots based on price criteria and optionally the constraint slots
         selected_slots = self._select_qualifying_slots(
                                     sorted_slot_data=sorted_slot_data,
                                     remaining_required_mins=required_mins,
                                     max_price=max_price,
                                     max_priority_price=max_priority_price,
-                                    hourly_energy_usage=hourly_energy_usage
+                                    hourly_energy_usage=hourly_energy_usage,
+                                    constraint_slots=constraint_slots
                                 )
 
         if not selected_slots:
@@ -208,7 +220,7 @@ class RunPlanner:
 
     def _select_qualifying_slots(self, sorted_slot_data: list[dict], remaining_required_mins: int,  # noqa: PLR6301
                             max_price: float, max_priority_price: float,
-                            hourly_energy_usage: float) -> list[dict]:
+                            hourly_energy_usage: float, constraint_slots: list[dict] | None = None) -> list[dict]:
         """Select slots that qualify based on price criteria.
 
         Args:
@@ -217,6 +229,9 @@ class RunPlanner:
             max_price (float): The maximum price (in pence per kWh) for normal hours.
             max_priority_price (float): The maximum price (in pence per kWh) for priority hours.
             hourly_energy_usage (float): The estimated energy usage in Watts when the task is running. Default is 0.0 (unknown).
+            constraint_slots (list[dict]): A list of constraint slots to consider when calculating the run plan. Each dictionary contains:
+                - "StartDateTime" (datetime.datetime): The start time of the constraint slot.
+                - "EndDateTime" (datetime.datetime): The end time of the constraint slot.
 
         Returns:
             list[dict]: A list of selected slot dictionaries with added metadata:
@@ -224,6 +239,9 @@ class RunPlanner:
         selected_slots = []
         filled_mins = 0
         remaining_mins = remaining_required_mins
+
+        if constraint_slots is None:
+            constraint_slots = []
 
         for slot in sorted_slot_data:
             duration_mins = slot["Minutes"]
@@ -238,6 +256,24 @@ class RunPlanner:
 
             if not (qualifies_normal or qualifies_priority):
                 continue
+
+            # If constraint slots are provided, check if the current slot overlaps with any constraint slot
+            if constraint_slots:
+                slot_start = slot["StartDateTime"]
+                slot_end = slot["EndDateTime"]
+                overlaps_constraint = False
+
+                for constraint in constraint_slots:
+                    constraint_start = constraint["StartDateTime"]
+                    constraint_end = constraint["EndDateTime"]
+
+                    # Check for overlap
+                    if slot_start < constraint_end and slot_end > constraint_start:
+                        overlaps_constraint = True
+                        break
+
+                if not overlaps_constraint:
+                    continue  # Slot does not overlap with any constraint slot
 
             # Create slot entry with metadata for consolidation
             slot_entry = {

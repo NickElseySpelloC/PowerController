@@ -23,7 +23,8 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
     Returns:
         Flask: The configured Flask application instance.
     """
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder="../templates", static_folder="../static")
+
     # Preserve Website section usage
     app.config["DEBUG"] = config.get("Website", "DebugMode", default=False) or False
 
@@ -150,7 +151,8 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
         logger.log_message("API call get() returning home page", "debug")
         return render_template("index.html",
                              global_data=snapshot["global"],
-                             outputs=snapshot["outputs"])
+                             outputs=snapshot["outputs"],
+                             temp_probes=snapshot.get("temp_probes", []))
 
     return app
 

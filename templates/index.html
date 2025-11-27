@@ -10,7 +10,29 @@
 <body>
   <script id="global-data-json" type="application/json">
     {{ global_data | tojson | safe }}
+    {{ temp_probes | tojson | safe }}
   </script>
+
+  {% if temp_probes and temp_probes|length > 0 %}
+  <div class="card" id="temp-probes">
+    <div class="main-row">
+      <div class="output-info">
+        <div style="font-weight:600">Temperature Probes</div>
+      </div>
+    </div>
+    <div class="row">
+      <table class="info_table full">
+        {% for probe in temp_probes %}
+        <tr>
+          <td class="info_td_value">{{ probe.name }}</td>
+          <td class="info_td_value">{{ probe.temperature }} °C</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+  {% endif %}  
+
   <div id="output-list">
     {% for output_id, output in outputs.items() %}
     <div class="card" data-output-id="{{ output.id }}">
@@ -87,11 +109,24 @@
             <td class="info_td_value">{{ output.total_cost }}</td>
           </tr>
           <tr>
-            <td class="info_td_label">Planned Hours:</td>
-            <td class="info_td_value">{{ output.planned_hours }}</td>
+            <td class="info_td_label">Required Hours:</td>
+            <td class="info_td_value">{{ output.required_hours }}</td>
 
             <td class="info_td_label">Power Draw:</td>
             <td class="info_td_value">{{ output.power_draw }}</td>
+
+            <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td>
+
+            <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td>
+          </tr>
+          <tr>
+            <td class="info_td_label">Planned Hours:</td>
+            <td class="info_td_value">{{ output.planned_hours }}</td>
+
+            <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td>
 
             <td class="info_td_label">&nbsp;</td>
             <td class="info_td_value">&nbsp;</td>
@@ -139,6 +174,7 @@
     </div>
     {% endfor %}
   </div>
+
   <script>
     // Store global data from server
     const globalData = JSON.parse(document.getElementById('global-data-json').textContent);

@@ -114,6 +114,7 @@ class ConfigSchema:
                         "DeviceOutput": {"type": "string", "required": True},
                         "Mode": {"type": "string", "required": True, "allowed": ["Schedule", "BestPrice"]},
                         "Schedule": {"type": "string", "required": False, "nullable": True},
+                        "ConstraintSchedule": {"type": "string", "required": False, "nullable": True},
                         "AmberChannel": {"type": "string", "required": False, "nullable": True, "allowed": ["general", "controlledLoad"]},
                         "DaysOfHistory": {"type": "number", "required": False, "nullable": True, "min": 2, "max": 60},
                         "TargetHours": {"type": "number", "required": True, "min": -1, "max": 24},

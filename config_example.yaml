@@ -52,20 +52,40 @@ ShellyDevices:
   WebhookPort: 8787             # Port to listen for webhooks on. Defaults to 8787.
   WebhookPath: /shelly/webhook  # The URI path that webhooks will post to.
   Devices:                      # List of Shelly devices to control
-    - Name: Shelly Pool          # A name for this device
+    - Name: Shelly Pool 1        # A name for this device
       Model: Shelly2PMG3        # The model of Shelly device - see https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list
       Hostname: 192.168.1.20   # The IP address or hostname of the Shelly device
       Simulate: False           # Set to True to simulate the device (for testing)
       Inputs:                   # List of inputs on the Shelly device to monitor
-        - Name: "Pool I1"
+        - Name: "Filter Pump Override"
           Webhooks: True
-        - Name: "Pool I2"
+        - Name: "Solar Pump Override"
+          Webhooks: True
       Outputs:                  # List of outputs on the Shelly device to control your devices
-        - Name: "Pool O1"
-        - Name: "Pool O2"
+        - Name: "Filter Pump Power"
+        - Name: "Solar Pump Power"
       Meters:                  # List of meters on the Shelly device to monitor energy usage
-        - Name: "Pool M1"
-        - Name: "Pool M2"
+        - Name: "Filter Pump Energy"
+        - Name: "Solar Pump Energy"
+    - Name: Shelly Pool 2
+      Model: Shelly2PMG3        
+      Hostname: 192.168.1.21   
+      Simulate: False           
+      Inputs:                   
+        - Name: "Shelly Pool 2 I1"
+        - Name: "Shelly Pool 2 I2"
+      Outputs:                  
+        - Name: "Solar Valve Actuator"
+        - Name: "Shelly Pool 2 O2"
+      Meters:                  
+        - Name: "Shelly Pool 2 M1"
+        - Name: "Shelly Pool 2 M2"
+      TempProbes: 
+        - Name: "Temp Pool Water"
+          RequiresOutput: "Filter Pump Power"  # Only read this probe when the specified output is ON
+        - Name: "Temp Solar Return"
+          RequiresOutput: "Solar Pump Power"  # Only read this probe when the specified output is ON
+        - Name: "Temp Roof"
     - Name: Spello Hot Water
       Model: Shelly2PMG3
       Hostname: 192.168.86.39
@@ -80,20 +100,40 @@ ShellyDevices:
 
 # Define the operating schedules for your devices. These are used to determine when a device is allowed to run when not using the Amber pricing data.
 OperatingSchedules:
-  - Name: Pool                # A name for this schedule - used in the Outputs section
+  - Name: Pool Pump           # A name for this schedule - used in the Outputs section
     Windows:                  # List of time windows when the schedule is active
       - StartTime: "00:00"
-        EndTime: "8:30"
+        EndTime: "07:30"
         DaysOfWeek: All       # Days of the week this window applies to - Mon, Tue, Wed, Thu, Fri, Sat, Sun or All. Multiple days can be specified separated by commas
         Price: 20
-      - StartTime: "13:00"
-        EndTime: "16:30"
-        DaysOfWeek: All   
-        Price: 22
+      - StartTime: "07:30"
+        EndTime: "09:00"
+        DaysOfWeek: All
+        Price: 16
+      - StartTime: "09:00"
+        EndTime: "15:00"
+        DaysOfWeek: All
+        Price: 13
+      - StartTime: "15:00"
+        EndTime: "17:00"
+        DaysOfWeek: All
+        Price: 33
+      - StartTime: "17:00"
+        EndTime: "21:00"
+        DaysOfWeek: All
+        Price: 51
       - StartTime: "21:00"
         EndTime: "23:59"
         DaysOfWeek: All
-        Price: 23
+        Price: 22
+  - Name: Pool Heating
+    Windows: 
+      - StartTime: "10:00"
+        EndTime: "16:00"
+        DaysOfWeek: All
+      - StartTime: "22:00"
+        EndTime: "23:59"
+        DaysOfWeek: All
   - Name: Hot Water
     Windows: 
       - StartTime: "00:00"
@@ -109,9 +149,10 @@ OperatingSchedules:
 # Configure each switched output that controls your devices and how they behave
 Outputs:  
   - Name: Pool Pump                 # A name for this output - used in the web interface  
-    DeviceOutput: Pool O1     # The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section
+    DeviceOutput: Filter Pump Power  # The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section
     Mode: BestPrice                 # Operating mode: BestPrice (run for target hours at best price), Schedule (run according to schedule only)
-    Schedule: Pools                 # The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section
+    Schedule: Pool Pump             # The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section
+    ConstraintSchedule: Pool Heating  # An optional constraint schedule that limits when the output can run, even in BestPrice mode
     AmberChannel: general           # The Amber pricing channel to use for this device, typically general or controlledLoad
     DaysOfHistory: 7                # How many days of history to keep for this device
     MinHours: 2                     # Minimum number of hours to run each day
@@ -130,26 +171,34 @@ Outputs:
     DatesOff:                       # Optional list of date ranges when the output should not run
       - StartDate: 2024-07-01
         EndDate: 2024-09-30
-    DeviceMeter: Pool M1      # The Shelly device meter to use to track energy usage - must match a Name in the ShellyDevices: Devices: Meters section
+    DeviceMeter: Filter Pump Energy  # The Shelly device meter to use to track energy usage - must match a Name in the ShellyDevices: Devices: Meters section
     MaxDailyEnergyUse: 6000         # Maximum energy use expected in Wh per day. An email warning will be sent if this is exceeded.
-    DeviceInput: Pool I1      # Optional: The Shelly device input to used override the state of the output - must match a Name in the ShellyDevices: Devices: Inputs section
+    DeviceInput: Filter Pump Override   # Optional: The Shelly device input to used override the state of the output - must match a Name in the ShellyDevices: Devices: Inputs section
     DeviceInputMode: TurnOn         # If a DeviceInput is specified, this controls how is is used. Ignore: Ignore the state of the inputs. TurnOn: Turn output on if input is off. TurnOff: Turn output off if input is on.
     StopOnExit: True                # If True, attempt to turn off the outputs when the application exits
     MinOnTime: 30                   # Minimum minutes to stay on once turned on
     MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling)    
-  - Name: Chlorinator
-    DeviceOutput: Pool O2
-    Mode: BestPrice
-    Schedule: Pool
+  - Name: Solar Heating
+    DeviceOutput: Solar Pump Power
+    Mode: Schedule
+    Schedule: Pool Heating
     AmberChannel: general
-    TargetHours: 4
-    MinHours: 2
-    MaxHours: 8
-    MaxShortfallHours: 3
+    TargetHours: -1
     MaxBestPrice: 23.0
     MaxPriorityPrice: 35.0
-    DeviceMeter: Pool M2
-    ParentOutput: Pool Pump
+    DeviceMeter: Solar Pump Energy
+    ParentOutput: Pool Pump               # Optional: The name of a parent output that must be ON for this output to run
+    TurnOnSequence: Turn On Solar Pump    # Optional: Name of the output sequence to run when turning on this output
+    TurnOffSequence: Turn Off Solar Pump  # Optional: Name of the output sequence to run when turning off this output
+    MaxAppOnTime: 60               # If we turned this output on via the app, revert to auto after this number of minutes. Set to 0 to disable.
+    MaxAppOffTime: 60              # If we turned this output off via the app, revert to auto after this number of minutes. Set to 0 to disable.
+    TempProbeConstraints:       # Optional list of temperature probe constraints that must be met for the output to run
+      - TempProbe: Temp Roof
+        Condition: GreaterThan
+        Temperature: 32.0
+      - TempProbe: Temp Pool Water
+        Condition: LessThan
+        Temperature: 30.0    
   - Name: Hot Water Heater
     DeviceOutput: Hot Water O1
     Mode: BestPrice
@@ -160,6 +209,54 @@ Outputs:
     MaxPriorityPrice: 30.0
     DeviceMeter: Hot Water M1
 
+# Use this to define a sequence of actions to perform on outputs when turning On or off
+OutputSequences:
+  - Name: "Turn On Solar Pump"
+    Description: "Turn on the actuator valve, wait for 1 minute then turn on the solar booster pump"
+    Timeout: 90
+    Steps:
+      - Type: CHANGE_OUTPUT
+        OutputIdentity: "Solar Valve Actuator"
+        State: True
+        Retries: 2
+        RetryBackoff: 1.0
+      - Type: SLEEP
+        Seconds: 60.0
+      - Type: CHANGE_OUTPUT
+        OutputIdentity: "Solar Pump Power"
+        State: True
+        Retries: 2
+        RetryBackoff: 1.0
+  - Name: "Turn Off Solar Pump"
+    Description: "Turn off the solar booster pump, wait for 10 seconds then turn off the actuator valve"
+    Timeout: 30
+    Steps:
+      - Type: CHANGE_OUTPUT
+        OutputIdentity: "Solar Pump Power"
+        State: False
+        Retries: 2
+        RetryBackoff: 1.0
+      - Type: SLEEP
+        Seconds: 10.0
+      - Type: CHANGE_OUTPUT
+        OutputIdentity: "Solar Valve Actuator"
+        State: False
+        Retries: 2
+        RetryBackoff: 1.0
+
+
+# Optionally enable temperature probe logging. The temperature probes must be defined in the Shelly device configuration above.
+TempProbeLogging:
+    Enable: True
+    Probes:   # A list of temp probes to monitor.
+      - Name: Temp Pool Water
+      - Name: Temp Roof
+      - Name: Temp Solar Return
+    LoggingInterval: 30  # Log temp probe readings every N minutes
+    SavedStateFileMaxDays: 7  # Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable.
+    HistoryDataFile: temp_probe_history.csv  # Leave blank to disable logging to a CSV file.
+    HistoryDataFileMaxDays: 90  # Maximum number of days to keep in the history data file.  0 to disable.
+
 
 # Optionally use this section to specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for scheduled events.
 # You can do this in one of three ways:
@@ -167,7 +264,7 @@ Outputs:
 # 2. Use a Google Maps URL to extract the location - specify the GoogleMapsURL field and the Timezone field.
 # 3. Manually specify the latitude and longitude - specify the Timezone, Latitude and Longitude fields.
 Location:
-  # UseShellyDevice: "Spello Dev"
+  # UseShellyDevice: "Shelly Pool 1"
   Timezone: Europe/London     # See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
   GoogleMapsURL:              # A Google Maps URL containing the latitude and longitude of your location, e.g. https://www.google.com/maps/place/London,+UK/@51.5012694,-0.1425182,18.41z
   Latitude:                   # The latitude of your location, e.g. - 51.50185169072752
@@ -191,7 +288,7 @@ Email:
   SMTPPort: 587                             # The SMTP server port
   SMTPUsername: <Your SMTP username here>   # The SMTP username
   SMTPPassword: <Your SMTP password here>   # The SMTP password or app password
-  SubjectPrefix: "[Dev PowerController]: "  # A prefix to add to the email subject line
+  SubjectPrefix: "[My PowerController]: "   # A prefix to add to the email subject line
 
 
 # Use this section to configure integration with the PowerControllerViewer app - see https://github.com/NickElseySpelloC/PowerControllerViewer
