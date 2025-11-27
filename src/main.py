@@ -20,9 +20,15 @@ def main():
     wake_event = Event()    # Wakes the main controller loop from a timed sleep
     stop_event = Event()    # Use to signal the main controller loop that the app is exiting
 
-    if sys.version_info < (3, 13):  # noqa: UP036
+    if sys.version_info < (3, 13):   # noqa: UP036
         print(f"ERROR: Python 3.13 or higher is required. You are running {sys.version}", file=sys.stderr)
         sys.exit(1)
+
+    # Install SIGINT handler early
+    def handle_sigint(_sig, _frame):
+        stop_event.set()
+        wake_event.set()
+    signal.signal(signal.SIGINT, handle_sigint)
 
     # Get our default schema, validation schema, and placeholders.
     schemas = ConfigSchema()
@@ -60,6 +66,8 @@ def main():
         controller = PowerController(config, logger, shelly_worker, wake_event)
 
         flask_app = create_flask_app(controller, config, logger)
+        # Disable debug/reloader to prevent extra threads at shutdown
+        flask_app.debug = False
     except (RuntimeError, TypeError) as e:
         logger.log_fatal_error(f"Fatal error at startup: {e}")
 
@@ -70,7 +78,7 @@ def main():
         name="shelly",
         target=shelly_worker.run,
         restart=RestartPolicy(mode="on_crash", max_restarts=3, backoff_seconds=2.0),
-        stop_event=stop_event,  # share global stop
+        stop_event=stop_event,  # still used by ThreadManager for signaling
     )
 
     # Manage the controller loop as a thread too
@@ -90,23 +98,14 @@ def main():
     )
 
     tm.start_all()
-
-    # Handle SIGINT (Ctrl-C) to trigger graceful shutdown via the manager
-    def handle_sigint(_sig, _frame):
-        logger.log_message("SIGINT received; shutting down.", "summary")
-        stop_event.set()
-        wake_event.set()
-    signal.signal(signal.SIGINT, handle_sigint)
-
+    # (SIGINT handler already installed; remove later duplicate)
     try:
-        # Block until stop_event is set or a managed thread crashes
         while not stop_event.is_set():
             if tm.any_crashed():
                 logger.log_fatal_error("A managed thread crashed. Initiating shutdown.", report_stack=False)
                 stop_event.set()
                 wake_event.set()
                 break
-            # Cooperative wait avoids busy loop
             stop_event.wait(timeout=1.0)
     finally:
         tm.stop_all()

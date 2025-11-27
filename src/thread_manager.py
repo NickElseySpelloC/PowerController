@@ -41,7 +41,8 @@ class ManagedThread:
             if self._thread and self._thread.is_alive():
                 return
             self._crash_event.clear()
-            self._thread = threading.Thread(target=self._runner, name=self.name, daemon=True)
+            # Make thread non-daemon for clean join (prevents late dummy finalizer)
+            self._thread = threading.Thread(target=self._runner, name=self.name, daemon=False)
             self._thread.start()
 
     def _runner(self):
@@ -149,9 +150,24 @@ class ThreadManager:
                 t.start()
 
     def stop_all(self):
-        with self._lock:
+        with self._lock:  # noqa: PLR1702
             for t in self._threads:
+                # Signal cooperative stop
                 t.stop()
+                # If target is a bound method, try a graceful stopper on the instance
+                try:
+                    obj = getattr(t.target, "__self__", None)  # bound method -> instance
+                    if obj is not None:
+                        for meth in ("stop", "shutdown", "close"):
+                            fn = getattr(obj, meth, None)
+                            if callable(fn):
+                                try:
+                                    fn()
+                                except Exception as e:  # noqa: BLE001
+                                    self.logger and self.logger.log_message(f"[{t.name}] error calling {meth}(): {e}", "error")  # pyright: ignore[reportUnusedExpression]
+                                break
+                except Exception as e:  # noqa: BLE001
+                    self.logger and self.logger.log_message(f"[{t.name}] stop hook error: {e}", "error")  # pyright: ignore[reportUnusedExpression]
 
     def join_all(self, timeout_per_thread: float = 5.0):
         with self._lock:

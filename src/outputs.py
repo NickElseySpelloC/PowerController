@@ -224,7 +224,7 @@ class OutputManager:  # noqa: PLR0904
                     target_hours < self.min_hours or
                     target_hours > self.max_hours
                     ):
-                    error_msg = f"Invalid MinHours / MaxHours/TargetHours configuration for output {self.name}."
+                    error_msg = f"Invalid MinHours / MaxHours/ TargetHours configuration for output {self.name}."
                 # Note: TargetHours is set during calculate_running_totals()
             # Note: If self.mode == RunHistoryMode.ALL_DAY, then min / max / target are ignored
 

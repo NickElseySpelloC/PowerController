@@ -477,7 +477,7 @@ class PowerController:
                         "StateFileType": "PowerController",
                         "DeviceName": f"{self.app_label} - {output.name}",
                         "SaveTime": DateHelper.now(),
-                        "Output": output.get_save_object(),
+                        "Output": output.get_save_object(view),
                         "Scheduler": self.scheduler.get_save_object(output.schedule),
                     }
                     self.external_service_helper.post_state_to_web_viewer(post_object)
@@ -926,14 +926,15 @@ class PowerController:
             max_saved_state_days = int(self.temp_probe_logging.get("saved_state_file_max_days"))  # pyright: ignore[reportArgumentType]
 
             if max_saved_state_days:
-                # Append the current reading to the history
-                history_entry = {
-                    "Timestamp": current_time,
-                    "ProbeName": probe_name,
-                    "Temperature": temperature,
-                }
-                self.temp_probe_logging["history"].append(history_entry)
-                self.logger.log_message(f"Logged temp probe {probe_name} at {temperature:.1f} °C", "debug")
+                if temperature is not None:
+                    # Append the current reading to the history
+                    history_entry = {
+                        "Timestamp": current_time,
+                        "ProbeName": probe_name,
+                        "Temperature": temperature,
+                    }
+                    self.temp_probe_logging["history"].append(history_entry)
+                    self.logger.log_message(f"Logged temp probe {probe_name} at {temperature:.1f} °C", "debug")
 
                 # Remove old entries from history
                 cutoff_time = current_time - dt.timedelta(days=max_saved_state_days)

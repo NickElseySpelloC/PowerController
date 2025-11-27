@@ -127,29 +127,6 @@ class ShellyWorker:
         sequence_request = ShellySequenceRequest(steps=[ShellyStep(StepKind.REFRESH_STATUS)], label="refresh_status")
         return self.submit(sequence_request)
 
-    # def request_output_change(self, output_id: int, output_state: bool, on_complete: Callable[[ShellySequenceResult], None] | None = None) -> str:
-    #     """Enqueue a change output job and return its request id.
-
-    #     Args:
-    #         output_id (int): The device output identity.
-    #         output_state (bool): The desired output state.
-    #         on_complete: Optional callback function to invoke when the sequence completes.
-
-    #     Returns:
-    #         A request ID.
-    #     """
-    #     steps = [
-    #         ShellyStep(StepKind.CHANGE_OUTPUT, {"output_identity": output_id, "state": output_state}, retries=2, retry_backoff_s=1.0),
-    #     ]
-    #     label = f"change_output_{output_id}_to_{output_state}"
-    #     sequence_request = ShellySequenceRequest(
-    #         steps=steps,
-    #         label=label,
-    #         timeout_s=10.0,
-    #         on_complete=on_complete
-    #     )
-    #     return self.submit(sequence_request)
-
     def request_device_location(self, device_name: str) -> str:
         """Enqueue a get location job and return its request id.
 
