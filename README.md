@@ -196,7 +196,7 @@ Outputs:
       July: 6
       August: 6
       December: 8     
-    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days. Ignored if TargetHours is -1.
+    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days. Ignored if TargetHours is -1. Set to 0 to disable.
     MaxBestPrice: 23.0              # The maximum price to run at when in BestPrice mode. 
     MaxPriorityPrice: 35.0          # The maximum price to run when we haven't run for the minimum number of hours yet.
     DatesOff:                       # Optional list of date ranges when the output should not run
@@ -417,7 +417,7 @@ Configure each switched output that controls your devices and how they behave. T
 | MaxHours | Maximum number of hours to run each day |
 | TargetHours | Target number of hours to run each day. Set to -1 to run for all hours that fall within best price or the schedule |
 | MonthlyTargetHours | Override the TargetHours for a specific month of the year |
-| MaxShortfallHours | Maximum number of shortfall hours we can carry forward from previous days |
+| MaxShortfallHours | Maximum number of shortfall hours we can carry forward from previous days. Set to 0 to disable. |
 | MaxBestPrice | The maximum price to run at when in BestPrice mode.  |
 | MaxPriorityPrice | The maximum price to run when we haven't run for the minimum number of hours yet. |
 | DatesOff | Optional list of date ranges when the output should not run. A list of StartDate and EndDate pairs. Dates are in the format yyyy-mm-dd |

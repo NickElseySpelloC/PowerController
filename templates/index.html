@@ -22,10 +22,16 @@
     </div>
     <div class="row">
       <table class="info_table full">
+        <tr>
+          <th class="info_td_label">Probe</th>
+          <th class="info_td_label">Temperature</th>
+          <th class="info_td_label">As at</th>
+        </tr>
         {% for probe in temp_probes %}
         <tr>
           <td class="info_td_value">{{ probe.name }}</td>
           <td class="info_td_value">{{ probe.temperature }} °C</td>
+          <td class="info_td_value">{{ probe.last_logged_time }}</td>
         </tr>
         {% endfor %}
       </table>

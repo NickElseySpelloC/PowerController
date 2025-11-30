@@ -144,10 +144,10 @@ if ! git fetch origin; then
   exit 1
 fi
 
-if ! git reset --hard "origin/$BRANCH"; then
-  echo "[Refresh from Github] Error: git reset failed." >&2
-  exit 1
-fi
+# if ! git reset --hard "origin/$BRANCH"; then
+#   echo "[Refresh from Github] Error: git reset failed." >&2
+#   exit 1
+# fi
 
 # Make sure deps are synced
 if ! "$UVCmd" sync; then

@@ -122,6 +122,7 @@ class PowerController:
                 temp_probe_data.append({
                     "name": probe.get("Name", ""),
                     "temperature": probe.get("Temperature"),
+                    "last_logged_time": probe.get("LastLoggedTime").strftime("%H:%M") if probe.get("LastLoggedTime") else "",
                 })
 
         return_dict = {
@@ -389,6 +390,7 @@ class PowerController:
                         # Add the TempProbeID to the probe
                         probe["ProbeID"] = temp_probe_id
                         probe["Temperature"] = None
+                        probe["LastLoggedTime"] = None
         return temp_probe_logging
 
     def _get_system_state_path(self) -> Path | None:
@@ -899,21 +901,14 @@ class PowerController:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
 
-    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0914
+    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
         """Log the temperature probes if enabled."""
         if not self.temp_probe_logging.get("enabled"):
             return
 
         current_time = DateHelper.now()
-        last_log_time = self.temp_probe_logging.get("last_log_time")
-        logging_interval = int(self.temp_probe_logging.get("logging_interval", 60) or 60)  # pyright: ignore[reportArgumentType]
-        if last_log_time and (current_time - last_log_time).total_seconds() < logging_interval * 60:
-            return  # Not time to log yet
 
-        # Update the last log time
-        self.temp_probe_logging["last_log_time"] = current_time
-
-        # Read the temperatures and log them
+        # Read the temperatures and save the latest values
         for probe in self.temp_probe_logging.get("probes", []):
             probe_id = probe.get("ProbeID")
             probe_name = probe.get("Name")
@@ -922,69 +917,90 @@ class PowerController:
             temperature = view.get_temp_probe_temperature(probe_id)
             if temperature is not None:
                 probe["Temperature"] = temperature
-                self.logger.log_message(f"{probe_name} = {temperature:.1f} °C", "debug")
+                probe["LastLoggedTime"] = current_time
 
-            # Get the max days to keep
-            max_saved_state_days = int(self.temp_probe_logging.get("saved_state_file_max_days"))  # pyright: ignore[reportArgumentType]
+        # Now record the readings to history and trim old entries if the time interval has passed
+        last_log_time = self.temp_probe_logging.get("last_log_time")
+        logging_interval = int(self.temp_probe_logging.get("logging_interval", 60) or 60)  # pyright: ignore[reportArgumentType]
+        if last_log_time and (current_time - last_log_time).total_seconds() < logging_interval * 60:
+            return  # Not time to log yet
 
-            if max_saved_state_days:
-                if temperature is not None:
-                    # Append the current reading to the history
-                    history_entry = {
-                        "Timestamp": current_time,
-                        "ProbeName": probe_name,
-                        "Temperature": temperature,
-                    }
-                    self.temp_probe_logging["history"].append(history_entry)
-                    self.logger.log_message(f"Logged temp probe {probe_name} at {temperature:.1f} °C", "debug")
+        # Max days to keep in saved state JSON file. 0 to disable
+        max_saved_state_days = int(self.temp_probe_logging.get("saved_state_file_max_days"))  # pyright: ignore[reportArgumentType]
 
-                # Remove old entries from history
-                cutoff_time = current_time - dt.timedelta(days=max_saved_state_days)
-                self.temp_probe_logging["history"] = [entry for entry in self.temp_probe_logging["history"] if entry["Timestamp"] >= cutoff_time]
-
-        # Save to history file if configured
-        history_file_name = self.temp_probe_logging.get("history_data_file_name")
+        # Max days to keep in history CSV file. 0 to disable
         max_history_days = int(self.temp_probe_logging.get("history_data_file_max_days"))  # pyright: ignore[reportArgumentType]
+        history_file_name = self.temp_probe_logging.get("history_data_file_name")
         if history_file_name and max_history_days:
             history_file_path = SCCommon.select_file_location(history_file_name)  # pyright: ignore[reportArgumentType]
             if not history_file_path:
-                return
-            cutoff_time = current_time - dt.timedelta(days=max_history_days)
-            try:
-                # Read existing history data
-                existing_history = []
-                if history_file_path.exists():
-                    with history_file_path.open("r", newline="", encoding="utf-8") as csvfile:
-                        reader = csv.DictReader(csvfile)
-                        for row in reader:
-                            existing_history.append(row.copy())
+                max_history_days = 0
 
-                # Append the new entries
-                for probe in self.temp_probe_logging.get("probes", []):
-                    probe_name = probe.get("Name")
-                    temperature = probe["Temperature"]
-                    if not probe_name or not temperature:
-                        continue
+        # Update the last log time
+        self.temp_probe_logging["last_log_time"] = current_time
 
-                    existing_history.append({
-                        "Timestamp": current_time.isoformat(),
-                        "ProbeName": probe_name,
-                        "Temperature": f"{temperature:.1f}",
-                    })
+        # Log each probe temperature and save to history
+        for probe in self.temp_probe_logging.get("probes", []):
+            probe_name = probe.get("Name")
+            temperature = probe.get("Temperature")
 
-                # Remove old entries based on max days
-                existing_history = [
-                    row for row in existing_history
-                    if dt.datetime.fromisoformat(row["Timestamp"]) >= cutoff_time
-                ]
+            if not probe_name or not temperature:
+                continue
+            self.logger.log_message(f"{probe_name} = {temperature:.1f} °C", "debug")
 
-                # Write back to CSV file
-                with history_file_path.open("w", newline="", encoding="utf-8") as csvfile:
-                    fieldnames = ["Timestamp", "ProbeName", "Temperature"]
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    writer.writeheader()
-                    for row in existing_history:
-                        writer.writerow(row)
-            # Add TypeError in case of bad data in existing file
-            except (OSError, ValueError) as e:
-                self.logger.log_message(f"Error saving temp probe history to {history_file_path}: {e}", "error")
+            # Save to saved state history
+            if max_saved_state_days:
+                # Append the current reading to the history
+                history_entry = {
+                    "Timestamp": current_time,
+                    "ProbeName": probe_name,
+                    "Temperature": temperature,
+                }
+                self.temp_probe_logging["history"].append(history_entry)
+
+                # Remove old entries from history
+                saved_state_cutoff_time = current_time - dt.timedelta(days=max_saved_state_days)
+                self.temp_probe_logging["history"] = [entry for entry in self.temp_probe_logging["history"] if entry["Timestamp"] >= saved_state_cutoff_time]
+
+        # Save to CSV file if configured
+        csv_cutoff_time = current_time - dt.timedelta(days=max_history_days)
+        try:
+            # Read existing history data
+            existing_history = []
+            assert isinstance(history_file_path, Path)
+            if history_file_path.exists():
+                with history_file_path.open("r", newline="", encoding="utf-8") as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        existing_history.append(row.copy())
+
+            # Append the new entries
+            for probe in self.temp_probe_logging.get("probes", []):
+                probe_name = probe.get("Name")
+                temperature = probe["Temperature"]
+                if not probe_name or not temperature:
+                    continue
+
+                existing_history.append({
+                    "Timestamp": current_time.isoformat(),
+                    "ProbeName": probe_name,
+                    "Temperature": f"{temperature:.1f}",
+                })
+
+            # Remove old entries based on max days
+            existing_history = [
+                row for row in existing_history
+                if dt.datetime.fromisoformat(row["Timestamp"]) >= csv_cutoff_time
+            ]
+
+            # Write back to CSV file
+            with history_file_path.open("w", newline="", encoding="utf-8") as csvfile:
+                fieldnames = ["Timestamp", "ProbeName", "Temperature"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in existing_history:
+                    writer.writerow(row)
+
+        # Add TypeError in case of bad data in existing file
+        except (OSError, ValueError) as e:
+            self.logger.log_message(f"Error saving temp probe history to {history_file_path}: {e}", "error")

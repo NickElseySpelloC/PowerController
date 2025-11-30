@@ -55,7 +55,7 @@ class RunHistory:
         self.output_config = output_config
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.output_name = output_config.get("Name") or "Unknown"
-        self.max_shortfall_hours = 0 if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else output_config.get("MaxShortfallHours", 12) or 12
+        self.max_shortfall_hours = 0 if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else output_config.get("MaxShortfallHours", 0) or 0
         self.max_history_days = output_config.get("DaysOfHistory", 7)
 
     def tick(self, status_data: OutputStatusData) -> bool:

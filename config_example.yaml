@@ -165,7 +165,7 @@ Outputs:
       July: 6
       August: 6
       December: 8     
-    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days. Ignored if TargetHours is -1.
+    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days. Ignored if TargetHours is -1. Set to 0 to disable.
     MaxBestPrice: 23.0              # The maximum price to run at when in BestPrice mode. 
     MaxPriorityPrice: 35.0          # The maximum price to run when we haven't run for the minimum number of hours yet.
     DatesOff:                       # Optional list of date ranges when the output should not run
