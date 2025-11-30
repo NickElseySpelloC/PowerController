@@ -131,6 +131,14 @@ fi
 
 echo "[Refresh from Github] Starting refresh from branch '$BRANCH'"
 
+read -p "Enter Y to continue, any other key to abort: " CONFIRM
+
+if [[ "$CONFIRM" != "Y" && "$CONFIRM" != "y" ]]; then
+    echo "Aborted."
+    exit 0
+fi
+
+
 if ! git fetch origin; then
   echo "[Refresh from Github] Error: git fetch failed." >&2
   exit 1
