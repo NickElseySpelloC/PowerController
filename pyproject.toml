@@ -1,9 +1,11 @@
 [project]
 name = "powercontroller"
-version = "1.0.1"
+version = "1.0.2"
 description = "App to control and monitor devices via Shelly smart switches"
 readme = "README.md"
 requires-python = ">=3.13"
+service_name="PowerController"
+launch_path="src/main.py"
 dependencies = [
     "astral>=3.2",
     "flask>=3.1.2",

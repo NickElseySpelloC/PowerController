@@ -24,6 +24,9 @@ def main():
         print(f"ERROR: Python 3.13 or higher is required. You are running {sys.version}", file=sys.stderr)
         sys.exit(1)
 
+    print("HELLO WORLD")
+    sys.exit(0)
+
     # Install SIGINT handler early
     def handle_sigint(_sig, _frame):
         stop_event.set()
