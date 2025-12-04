@@ -996,7 +996,7 @@ class OutputManager:  # noqa: PLR0904
             if max_off_time > 0 and self.last_turned_off and self.system_state == SystemState.APP_OVERRIDE and self.reason == StateReasonOff.APP_MODE_OFF:
                 time_off = (time_now - self.last_turned_off).total_seconds() / 60  # minutes
                 if time_off >= max_off_time:
-                    self.logger.log_message(f"Reverting AppMode ON for output {self.name} after {time_on:.1f} minutes (MaxAppOffTime: {max_off_time})", "debug")
+                    self.logger.log_message(f"Reverting AppMode ON for output {self.name} after {time_off:.1f} minutes (MaxAppOffTime: {max_off_time})", "debug")
                     return True
 
         return False
