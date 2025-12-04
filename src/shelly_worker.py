@@ -176,14 +176,13 @@ class ShellyWorker:
         reinitialise_reqd = False
 
         try:
+            res.ok = True  # Assume success unless a step fails
             for step in req.steps:
                 if req.timeout_s and (time.time() - start) > req.timeout_s:
                     res.ok = False
                     res.error = "sequence timeout"
-                else:
-                    reinitialise_reqd = self._run_step(step)
-            # If we get here without exceptions, the sequence succeeded
-            res.ok = True
+                    break
+                reinitialise_reqd = self._run_step(step)
         except (RuntimeError, TimeoutError) as e:   # _run_step() can raised a knonw exception. Retries have been exceeded.
             res.ok = False
             res.error = f"{type(e).__name__}: {e}"

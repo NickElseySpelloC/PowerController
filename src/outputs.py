@@ -817,6 +817,8 @@ class OutputManager:  # noqa: PLR0904
             action (OutputAction): The completed output action.
             view (ShellyView): The current view of the Shelly devices.
         """
+        self.clear_action_request()
+
         if action.type == OutputActionType.TURN_ON:
             self.last_turned_on = DateHelper.now()
             self.logger.log_message(f"Output {self.name} state changed to ON - {action.reason}.", "detailed")

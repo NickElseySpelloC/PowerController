@@ -27,6 +27,9 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
 
     # Preserve Website section usage
     app.config["DEBUG"] = config.get("Website", "DebugMode", default=False) or False
+    if app.config["DEBUG"]:
+        logger.log_message("Flask debug mode is enabled.", "debug")
+        app.jinja_env.auto_reload = True
 
     def validate_access_key(args: MultiDict[str, str]) -> bool:
         """Validate the access key from the request arguments.
@@ -151,8 +154,7 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
         logger.log_message("API call get() returning home page", "debug")
         return render_template("index.html",
                              global_data=snapshot["global"],
-                             outputs=snapshot["outputs"],
-                             temp_probes=snapshot.get("temp_probes", []))
+                             outputs=snapshot["outputs"])
 
     return app
 

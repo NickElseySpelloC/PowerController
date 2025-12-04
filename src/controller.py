@@ -104,18 +104,6 @@ class PowerController:
 
         view = self._get_latest_status_view()
 
-        # Now build the snapshot
-        global_data = {
-            "access_key": self.config.get("Website", "AccessKey"),
-            "AppLabel": self.app_label,
-            "PollInterval": self.webapp_refresh,
-        }
-
-        outputs_data = {
-            output.id: output.get_webapp_data(view)
-            for output in self.outputs
-        }
-
         temp_probe_data = []
         if self.temp_probe_logging.get("enabled", False):
             for probe in self.temp_probe_logging.get("probes", []):
@@ -125,10 +113,22 @@ class PowerController:
                     "last_logged_time": probe.get("LastLoggedTime").strftime("%H:%M") if probe.get("LastLoggedTime") else "",
                 })
 
+        # Now build the snapshot
+        global_data = {
+            "access_key": self.config.get("Website", "AccessKey"),
+            "AppLabel": self.app_label,
+            "PollInterval": self.webapp_refresh,
+            "TempProbeData": temp_probe_data,
+        }
+
+        outputs_data = {
+            output.id: output.get_webapp_data(view)
+            for output in self.outputs
+        }
+
         return_dict = {
             "global": global_data,
             "outputs": outputs_data,
-            "temp_probes": temp_probe_data,
         }
 
         # self.logger.log_message("Generated webapp data snapshot.", "debug")
@@ -200,8 +200,6 @@ class PowerController:
         """
         if self.config.get("General", "PrintToConsole", default=False):
             print(message)
-
-        self.logger.log_message(message, "debug")
 
     def run_self_tests(self) -> bool:
         """Run self tests on all outputs then exit.
@@ -613,7 +611,6 @@ class PowerController:
                     continue  # Go to next output, don't evaluate conditions yet
 
                 # Request has completed, successfully or not. Clear the request ID in the output
-                output.clear_action_request()
                 view = self._refresh_device_statuses()  # Refresh the view after the change
 
                 if request_result.ok:

@@ -10,7 +10,6 @@
 <body>
   <script id="global-data-json" type="application/json">
     {{ global_data | tojson | safe }}
-    {{ temp_probes | tojson | safe }}
   </script>
 
   {% if temp_probes and temp_probes|length > 0 %}
@@ -27,7 +26,7 @@
           <th class="info_td_label">Temperature</th>
           <th class="info_td_label">As at</th>
         </tr>
-        {% for probe in temp_probes %}
+        {% for probe in global_data.TempProbeData %}
         <tr>
           <td class="info_td_value">{{ probe.name }}</td>
           <td class="info_td_value">{{ probe.temperature }} °C</td>
@@ -222,10 +221,10 @@
           const output = await response.json();
           updateOutputDisplay(output.id || id, output);                    
         } else {
-          console.error('Failed to set mode:', response.statusText);
+          console.error('Failed to set mode 1:', response.statusText);
         }
       } catch (error) {
-        console.error('Failed to set mode:', error);
+        console.error('Failed to set mode 2:', error);
       }
     }
 
