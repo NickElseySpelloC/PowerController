@@ -12,7 +12,7 @@
     {{ global_data | tojson | safe }}
   </script>
 
-  {% if temp_probes and temp_probes|length > 0 %}
+  {% if global_data.TempProbeData and global_data.TempProbeData|length > 0 %}
   <div class="card" id="temp-probes">
     <div class="main-row">
       <div class="output-info">
