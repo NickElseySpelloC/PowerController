@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
-from threading import Event
+from threading import Event, RLock
 from typing import Any
 
 from org_enums import AppMode, StateReasonOff, SystemState
@@ -88,6 +88,8 @@ class PowerController:
         # Create the two run_planner types
         self.scheduler = Scheduler(self.config, self.logger)
         self.pricing = PricingManager(self.config, self.logger)
+
+        self._io_lock = RLock()  # NEW: serialize state/CSV writes
 
         self._initialise(skip_shelly_initialization=True)
         self.update_device_locations = True
@@ -184,14 +186,15 @@ class PowerController:
 
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
-        view = self._get_latest_status_view()
-        for output in self.outputs:
-            if output.shutdown(view):
-                self._force_output_off(output, view)
+        with self._io_lock:
+            view = self._get_latest_status_view()
+            for output in self.outputs:
+                if output.shutdown(view):
+                    self._force_output_off(output, view)
 
-        view = self._get_latest_status_view()
-        self._save_system_state(view, force_post=True)
-        self.logger.log_message("PowerController shutdown complete.", "detailed")
+            view = self._get_latest_status_view()
+            self._save_system_state(view, force_post=True)
+            self.logger.log_message("PowerController shutdown complete.", "detailed")
 
     def print_to_console(self, message: str):
         """Print a message to the console if PrintToConsole is enabled.

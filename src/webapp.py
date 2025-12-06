@@ -93,7 +93,7 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
             return jsonify({"error": "no output data available yet"}), 503
 
         json_data = jsonify(snapshot)
-        logger.log_message("API call list_output() for all output data", "debug")
+        # logger.log_message("API call list_output() for all output data", "debug")
         return json_data
 
     @app.get("/api/outputs/<output_id>")
@@ -112,7 +112,7 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
             return jsonify({"error": "no output data available yet"}), 503
 
         json_data = jsonify(snapshot["outputs"][output_id])
-        logger.log_message(f"API call get_output() for output for {output_id}", "debug")
+        # logger.log_message(f"API call get_output() for output for {output_id}", "debug")
         return json_data
 
     @app.post("/api/outputs/<output_id>/mode")
@@ -151,7 +151,7 @@ def create_flask_app(controller: PowerController, config: SCConfigManager, logge
             logger.log_message("No web output data available yet", "warning")
             return "no output data available yet", 503
 
-        logger.log_message("API call get() returning home page", "debug")
+        # logger.log_message("API call get() returning home page", "debug")
         return render_template("index.html",
                              global_data=snapshot["global"],
                              outputs=snapshot["outputs"])
