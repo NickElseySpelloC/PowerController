@@ -343,7 +343,8 @@ class PricingManager:
             tuple(Path, dt.datetime) | None: The path to the pricing cache file and its last modified time, or None if not found.
         """
         local_tz = dt.datetime.now().astimezone().tzinfo
-        file_path = SCCommon.select_file_location(PRICES_DATA_FILE)
+        file_name = self.config.get("AmberAPI", "PricesCacheFile", default=PRICES_DATA_FILE) or PRICES_DATA_FILE
+        file_path = SCCommon.select_file_location(file_name)  # pyright: ignore[reportArgumentType]
         assert isinstance(file_path, Path)
         if not file_path.exists():
             return file_path, None
@@ -427,7 +428,7 @@ class PricingManager:
             if not csv_data:
                 csv_data = []
         except (ImportError, TypeError, ValueError) as e:
-            self.logger.log_message(f"Error initializing CSVReader: {e}", "error")
+            self.logger.log_message(f"Error initializing CSVReader in _save_usage_data(): {e}", "error")
             return False
         else:
             assert isinstance(csv_reader, CSVReader)

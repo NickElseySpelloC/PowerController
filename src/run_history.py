@@ -254,10 +254,10 @@ class RunHistory:
         usage_list = []
         for day in self.history["DailyData"]:
             usage_list.append({
-                "Date": day["Date"].isoformat(),
+                "Date": day["Date"],
                 "OutputName": self.output_name,
                 "ActualHours": day["ActualHours"],
-                "TargetHours": day["TargetHours"] or "All Hours",
+                "TargetHours": day["TargetHours"] or -1,
                 "EnergyUsed": day["EnergyUsed"] / 1000,  # Convert to kWh
                 "TotalCost": day["TotalCost"],
                 "AveragePrice": day["AveragePrice"],

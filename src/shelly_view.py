@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from shelly_worker import ShellyStatus
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True)  # noqa: PLR0904
 class ShellyView:
     """Read-only facade over a ShellyStatus snapshot.
 
@@ -88,6 +88,14 @@ class ShellyView:
         except (ValueError, TypeError):
             return False
         return device_id_int in self._devices_by_id
+
+    def get_device_id_list(self) -> list[int]:
+        """Get a list of all device IDs.
+
+        Returns:
+            List of device IDs.
+        """
+        return list(self._devices_by_id.keys())
 
     def get_device_id(self, name: str) -> int:
         """Get device ID by name.
@@ -195,6 +203,29 @@ class ShellyView:
             error_msg = f"Invalid device ID: {device_id}"
             raise IndexError(error_msg)
         return bool(self._devices_by_id[device_id].get("ExpectOffline", False))
+
+    def get_device_temperature(self, device_id: int) -> float | None:
+        """Get device internal temperature in Celsius by ID.
+
+        Args:
+            device_id: Device ID to lookup.
+
+        Returns:
+            Temperature in Celsius, or None if unavailable.
+
+        Raises:
+            IndexError: If device_id is invalid.
+        """
+        if device_id not in self._devices_by_id:
+            error_msg = f"Invalid device ID: {device_id}"
+            raise IndexError(error_msg)
+        val = self._devices_by_id[device_id].get("Temperature")
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
 
     def all_devices_online(self) -> bool:
         """Check if all devices are online.

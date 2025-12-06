@@ -29,6 +29,13 @@ class ConfigSchema:
                 "type": "dict",
                 "schema": {
                     "MaxConcurrentErrors": {"type": "number", "required": False, "nullable": True, "min": 0},
+                    "Devices": {
+                        "schema": {
+                            "schema": {
+                                "DeviceAlertTemp": {"type": "number", "required": False, "nullable": True, "min": 20.0, "max": 100.0},
+                            },
+                        },
+                    },
                 },
             },
             "General": {
@@ -65,6 +72,7 @@ class ConfigSchema:
                     "RefreshInterval": {"type": "number", "required": False, "nullable": True, "min": 5, "max": 30},
                     "UsageDataFile": {"type": "string", "required": False, "nullable": True},
                     "UsageMaxDays": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 365},
+                    "PricesCacheFile": {"type": "string", "required": False, "nullable": True},
                 },
             },
             "Location": {
@@ -274,6 +282,64 @@ class ConfigSchema:
             },
             {
                 "name": "Cost",
+                "type": "float",
+            },
+        ]
+
+        self.temp_probe_history_config = [
+            {
+                "name": "Timestamp",
+                "type": "datetime",
+                "format": "%Y-%m-%d %H:%M:%S",
+                "match": True,
+                "sort": 1,
+                "minimum": 365,
+            },
+            {
+                "name": "ProbeName",
+                "type": "str",
+                "match": True,
+                "sort": 2,
+            },
+            {
+                "name": "Temperature",
+                "type": "float",
+            },
+        ]
+
+        self.output_consumption_history_config = [
+            {
+                "name": "Date",
+                "type": "date",
+                "format": "%Y-%m-%d",
+                "match": True,
+                "sort": 1,
+                "minimum": 365,
+            },
+            {
+                "name": "OutputName",
+                "type": "str",
+                "match": True,
+                "sort": 2,
+            },
+            {
+                "name": "ActualHours",
+                "type": "float",
+            },
+            {
+                "name": "TargetHours",
+                "type": "float",
+            },
+            {
+                "name": "EnergyUsed",
+                "type": "float",
+            },
+            {
+                "name": "TotalCost",
+                "type": "float",
+            },
+            {
+                "name": "AveragePrice",
                 "type": "float",
             },
         ]

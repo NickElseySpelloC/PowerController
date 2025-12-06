@@ -37,6 +37,7 @@ AmberAPI:
   # Save usage data to a CSV file for offline use. Leave blank to disable
   UsageDataFile: amber_usage_data.csv
   UsageMaxDays: 30       # Maximum number of days to keep
+  PricesCacheFile: latest_prices.json   # The name of the file to cache Amber pricing data
 
 
 # Use this section to configure your Shelly devices used to control the lights. See this page for more information: https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/
@@ -56,6 +57,7 @@ ShellyDevices:
       Model: Shelly2PMG3        # The model of Shelly device - see https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list
       Hostname: 192.168.1.20   # The IP address or hostname of the Shelly device
       Simulate: False           # Set to True to simulate the device (for testing)
+      DeviceAlertTemp: 75.0    # Temperature in Celsius that will trigger an alert email if the device exceeds this temperature
       Inputs:                   # List of inputs on the Shelly device to monitor
         - Name: "Filter Pump Override"
           Webhooks: True

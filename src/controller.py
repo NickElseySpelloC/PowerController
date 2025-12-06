@@ -1,5 +1,4 @@
 """The PowerController class that orchestrates power management."""
-import csv
 import datetime as dt
 import queue
 import time
@@ -11,6 +10,7 @@ from typing import Any
 
 from org_enums import AppMode, StateReasonOff, SystemState
 from sc_utility import (
+    CSVReader,
     DateHelper,
     JSONEncoder,
     SCCommon,
@@ -18,6 +18,7 @@ from sc_utility import (
     SCLogger,
 )
 
+from config_schemas import ConfigSchema
 from external_services import ExternalServiceHelper
 from local_enumerations import (
     DUMP_SHELLY_SNAPSHOT,
@@ -498,6 +499,9 @@ class PowerController:
         # Log the temp probe data if needed
         self._log_temp_probes(view)
 
+        # Monitor device internal temperatures and log if needed
+        self._monitor_device_internal_temps(view)
+
         # Calculate the running totals for each output
         self._calculate_running_totals(view)
 
@@ -735,37 +739,22 @@ class PowerController:
         if not file_path:
             return
 
-        # Find the ealiest date to in the aggregated data
-        existing_dates = {dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() for row in aggregated_data}  # noqa: DTZ007
-        first_history_date = min(existing_dates) if existing_dates else DateHelper.today()
+        max_history_days = int(self.config.get("General", "ConsumptionDataMaxDays", default=30) or 0)  # pyright: ignore[reportArgumentType]
+        if not max_history_days:
+            return
 
-        # Read the existing data if the file exists
-        existing_data = []
-        if file_path.exists():
-            with file_path.open("r", newline="", encoding="utf-8") as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    existing_data.append(row.copy())
-
-        # Remove any rows older than the max days or newer than the first history date
-        truncated_data = []
-        if existing_data:
-            max_days = int(self.config.get("General", "ConsumptionDataMaxDays", default=30) or 30)  # pyright: ignore[reportArgumentType]
-            earliest_date = DateHelper.today() - dt.timedelta(days=max_days)  # pyright: ignore[reportArgumentType]
-            truncated_data = [row for row in existing_data if row["Date"] and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() >= earliest_date and dt.datetime.strptime(row["Date"], "%Y-%m-%d").date() < first_history_date]  # pyright: ignore[reportOptionalOperand]  # noqa: DTZ007
-
-        # Now write the data to the CSV file
-        with file_path.open("w", newline="", encoding="utf-8") as csvfile:
-
-            fieldnames = ["Date", "OutputName", "ActualHours", "TargetHours", "EnergyUsed", "TotalCost", "AveragePrice"]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            # Write the existing truncated data first
-            for row in truncated_data:
-                writer.writerow(row)
-            # Now write the new aggregated data
-            for row in aggregated_data:
-                writer.writerow(row)
+        # Create a CSVreader to read the existing data
+        csv_reader = None
+        try:
+            schemas = ConfigSchema()
+            csv_reader = CSVReader(file_path, schemas.output_consumption_history_config)  # pyright: ignore[reportArgumentType]
+            csv_reader.update_csv_file(aggregated_data, max_days=max_history_days)
+        except (ImportError, TypeError, ValueError) as e:
+            self.logger.log_message(f"Error initializing CSVReader in _save_output_consumption_data(): {e}", "error")
+            return
+        except RuntimeError as e:
+            self.logger.log_message(f"Error updating output consumption history CSV file: {e}", "error")
+            return
 
     def _check_fatal_error_recovery(self):
         """Check for fatal errors in the system and handle them."""
@@ -898,7 +887,7 @@ class PowerController:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
 
-    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
+    def _log_temp_probes(self, view: ShellyView):
         """Log the temperature probes if enabled."""
         if not self.temp_probe_logging.get("enabled"):
             return
@@ -924,14 +913,6 @@ class PowerController:
 
         # Max days to keep in saved state JSON file. 0 to disable
         max_saved_state_days = int(self.temp_probe_logging.get("saved_state_file_max_days"))  # pyright: ignore[reportArgumentType]
-
-        # Max days to keep in history CSV file. 0 to disable
-        max_history_days = int(self.temp_probe_logging.get("history_data_file_max_days"))  # pyright: ignore[reportArgumentType]
-        history_file_name = self.temp_probe_logging.get("history_data_file_name")
-        if history_file_name and max_history_days:
-            history_file_path = SCCommon.select_file_location(history_file_name)  # pyright: ignore[reportArgumentType]
-            if not history_file_path:
-                max_history_days = 0
 
         # Update the last log time
         self.temp_probe_logging["last_log_time"] = current_time
@@ -959,45 +940,57 @@ class PowerController:
                 saved_state_cutoff_time = current_time - dt.timedelta(days=max_saved_state_days)
                 self.temp_probe_logging["history"] = [entry for entry in self.temp_probe_logging["history"] if entry["Timestamp"] >= saved_state_cutoff_time]
 
-        # Save to CSV file if configured
-        csv_cutoff_time = current_time - dt.timedelta(days=max_history_days)
-        try:
-            # Read existing history data
-            existing_history = []
-            assert isinstance(history_file_path, Path)
-            if history_file_path.exists():
-                with history_file_path.open("r", newline="", encoding="utf-8") as csvfile:
-                    reader = csv.DictReader(csvfile)
-                    for row in reader:
-                        existing_history.append(row.copy())
+        # Max days to keep in history CSV file. 0 to disable
+        max_history_days = self.temp_probe_logging.get("history_data_file_max_days") or 0
+        history_file_name = self.temp_probe_logging.get("history_data_file_name")
+        current_time = DateHelper.now().replace(tzinfo=None)
+        if history_file_name and max_history_days:
+            # Create a CSVreader to read the existing data
+            csv_reader = None
+            try:
+                file_path = SCCommon.select_file_location(history_file_name)  # pyright: ignore[reportArgumentType]
+                schemas = ConfigSchema()
+                csv_reader = CSVReader(file_path, schemas.temp_probe_history_config)  # pyright: ignore[reportArgumentType]
 
-            # Append the new entries
-            for probe in self.temp_probe_logging.get("probes", []):
-                probe_name = probe.get("Name")
-                temperature = probe["Temperature"]
-                if not probe_name or not temperature:
-                    continue
+                # Build the new entries
+                new_data = []
+                for probe in self.temp_probe_logging.get("probes", []):
+                    probe_name = probe.get("Name")
+                    temperature = probe["Temperature"]
+                    if not probe_name or not temperature:
+                        continue
 
-                existing_history.append({
-                    "Timestamp": current_time.isoformat(),
-                    "ProbeName": probe_name,
-                    "Temperature": f"{temperature:.1f}",
-                })
+                    new_data.append({
+                        "Timestamp": current_time,
+                        "ProbeName": probe_name,
+                        "Temperature": f"{temperature:.1f}",
+                    })
 
-            # Remove old entries based on max days
-            existing_history = [
-                row for row in existing_history
-                if dt.datetime.fromisoformat(row["Timestamp"]) >= csv_cutoff_time
-            ]
+                csv_reader.update_csv_file(new_data, max_days=max_history_days)
+            except (ImportError, TypeError, ValueError) as e:
+                self.logger.log_message(f"Error initializing CSVReader in _log_temp_probes(): {e}", "error")
+                return
+            except RuntimeError as e:
+                self.logger.log_message(f"Error updating temp probe history CSV file: {e}", "error")
+                return
 
-            # Write back to CSV file
-            with history_file_path.open("w", newline="", encoding="utf-8") as csvfile:
-                fieldnames = ["Timestamp", "ProbeName", "Temperature"]
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in existing_history:
-                    writer.writerow(row)
+    def _monitor_device_internal_temps(self, view: ShellyView):
+        """Monitor the internal temperatures of devices and log if needed."""
+        # Loop through all devices in the view
+        device_id_list = view.get_device_id_list()
+        for device_id in device_id_list:
+            device_name = view.get_device_name(device_id)
+            internal_temp = view.get_device_temperature(device_id)
 
-        # Add TypeError in case of bad data in existing file
-        except (OSError, ValueError) as e:
-            self.logger.log_message(f"Error saving temp probe history to {history_file_path}: {e}", "error")
+            # See if we need to log a warning for this device
+            device_list = self.config.get("ShellyDevices", "Devices", default=[]) or []
+            device_config = next((device for device in device_list if device.get("Name") == device_name), {})
+            temp_threshold = device_config.get("DeviceAlertTemp") or 0
+
+            if temp_threshold:
+                if internal_temp is not None and temp_threshold and internal_temp >= temp_threshold:
+                    self.logger.log_message(f"Shelly device {device_name} internal temperature is high: {internal_temp:.0f} °C", "warning")
+                    if self.report_critical_errors_delay:
+                        self.logger.report_notifiable_issue(entity=f"Shelly device {device_name}", issue_type="Internal Temperature Exceeds Threshold", send_delay=self.report_critical_errors_delay * 60, message=f"Internal device temperature is {internal_temp} which exceeds the threshold of {temp_threshold}.")  # pyright: ignore[reportOperatorIssue, reportArgumentType]
+                else:
+                    self.logger.clear_notifiable_issue(entity=f"Shelly device {device_name}", issue_type="Internal Temperature Exceeds Threshold")
