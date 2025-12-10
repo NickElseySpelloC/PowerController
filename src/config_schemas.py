@@ -220,6 +220,32 @@ class ConfigSchema:
                     "SavedStateFileMaxDays": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 14},
                     "HistoryDataFile": {"type": "string", "required": False, "nullable": True},
                     "HistoryDataFileMaxDays": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 365},
+                    "Charting": {
+                        "type": "dict",
+                        "schema": {
+                            "Enable": {"type": "boolean", "required": False, "nullable": True},
+                            "Charts": {
+                                "type": "list",
+                                "required": True,
+                                "nullable": False,
+                                "schema": {
+                                    "type": "dict",
+                                    "schema": {
+                                        "Name": {"type": "string", "required": True},
+                                        "DaysToShow": {"type": "number", "required": True, "min": 1, "max": 30},
+                                        "Probes": {
+                                            "type": "list",
+                                            "required": True,
+                                            "nullable": False,
+                                            "schema": {
+                                                "type": "string",
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
                 },
             },
             "HeartbeatMonitor": {

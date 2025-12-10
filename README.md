@@ -68,6 +68,7 @@ AmberAPI:
   # Save usage data to a CSV file for offline use. Leave blank to disable
   UsageDataFile: amber_usage_data.csv
   UsageMaxDays: 30       # Maximum number of days to keep
+  PricesCacheFile: latest_prices.json   # The name of the file to cache Amber pricing data
 
 
 # Use this section to configure your Shelly devices used to control the lights. See this page for more information: https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/
@@ -87,6 +88,7 @@ ShellyDevices:
       Model: Shelly2PMG3        # The model of Shelly device - see https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list
       Hostname: 192.168.1.20   # The IP address or hostname of the Shelly device
       Simulate: False           # Set to True to simulate the device (for testing)
+      DeviceAlertTemp: 75.0    # Temperature in Celsius that will trigger an alert email if the device exceeds this temperature
       Inputs:                   # List of inputs on the Shelly device to monitor
         - Name: "Filter Pump Override"
           Webhooks: True
@@ -244,18 +246,18 @@ Outputs:
 OutputSequences:
   - Name: "Turn On Solar Pump"
     Description: "Turn on the actuator valve, wait for 1 minute then turn on the solar booster pump"
-    Timeout: 30
+    Timeout: 90
     Steps:
       - Type: CHANGE_OUTPUT
         OutputIdentity: "Solar Valve Actuator"
-        State: true
+        State: True
         Retries: 2
         RetryBackoff: 1.0
       - Type: SLEEP
         Seconds: 60.0
       - Type: CHANGE_OUTPUT
         OutputIdentity: "Solar Pump Power"
-        State: true
+        State: True
         Retries: 2
         RetryBackoff: 1.0
   - Name: "Turn Off Solar Pump"
@@ -264,14 +266,14 @@ OutputSequences:
     Steps:
       - Type: CHANGE_OUTPUT
         OutputIdentity: "Solar Pump Power"
-        State: false
+        State: False
         Retries: 2
         RetryBackoff: 1.0
       - Type: SLEEP
         Seconds: 10.0
       - Type: CHANGE_OUTPUT
         OutputIdentity: "Solar Valve Actuator"
-        State: false
+        State: False
         Retries: 2
         RetryBackoff: 1.0
 
@@ -287,7 +289,18 @@ TempProbeLogging:
     SavedStateFileMaxDays: 7  # Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable.
     HistoryDataFile: temp_probe_history.csv  # Leave blank to disable logging to a CSV file.
     HistoryDataFileMaxDays: 90  # Maximum number of days to keep in the history data file.  0 to disable.
-
+    Charting:   # This contains settings for generating temperature charts for the web viewer app (future) and the PowerControllerViewer website.
+      Enable: True
+      Charts:
+        - Name: "Pool Temps"
+          Probes:
+            - Temp Pool Water
+            - Temp Solar Return
+          DaysToShow: 30
+        - Name: "Roof Temp"
+          Probes:
+            - Temp Roof
+          DaysToShow: 30
 
 # Optionally use this section to specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for scheduled events.
 # You can do this in one of three ways:
@@ -470,6 +483,7 @@ Optionally use this section to log temperature probe readings to the system stat
 | SavedStateFileMaxDays | Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable. |
 | HistoryDataFile | Leave blank to disable logging to a CSV file. |
 | HistoryDataFileMaxDays | Maximum number of days to keep in the history data file.  0 to disable. |
+| Charting | Optionally use this section to configure how the PowerControllerViewer web app charts temperature reading history. | 
 
 
 ### Section: Location

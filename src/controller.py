@@ -467,26 +467,8 @@ class PowerController:
             # self.logger.log_message(f"System state saved to {system_state_path}", "debug")
             pass
 
-        # Post to the web server if needed - this function takes care of frequency checks
-        # Break each output into a seperate post to reduce the size of each post
-        frequency = self.config.get("ViewerWebsite", "Frequency", default=30) or 30
-        if self.config.get("ViewerWebsite", "Enable", default=False):
-            if self.viewer_website_last_post:
-                time_since_last_post = (DateHelper.now() - self.viewer_website_last_post).total_seconds()
-            else:
-                time_since_last_post = frequency + 1   # pyright: ignore[reportOperatorIssue]
-            if time_since_last_post >= frequency or force_post:  # pyright: ignore[reportOperatorIssue]
-                for output in self.outputs:
-                    post_object = {
-                        "SchemaVersion": SCHEMA_VERSION,
-                        "StateFileType": "PowerController",
-                        "DeviceName": f"{self.app_label} - {output.name}",
-                        "SaveTime": DateHelper.now(),
-                        "Output": output.get_save_object(view),
-                        "Scheduler": self.scheduler.get_save_object(output.schedule),
-                    }
-                    self.external_service_helper.post_state_to_web_viewer(post_object)
-                self.viewer_website_last_post = DateHelper.now()
+        # Post the state data to the PowerController Viewer web app if needed
+        self._post_state_to_web_viewer(view, force_post)
 
     def _run_scheduler_tick(self):
         """Do all the control processing of the main loop."""
@@ -997,3 +979,45 @@ class PowerController:
                         self.logger.report_notifiable_issue(entity=f"Shelly device {device_name}", issue_type="Internal Temperature Exceeds Threshold", send_delay=self.report_critical_errors_delay * 60, message=f"Internal device temperature is {internal_temp} which exceeds the threshold of {temp_threshold}.")  # pyright: ignore[reportOperatorIssue, reportArgumentType]
                 else:
                     self.logger.clear_notifiable_issue(entity=f"Shelly device {device_name}", issue_type="Internal Temperature Exceeds Threshold")
+
+    def _post_state_to_web_viewer(self, view: ShellyView, force_post: bool = False):  # noqa: FBT001, FBT002
+        """
+        Post to the web server if needed.
+
+        Args:
+            view (ShellyView): The current ShellyView snapshot.
+            force_post (bool): If True, force posting the state to the web viewer.
+        """
+        #
+        # Break each output into a seperate post to reduce the size of each post
+        frequency = self.config.get("ViewerWebsite", "Frequency", default=30) or 30
+        if self.config.get("ViewerWebsite", "Enable", default=False):
+            if self.viewer_website_last_post:
+                time_since_last_post = (DateHelper.now() - self.viewer_website_last_post).total_seconds()
+            else:
+                time_since_last_post = frequency + 1   # pyright: ignore[reportOperatorIssue]
+
+            if time_since_last_post >= frequency or force_post:  # pyright: ignore[reportOperatorIssue]
+                for output in self.outputs:
+                    post_object = {
+                        "SchemaVersion": SCHEMA_VERSION,
+                        "StateFileType": "PowerController",
+                        "DeviceName": f"{self.app_label} - {output.name}",
+                        "SaveTime": DateHelper.now(),
+                        "Output": output.get_save_object(view),
+                        "Scheduler": self.scheduler.get_save_object(output.schedule),
+                    }
+                    self.external_service_helper.post_state_to_web_viewer(post_object)
+
+                # Now post the temp probe logging data if enabled
+                if self.temp_probe_logging.get("enabled", False):
+                    post_object = {
+                        "SchemaVersion": SCHEMA_VERSION,
+                        "StateFileType": "TempProbes",
+                        "DeviceName": f"{self.app_label} - TempProbes",
+                        "SaveTime": DateHelper.now(),
+                        "Charting": self.config.get("TempProbeLogging", "Charting"),
+                        "TempProbeLogging": self.temp_probe_logging,
+                    }
+                    self.external_service_helper.post_state_to_web_viewer(post_object)
+                self.viewer_website_last_post = DateHelper.now()

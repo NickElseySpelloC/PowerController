@@ -258,7 +258,18 @@ TempProbeLogging:
     SavedStateFileMaxDays: 7  # Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable.
     HistoryDataFile: temp_probe_history.csv  # Leave blank to disable logging to a CSV file.
     HistoryDataFileMaxDays: 90  # Maximum number of days to keep in the history data file.  0 to disable.
-
+    Charting:   # This contains settings for generating temperature charts for the web viewer app (future) and the PowerControllerViewer website.
+      Enable: True
+      Charts:
+        - Name: "Pool Temps"
+          Probes:
+            - Temp Pool Water
+            - Temp Solar Return
+          DaysToShow: 30
+        - Name: "Roof Temp"
+          Probes:
+            - Temp Roof
+          DaysToShow: 30
 
 # Optionally use this section to specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for scheduled events.
 # You can do this in one of three ways:
