@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+.DS_Store
+.python-version
+.ruff_cache/
+.venv/
+.vscode/
+*.egg
+*.egg-info
+*.py[oc]
+*.tar.bz2
+*.tar.gz
+*.whl
+*.zip
+build/
+dist/
+venv/
+wheels/
+
+# App 
+/*.txt
+/*.json
+/*.csv
+config.yaml
+logfile.log
+archive/
+snapshots
+save
+src/*.json
+src/*.csv
+src/*.log
+logs/*

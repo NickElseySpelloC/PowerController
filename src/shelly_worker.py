@@ -159,6 +159,8 @@ class ShellyWorker:
                 self._execute_request(req)
         # Allow ThreadManager to log + restart on crash
         finally:
+            if self._shelly:
+                self._shelly.shutdown()
             self.logger.log_message("Shelly worker shutdown complete.", "detailed")
 
     def stop(self):

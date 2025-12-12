@@ -187,6 +187,7 @@ class PowerController:
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
         with self._io_lock:
+            self.logger.log_message("Startibg PowerController shutdown...", "debug")
             view = self._get_latest_status_view()
             for output in self.outputs:
                 if output.shutdown(view):

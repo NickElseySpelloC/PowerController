@@ -348,7 +348,7 @@ wheels = [
 
 [[package]]
 name = "powercontroller"
-version = "1.0.7"
+version = "1.0.9"
 source = { virtual = "." }
 dependencies = [
     { name = "astral" },
@@ -369,7 +369,7 @@ requires-dist = [
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "pytz", specifier = ">=2025.2" },
-    { name = "sc-utility", specifier = ">=2.4.4" },
+    { name = "sc-utility", specifier = ">=2.4.9" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
 
@@ -469,7 +469,7 @@ wheels = [
 
 [[package]]
 name = "sc-utility"
-version = "2.4.4"
+version = "2.4.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cerberus" },
@@ -482,9 +482,9 @@ dependencies = [
     { name = "tzdata" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/20/c737fabe85b6c7ce0029b944314ff985cea4665d0ecc99cae55dfa174f60/sc_utility-2.4.4.tar.gz", hash = "sha256:7cdfffa52d48564b264a8906dfe6cb74721d7259b4ec97309708c7dd665f7812", size = 52381, upload-time = "2025-12-05T22:53:59.88Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/85/241e7fc2b753788bb5680c804981e8830fedc6e1ddde9504eecd4960ee76/sc_utility-2.4.9.tar.gz", hash = "sha256:38df80141d8080e8a71adff55cc7e2d09ab36abdcd075178ec41184285bf136f", size = 53153, upload-time = "2025-12-12T01:36:06.706Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/b9/2d23640df2ce45b19b057311fb3a831b0d2f04f0b3bb65b38ed1085acef3/sc_utility-2.4.4-py3-none-any.whl", hash = "sha256:5177372c1e6123999e24eb427a896691ee3044dca93b994b10fc7dd40513410c", size = 50187, upload-time = "2025-12-05T22:53:58.366Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/75/1325fb1c80048731860f315c66816002acac58851e4f393c7a8aa81cee0b/sc_utility-2.4.9-py3-none-any.whl", hash = "sha256:6fb9ae8c8b369f24a90b7445adf8fc6fd204297939e0cdbb595a1175bd2f74b1", size = 50929, upload-time = "2025-12-12T01:36:05.347Z" },
 ]
 
 [[package]]
