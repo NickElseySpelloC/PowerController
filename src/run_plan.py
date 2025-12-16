@@ -89,7 +89,10 @@ class RunPlanner:
         run_plan["PriorityHours"] = priority_hours
 
         if not sorted_slot_data:
-            run_plan["Status"] = RunPlanStatus.FAILED
+            if self.plan_type == RunPlanMode.SCHEDULE and required_hours == -1 and priority_hours == 0:
+                run_plan["Status"] = RunPlanStatus.NOTHING  # Special case: we've asked for all hours and we've completed our schedule
+            else:
+                run_plan["Status"] = RunPlanStatus.FAILED
             run_plan["PlannedHours"] = 0.0
             run_plan["RemainingHours"] = 0.0
             return run_plan

@@ -462,13 +462,13 @@ class OutputManager:  # noqa: PLR0904
         hourly_energy_used = self.run_history.get_hourly_energy_used()
 
         # Finally calculate the hours remaining for today
+        actual_hours = self.run_history.get_actual_hours()
         if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS:
             required_hours = -1
-            priority_hours = self.min_hours
+            priority_hours = max(0, self.min_hours - actual_hours)
         else:
             target_hours = self._get_target_hours()  # Should not be None
             assert target_hours is not None
-            actual_hours = self.run_history.get_actual_hours()
             prior_shortfall, max_shortfall = self.run_history.get_prior_shortfall()
             if self.report_critical_errors_delay:
                 if prior_shortfall >= max_shortfall > 0:
