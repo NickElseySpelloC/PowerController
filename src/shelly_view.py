@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import datetime as dt
+
     from shelly_worker import ShellyStatus
 
 
@@ -391,5 +393,28 @@ class ShellyView:
             return None
         try:
             return float(val)
+        except (ValueError, TypeError):
+            return None
+
+    def get_temp_probe_reading_time(self, temp_probe_id: int) -> dt.datetime | None:
+        """Get temperature probe reading (°C) by ID.
+
+        Args:
+            temp_probe_id: Temperature probe ID to lookup.
+
+        Returns:
+            Temperature in °C, or None if unavailable.
+
+        Raises:
+            IndexError: If temp_probe_id is invalid.
+        """
+        if temp_probe_id not in self._temp_probes_by_id:
+            error_msg = f"Invalid temperature probe ID: {temp_probe_id}"
+            raise IndexError(error_msg)
+        val = self._temp_probes_by_id[temp_probe_id].get("LastReadingTime")
+        if val is None:
+            return None
+        try:
+            return val
         except (ValueError, TypeError):
             return None

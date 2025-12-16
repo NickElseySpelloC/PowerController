@@ -113,7 +113,7 @@ class PowerController:
                 temp_probe_data.append({
                     "name": probe.get("Name", ""),
                     "temperature": probe.get("Temperature"),
-                    "last_logged_time": probe.get("LastLoggedTime").strftime("%H:%M") if probe.get("LastLoggedTime") else "",
+                    "last_logged_time": probe.get("LastReadingTime").strftime("%H:%M") if probe.get("LastReadingTime") else "",
                 })
 
         # Now build the snapshot
@@ -394,6 +394,7 @@ class PowerController:
                         probe["ProbeID"] = temp_probe_id
                         probe["Temperature"] = None
                         probe["LastLoggedTime"] = None
+                        probe["LastReadingTime"] = None
         return temp_probe_logging
 
     def _get_system_state_path(self) -> Path | None:
@@ -873,7 +874,7 @@ class PowerController:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
 
-    def _log_temp_probes(self, view: ShellyView):
+    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0914
         """Log the temperature probes if enabled."""
         if not self.temp_probe_logging.get("enabled"):
             return
@@ -887,9 +888,11 @@ class PowerController:
             if not probe_id or not probe_name:
                 continue
             temperature = view.get_temp_probe_temperature(probe_id)
+            last_reading_time = view.get_temp_probe_reading_time(probe_id)
             if temperature is not None:
                 probe["Temperature"] = temperature
                 probe["LastLoggedTime"] = current_time
+                probe["LastReadingTime"] = last_reading_time
 
         # Now record the readings to history and trim old entries if the time interval has passed
         last_log_time = self.temp_probe_logging.get("last_log_time")
@@ -907,6 +910,7 @@ class PowerController:
         for probe in self.temp_probe_logging.get("probes", []):
             probe_name = probe.get("Name")
             temperature = probe.get("Temperature")
+            last_reading_time = probe.get("LastReadingTime")
 
             if not probe_name or not temperature:
                 continue
@@ -917,6 +921,7 @@ class PowerController:
                 # Append the current reading to the history
                 history_entry = {
                     "Timestamp": current_time,
+                    "LastReadingTime": last_reading_time,
                     "ProbeName": probe_name,
                     "Temperature": temperature,
                 }
