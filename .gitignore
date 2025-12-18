@@ -30,3 +30,4 @@ src/*.json
 src/*.csv
 src/*.log
 logs/*
+backup
