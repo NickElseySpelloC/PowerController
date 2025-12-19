@@ -39,7 +39,9 @@
 
   <div id="output-list">
     {% for output_id, output in outputs.items() %}
-    <div class="card" data-output-id="{{ output.id }}">
+        <div class="card" data-output-id="{{ output.id }}"
+          data-max-app-mode-on-minutes="{{ output.max_app_mode_on_minutes|default('', true) }}"
+          data-max-app-mode-off-minutes="{{ output.max_app_mode_off_minutes|default('', true) }}">
       <div class="main-row">
         <div class="output-info">
           <div style="font-weight:600">{{ output.name }}</div>
@@ -119,15 +121,11 @@
             <td class="info_td_label">Power Draw:</td>
             <td class="info_td_value" data-field="power_draw">{{ output.power_draw }}</td>
 
-            <!-- debugging -->
-            <td class="info_td_label">Max On</td>
-            <td class="info_td_value">{{ output.max_app_mode_on_minutes }}</td>
+            <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td>
 
-            <td class="info_td_label">Max off</td>
-            <td class="info_td_value">{{ output.max_app_mode_off_minutes }}</td>
-
-            <!-- <td class="info_td_label">&nbsp;</td>
-            <td class="info_td_value">&nbsp;</td> -->
+            <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td>
           </tr>
           <tr>
             <td class="info_td_label">Planned Hours:</td>
@@ -188,6 +186,7 @@
     const accessKey = new URLSearchParams(window.location.search).get('key');
 
     let ws = null;
+    const latestOutputsById = new Map();
 
     function connectWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -228,12 +227,61 @@
         console.warn('WebSocket not connected; cannot send command');
         return;
       }
+
+      function parseOptionalInt(v) {
+        if (typeof v !== 'string') return null;
+        const s = v.trim();
+        if (!s) return null;
+        const n = Number(s);
+        if (!Number.isFinite(n) || !Number.isInteger(n)) return null;
+        return n;
+      }
+
+      let revertTimeMins = null;
+      if (mode === 'on' || mode === 'off') {
+        const output = latestOutputsById.get(outputId);
+
+        let defaultMins = null;
+        if (output) {
+          if (mode === 'on') {
+            defaultMins = output.max_app_mode_on_minutes;
+          } else {
+            defaultMins = (output.max_app_mode_off_minutes ?? output.max_app_mode_on_minutes);
+          }
+        } else {
+          const card = document.querySelector(`[data-output-id="${outputId}"]`);
+          if (card && card.dataset) {
+            if (mode === 'on') {
+              defaultMins = parseOptionalInt(card.dataset.maxAppModeOnMinutes);
+            } else {
+              defaultMins = (parseOptionalInt(card.dataset.maxAppModeOffMinutes) ?? parseOptionalInt(card.dataset.maxAppModeOnMinutes));
+            }
+          }
+        }
+
+        const defaultText = (typeof defaultMins === 'number' && Number.isFinite(defaultMins)) ? String(defaultMins) : '';
+        const promptText = `Minutes before reverting to AUTO (blank = no revert):`;
+        const input = window.prompt(promptText, defaultText);
+        if (input === null) {
+          return; // user cancelled
+        }
+        const trimmed = input.trim();
+        if (trimmed !== '') {
+          const n = Number(trimmed);
+          if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+            window.alert('Please enter a whole number of minutes (0 or more), or leave blank.');
+            return;
+          }
+          revertTimeMins = n;
+        }
+      }
+
       ws.send(JSON.stringify({
         type: 'command',
         action: 'set_mode',
         output_id: outputId,
         mode: mode,
-        revert_time_mins: 10
+        revert_time_mins: revertTimeMins
       }));
     }
 
@@ -254,6 +302,8 @@
       const outputs = snapshot.outputs || {};
       Object.values(outputs).forEach((output) => {
         if (!output || !output.id) return;
+
+        latestOutputsById.set(output.id, output);
         const card = document.querySelector(`[data-output-id="${output.id}"]`);
         if (!card) return;
 

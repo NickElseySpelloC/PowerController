@@ -370,6 +370,9 @@ class OutputManager:  # noqa: PLR0904
             reason_text = "Sequence running: " + current_action.request.label
         else:
             reason_text = self.reason.value if self.reason else "Unknown"
+            if self.app_mode != AppMode.AUTO and self.app_mode_revert_time:
+                # If we are in AppMode ON or OFF, append the revert time to reason
+                reason_text += f" (reverting at {self.app_mode_revert_time.strftime('%H:%M:%S')})"
         target_hours = self._get_target_hours()
         current_day = self.run_history.get_current_day()
         actual_cost = current_day["TotalCost"] if current_day else 0
@@ -546,6 +549,7 @@ class OutputManager:  # noqa: PLR0904
         if is_device_online:
             if self._should_revert_app_override(view):  # Revert to auto mode if currently AppMode.ON | AppMode.OFF and time's up
                 self.app_mode = AppMode.AUTO
+                self.app_mode_revert_time = None
             else:
                 if self.app_mode == AppMode.ON:
                     new_output_state = True
@@ -709,10 +713,13 @@ class OutputManager:  # noqa: PLR0904
             if new_mode in {AppMode.ON, AppMode.OFF}:
                 if revert_minutes and revert_minutes > 0:
                     self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=revert_minutes)
-                elif new_mode == AppMode.ON and self.app_mode_max_on_time > 0:
-                    self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_on_time)
-                elif new_mode == AppMode.OFF and self.app_mode_max_off_time > 0:
-                    self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_off_time)
+                else:
+                    self.app_mode_revert_time = None
+                # Remove this code - revert_minutes now passed from the webapp
+                # elif new_mode == AppMode.ON and self.app_mode_max_on_time > 0:
+                #     self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_on_time)
+                # elif new_mode == AppMode.OFF and self.app_mode_max_off_time > 0:
+                #     self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_off_time)
             else:
                 self.app_mode_revert_time = None
 

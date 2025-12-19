@@ -923,7 +923,7 @@ class PowerController:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
 
-    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0914
+    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0914, PLR0915
         """Log the temperature probes if enabled."""
         if not self.temp_probe_logging.get("enabled"):
             return
@@ -990,6 +990,8 @@ class PowerController:
             try:
                 file_path = SCCommon.select_file_location(history_file_name)  # pyright: ignore[reportArgumentType]
                 schemas = ConfigSchema()
+                if file_path and file_path.exists() and file_path.stat().st_size < 30:
+                    file_path.unlink()
                 csv_reader = CSVReader(file_path, schemas.temp_probe_history_config)  # pyright: ignore[reportArgumentType]
 
                 # Build the new entries
