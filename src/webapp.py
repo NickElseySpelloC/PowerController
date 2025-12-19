@@ -1,179 +1,281 @@
-"""Web application module for the PowerController project."""
+"""Web application module for the PowerController project.
+
+This module hosts the web UI and WebSocket API.
+
+- HTTP: serves the Jinja2-rendered index page and static assets
+- WS: pushes full state snapshots to all connected clients
+- WS: accepts commands (e.g. set_mode) from clients
+"""
+
+from __future__ import annotations
+
+import asyncio
 import contextlib
-from threading import Event
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from flask import Flask, jsonify, render_template, request
+import uvicorn
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from org_enums import AppMode
-from sc_utility import SCConfigManager, SCLogger
-from werkzeug.datastructures import MultiDict
-from werkzeug.serving import make_server
+from starlette.templating import Jinja2Templates
 
-from controller import PowerController
 from local_enumerations import Command
 
+if TYPE_CHECKING:
+    from threading import Event
 
-def create_flask_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> Flask:  # noqa: PLR0915
-    """Create and configure the Flask web application.
+    from sc_utility import SCConfigManager, SCLogger
 
-    Args:
-        controller (PowerController): The main controller instance.
-        config (SCConfigManager): The configuration manager instance.
-        logger (SCLogger): The logger instance.
+    from controller import PowerController
 
-    Returns:
-        Flask: The configured Flask application instance.
-    """
-    app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
-    # Preserve Website section usage
-    app.config["DEBUG"] = config.get("Website", "DebugMode", default=False) or False
-    if app.config["DEBUG"]:
-        logger.log_message("Flask debug mode is enabled.", "debug")
-        app.jinja_env.auto_reload = True
+def _get_repo_root() -> Path:
+    # src/webapp.py -> repo_root
+    return Path(__file__).resolve().parent.parent
 
-    def validate_access_key(args: MultiDict[str, str]) -> bool:
-        """Validate the access key from the request arguments.
 
-        Args:
-            args (dict): The request arguments containing the access key.
-
-        Returns:
-            bool: True if the access key is valid, False otherwise.
-        """
-        assert config is not None, "Config instance is not initialized."
-        assert logger is not None, "Logger instance is not initialized."
-
-        access_key = args.get("key", default=None, type=str)
-        if access_key is not None:
-            access_key = access_key.strip()
-            if not access_key:
-                logger.log_message("Blank access key used.", "warning")
-                return False
-        expected_key = config.get("Website", "AccessKey")
-        if expected_key is not None and access_key != expected_key:
-            logger.log_message(f"Invalid access key {access_key} used.", "warning")
-            return False
+def _validate_access_key(config: SCConfigManager, logger: SCLogger, key_from_request: str | None) -> bool:
+    expected_key = config.get("Website", "AccessKey")
+    if expected_key is None:
+        return True
+    if isinstance(expected_key, str) and not expected_key.strip():
+        # Current behavior: empty AccessKey means open access.
         return True
 
-    def sanitize_mode(mode: str) -> str | None:
-        """Sanitize and validate mode input.
+    if key_from_request is None:
+        logger.log_message("Missing access key.", "warning")
+        return False
+    key = key_from_request.strip()
+    if not key:
+        logger.log_message("Blank access key used.", "warning")
+        return False
+    if key != expected_key:
+        logger.log_message("Invalid access key used.", "warning")
+        return False
+    return True
 
-        Args:
-            mode (str): The mode string to validate.
 
-        Returns:
-            str | None: The sanitized mode string if valid, None otherwise.
-        """
-        if not isinstance(mode, str):
-            return None
-        mode = mode.strip().lower()
-        valid_modes = {m.value for m in AppMode}
-        return mode if mode in valid_modes else None
+def _sanitize_mode(mode: Any) -> str | None:
+    if not isinstance(mode, str):
+        return None
+    mode_s = mode.strip().lower()
+    valid_modes = {m.value for m in AppMode}
+    return mode_s if mode_s in valid_modes else None
 
-    def is_valid_output_id(output_id: str) -> bool:
-        """Validate that the output ID is valid.
 
-        Args:
-            output_id (str): The output ID to validate.
+@dataclass
+class WebAppNotifier:
+    """Thread-safe notifier used by PowerController to trigger WS broadcasts."""
 
-        Returns:
-            bool: True if the output ID is valid, False otherwise.
-        """
-        return controller.is_valid_output_id(output_id)
+    loop: asyncio.AbstractEventLoop | None = None
+    queue: asyncio.Queue[None] | None = None
 
-    @app.get("/api/outputs")
-    def list_outputs():
-        # Validate the access key if provided
-        if not validate_access_key(request.args):
-            return jsonify({"error": "Access forbidden."}), 403
+    def bind(self, loop: asyncio.AbstractEventLoop, queue: asyncio.Queue[None]) -> None:
+        self.loop = loop
+        self.queue = queue
 
-        snapshot = controller.get_webapp_data()
+    def notify(self) -> None:
+        loop = self.loop
+        queue = self.queue
+        if loop is None or queue is None:
+            return
+
+        def _enqueue() -> None:
+            # If we're already backed up, a later snapshot will catch up.
+            with contextlib.suppress(asyncio.QueueFull):
+                queue.put_nowait(None)
+
+        loop.call_soon_threadsafe(_enqueue)
+
+
+class ConnectionManager:
+    def __init__(self) -> None:
+        self._connections: set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        async with self._lock:
+            self._connections.add(ws)
+
+    async def disconnect(self, ws: WebSocket) -> None:
+        async with self._lock:
+            self._connections.discard(ws)
+
+    async def broadcast_json(self, message: dict[str, Any]) -> None:
+        text = json.dumps(message)
+        async with self._lock:
+            targets = list(self._connections)
+
+        for ws in targets:
+            try:
+                await ws.send_text(text)
+            except (RuntimeError, WebSocketDisconnect):
+                await self.disconnect(ws)
+
+
+def _configure_app_state(
+    app: FastAPI,
+    controller: PowerController,
+    config: SCConfigManager,
+    logger: SCLogger,
+    templates: Jinja2Templates,
+    notifier: WebAppNotifier,
+    manager: ConnectionManager,
+) -> None:
+    app.state.notifier = notifier
+    app.state.manager = manager
+    app.state.controller = controller
+    app.state.config = config
+    app.state.logger = logger
+    app.state.templates = templates
+    app.state.update_queue = asyncio.Queue(maxsize=100)
+    app.state.broadcast_task = None
+
+
+def _register_routes(app: FastAPI, controller: PowerController, config: SCConfigManager, logger: SCLogger, templates: Jinja2Templates, manager: ConnectionManager, notifier: WebAppNotifier) -> None:
+    @app.get("/", response_class=HTMLResponse)
+    async def index(request: Request) -> Any:
+        key = request.query_params.get("key")
+        if not _validate_access_key(config, logger, key):
+            return HTMLResponse("Access forbidden.", status_code=403)
+
+        snapshot = await asyncio.to_thread(controller.get_webapp_data)
         if not snapshot:
             logger.log_message("No web output data available yet", "warning")
-            return jsonify({"error": "no output data available yet"}), 503
+            return HTMLResponse("no output data available yet", status_code=503)
 
-        json_data = jsonify(snapshot)
-        # logger.log_message("API call list_output() for all output data", "debug")
-        return json_data
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "global_data": snapshot.get("global", {}),
+                "outputs": snapshot.get("outputs", {}),
+            },
+        )
 
-    @app.get("/api/outputs/<output_id>")
-    def get_output(output_id):
-        # Validate the access key if provided
-        if not validate_access_key(request.args):
-            return jsonify({"error": "Access forbidden."}), 403
+    @app.websocket("/ws")
+    async def websocket_endpoint(ws: WebSocket) -> None:
+        key = ws.query_params.get("key")
+        if not _validate_access_key(config, logger, key):
+            await ws.close(code=1008)
+            return
 
-        if not is_valid_output_id(output_id):
-            logger.log_message(f"Output ID {output_id} not found", "warning")
-            return jsonify({"error": "invalid output_id"}), 400
+        await manager.connect(ws)
+        try:
+            # Send initial snapshot
+            snapshot = await asyncio.to_thread(controller.get_webapp_data)
+            await ws.send_text(json.dumps({"type": "state_update", "state": snapshot}))
 
-        snapshot = controller.get_webapp_data()
-        if not snapshot:
-            logger.log_message("No web output data available yet", "warning")
-            return jsonify({"error": "no output data available yet"}), 503
+            while True:
+                raw = await ws.receive_text()
+                try:
+                    msg = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
 
-        json_data = jsonify(snapshot["outputs"][output_id])
-        # logger.log_message(f"API call get_output() for output for {output_id}", "debug")
-        return json_data
+                if msg.get("type") != "command":
+                    continue
 
-    @app.post("/api/outputs/<output_id>/mode")
-    def set_mode(output_id):
-        if not validate_access_key(request.args):
-            return jsonify({"error": "Access forbidden."}), 403
-
-        if not controller.is_valid_output_id(output_id):
-            return jsonify({"error": "invalid output_id"}), 400
-
-        data = request.get_json(silent=True) or {}
-        mode = sanitize_mode(data.get("mode", ""))
-        if not mode:
-            return jsonify({"error": "mode must be one of on/off/auto"}), 400
-
-        controller.post_command(Command("set_mode", {"output_id": output_id, "mode": mode}))
-
-        snapshot = controller.get_webapp_data()
-        if not snapshot:
-            logger.log_message("No web output data available yet", "warning")
-            return jsonify({"error": "no output data available yet"}), 503
-
-        output_data = snapshot["outputs"].get(output_id)
-
-        logger.log_message(f"API call set_mode() for {output_id}, changing mode to to {mode}.", "debug")
-        return jsonify(output_data or {"status": "ok"})
-
-    @app.get("/")
-    def index():
-        # Validate the access key if provided
-        if not validate_access_key(request.args):
-            return "Access forbidden.", 403
-
-        snapshot = controller.get_webapp_data()
-        if not snapshot:
-            logger.log_message("No web output data available yet", "warning")
-            return "no output data available yet", 503
-
-        # logger.log_message("API call get() returning home page", "debug")
-        return render_template("index.html",
-                             global_data=snapshot["global"],
-                             outputs=snapshot["outputs"])
-
-    return app
+                action = msg.get("action")
+                if action == "set_mode":
+                    output_id = msg.get("output_id")
+                    mode = _sanitize_mode(msg.get("mode"))
+                    revert_time_mins = msg.get("revert_time_mins")
+                    if not isinstance(output_id, str) or not controller.is_valid_output_id(output_id) or not mode:
+                        # Ignore invalid commands; client will self-correct on next snapshot
+                        continue
+                    controller.post_command(Command("set_mode", {"output_id": output_id, "mode": mode, "revert_time_mins": revert_time_mins}))
+                    notifier.notify()
+        except WebSocketDisconnect:
+            await manager.disconnect(ws)
+        except RuntimeError:
+            await manager.disconnect(ws)
 
 
-def serve_flask_blocking(app: Flask, config: SCConfigManager, logger: SCLogger, stop_event: Event):
-    """Run Flask in the current thread with cooperative shutdown using stop_event."""
-    # Preserve Website.* config keys
-    host = config.get("Website", "HostingIP", default="127.0.0.1") or "127.0.0.1"
-    port = int(config.get("Website", "Port", default=8000) or 8000)  # pyright: ignore[reportArgumentType]
+def create_asgi_app(controller: PowerController, config: SCConfigManager, logger: SCLogger) -> tuple[FastAPI, WebAppNotifier]:
+    repo_root = _get_repo_root()
+    templates = Jinja2Templates(directory=str(repo_root / "templates"))
+    notifier = WebAppNotifier()
+    manager = ConnectionManager()
 
-    server = make_server(host, port, app)  # pyright: ignore[reportArgumentType]
-    ctx = app.app_context()
-    ctx.push()
-    server.timeout = 1.0
-    logger.log_message(f"Flask server listening on http://{host}:{port}", "summary")
+    app = FastAPI()
+
+    # Serve static assets at /static
+    app.mount("/static", StaticFiles(directory=str(repo_root / "static")), name="static")
+
+    _configure_app_state(app, controller, config, logger, templates, notifier, manager)
+    _register_routes(app, controller, config, logger, templates, manager, notifier)
+
+    @app.on_event("startup")
+    def _startup() -> None:
+        loop = asyncio.get_running_loop()
+        notifier.bind(loop, app.state.update_queue)
+
+        async def _broadcast_worker() -> None:
+            try:
+                while True:
+                    await app.state.update_queue.get()
+                    # Coalesce bursts into a single snapshot
+                    while True:
+                        try:
+                            app.state.update_queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+
+                    snapshot = await asyncio.to_thread(controller.get_webapp_data)
+                    await manager.broadcast_json({"type": "state_update", "state": snapshot})
+            except asyncio.CancelledError:
+                # Expected during shutdown.
+                return
+
+        app.state.broadcast_task = loop.create_task(_broadcast_worker())
+
+    @app.on_event("shutdown")
+    async def _shutdown() -> None:
+        task = app.state.broadcast_task
+        if task:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    return app, notifier
+
+
+def serve_asgi_blocking(app: FastAPI, config: SCConfigManager, logger: SCLogger, stop_event: Event):
+    """Run an ASGI server in the current thread with cooperative shutdown using stop_event."""
+    host_raw = config.get("Website", "HostingIP", default="127.0.0.1")
+    host = host_raw if isinstance(host_raw, str) and host_raw else "127.0.0.1"
+    port = int(config.get("Website", "Port", default=8080) or 8080)  # pyright: ignore[reportArgumentType]
+
+    # Uvicorn log config can be noisy; keep our SCLogger as the source of truth.
+    uv_config = uvicorn.Config(app, host=host, port=port, log_level="warning", reload=False)
+    server = uvicorn.Server(uv_config)
+    # Running under ThreadManager in a non-main thread: avoid installing signal handlers.
+    server.install_signal_handlers = lambda: None  # type: ignore[method-assign]
+
+    async def _run() -> None:
+        async def _stop_watcher() -> None:
+            # Block in a worker thread until the threading.Event is set.
+            await asyncio.to_thread(stop_event.wait)
+            server.should_exit = True
+
+        watcher = asyncio.create_task(_stop_watcher())
+        try:
+            logger.log_message(f"Web server listening on http://{host}:{port}", "summary")
+            await server.serve()
+        finally:
+            watcher.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await watcher
+            logger.log_message("Web server shutdown complete.", "detailed")
+
     try:
-        while not stop_event.is_set():
-            server.handle_request()
-    finally:
-        with contextlib.suppress(Exception):
-            server.server_close()
-        logger.log_message("Flask web server shutdown complete.", "detailed")
+        asyncio.run(_run())
+    except asyncio.CancelledError:
+        # Can occur if background tasks are cancelled during interpreter shutdown.
+        logger.log_message("Web server cancelled during shutdown.", "debug")

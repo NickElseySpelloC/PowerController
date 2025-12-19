@@ -4,13 +4,11 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ global_data.AppLabel }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
 </head>
 <body>
-  <script id="global-data-json" type="application/json">
-    {{ global_data | tojson | safe }}
-  </script>
+  <div id="page" data-app-label="{{ global_data.AppLabel }}"></div>
 
   {% if global_data.TempProbeData and global_data.TempProbeData|length > 0 %}
   <div class="card" id="temp-probes">
@@ -27,10 +25,10 @@
           <th class="info_td_label">As at</th>
         </tr>
         {% for probe in global_data.TempProbeData %}
-        <tr>
+        <tr data-probe-name="{{ probe.name }}">
           <td class="info_td_value">{{ probe.name }}</td>
-          <td class="info_td_value">{{ probe.temperature }} °C</td>
-          <td class="info_td_value">{{ probe.last_logged_time }}</td>
+          <td class="info_td_value"><span data-probe-field="temperature">{{ probe.temperature }}</span> °C</td>
+          <td class="info_td_value"><span data-probe-field="last_logged_time">{{ probe.last_logged_time }}</span></td>
         </tr>
         {% endfor %}
       </table>
@@ -46,12 +44,12 @@
         <div class="output-info">
           <div style="font-weight:600">{{ output.name }}</div>
           <div class="status-line">
-            <span>Mode: <span class="mode-display">{{ output.mode.upper() }}</span></span>
+            <span>Mode: <span class="mode-display" data-field="mode">{{ output.mode.upper() }}</span></span>
             <div class="reason-wrapper">
               <span class="pill status-pill {{ 'on' if output.is_on else 'off' }}">
                 {{ 'ON' if output.is_on else 'OFF' }}
               </span>
-              <span class="reason-text">
+              <span class="reason-text" data-field="reason">
                 {{ output.reason if output.reason else '' }}
               </span>
             </div>
@@ -74,62 +72,66 @@
         <table class="info_table full">
           <!-- Column 1: Hours. Col 2: Energy, Col 3: Costs -->
           <tr>
-            <td class="info_td_label">{{ 'Stop At:' if output.is_on else 'Start At:' }}</td>
-            <td class="info_td_value">{{ output.stopping_at if output.is_on else output.next_start_time }}</td>
+            <td class="info_td_label" data-field="start_stop_label">{{ 'Stop At:' if output.is_on else 'Start At:' }}</td>
+            <td class="info_td_value" data-field="start_stop_time">{{ output.stopping_at if output.is_on else output.next_start_time }}</td>
 
             <td class="info_td_label">Energy Used:</td>
-            <td class="info_td_value">{{ output.actual_energy_used }}</td>
+            <td class="info_td_value" data-field="actual_energy_used">{{ output.actual_energy_used }}</td>
 
             <td class="info_td_label">Current Price:</td>
-            <td class="info_td_value">{{ output.current_price }}</td>
+            <td class="info_td_value" data-field="current_price">{{ output.current_price }}</td>
 
             <td class="info_td_label">Actual Cost:</td>
-            <td class="info_td_value">{{ output.actual_cost }}</td>
+            <td class="info_td_value" data-field="actual_cost">{{ output.actual_cost }}</td>
           </tr>
 
           <tr>
             <td class="info_td_label">Target Hours:</td>
-            <td class="info_td_value">{{ output.target_hours }}</td>
+            <td class="info_td_value" data-field="target_hours">{{ output.target_hours }}</td>
 
             <td class="info_td_label">Planned Energy:</td>
-            <td class="info_td_value">{{ output.forecast_energy_used }}</td>
+            <td class="info_td_value" data-field="forecast_energy_used">{{ output.forecast_energy_used }}</td>
 
             <td class="info_td_label">Forecast Price:</td>
-            <td class="info_td_value">{{ output.forecast_price }}</td>
+            <td class="info_td_value" data-field="forecast_price">{{ output.forecast_price }}</td>
 
             <td class="info_td_label">Forecast Cost:</td>
-            <td class="info_td_value">{{ output.forecast_cost }}</td>
+            <td class="info_td_value" data-field="forecast_cost">{{ output.forecast_cost }}</td>
           </tr>
 
           <tr>
             <td class="info_td_label">Actual Hours:</td>
-            <td class="info_td_value">{{ output.actual_hours }}</td>
+            <td class="info_td_value" data-field="actual_hours">{{ output.actual_hours }}</td>
 
             <td class="info_td_label">Total Energy:</td>
-            <td class="info_td_value">{{ output.total_energy_used }}</td>
+            <td class="info_td_value" data-field="total_energy_used">{{ output.total_energy_used }}</td>
 
             <td class="info_td_label">Average Price:</td>
-            <td class="info_td_value">{{ output.average_price }}</td>
+            <td class="info_td_value" data-field="average_price">{{ output.average_price }}</td>
 
             <td class="info_td_label">Total Cost:</td>
-            <td class="info_td_value">{{ output.total_cost }}</td>
+            <td class="info_td_value" data-field="total_cost">{{ output.total_cost }}</td>
           </tr>
           <tr>
             <td class="info_td_label">Required Hours:</td>
-            <td class="info_td_value">{{ output.required_hours }}</td>
+            <td class="info_td_value" data-field="required_hours">{{ output.required_hours }}</td>
 
             <td class="info_td_label">Power Draw:</td>
-            <td class="info_td_value">{{ output.power_draw }}</td>
+            <td class="info_td_value" data-field="power_draw">{{ output.power_draw }}</td>
 
-            <td class="info_td_label">&nbsp;</td>
-            <td class="info_td_value">&nbsp;</td>
+            <!-- debugging -->
+            <td class="info_td_label">Max On</td>
+            <td class="info_td_value">{{ output.max_app_mode_on_minutes }}</td>
 
-            <td class="info_td_label">&nbsp;</td>
-            <td class="info_td_value">&nbsp;</td>
+            <td class="info_td_label">Max off</td>
+            <td class="info_td_value">{{ output.max_app_mode_off_minutes }}</td>
+
+            <!-- <td class="info_td_label">&nbsp;</td>
+            <td class="info_td_value">&nbsp;</td> -->
           </tr>
           <tr>
             <td class="info_td_label">Planned Hours:</td>
-            <td class="info_td_value">{{ output.planned_hours }}</td>
+            <td class="info_td_value" data-field="planned_hours">{{ output.planned_hours }}</td>
 
             <td class="info_td_label">&nbsp;</td>
             <td class="info_td_value">&nbsp;</td>
@@ -145,35 +147,35 @@
         <!-- Compact table for mobile -->
         <table class="info_table compact">
           <tr>
-            <td class="info_td_label">{{ 'Stop At:' if output.is_on else 'Start At:' }}</td>
-            <td class="info_td_value">{{ output.stopping_at if output.is_on else output.next_start_time }}</td>
+            <td class="info_td_label" data-field="start_stop_label">{{ 'Stop At:' if output.is_on else 'Start At:' }}</td>
+            <td class="info_td_value" data-field="start_stop_time">{{ output.stopping_at if output.is_on else output.next_start_time }}</td>
 
             <td class="info_td_label">Current Price:</td>
-            <td class="info_td_value">{{ output.current_price }}</td>
+            <td class="info_td_value" data-field="current_price">{{ output.current_price }}</td>
           </tr>
 
           <tr>
             <td class="info_td_label">Target Hours:</td>
-            <td class="info_td_value">{{ output.target_hours }}</td>
+            <td class="info_td_value" data-field="target_hours">{{ output.target_hours }}</td>
 
             <td class="info_td_label">Forecast Price:</td>
-            <td class="info_td_value">{{ output.forecast_price }}</td>
+            <td class="info_td_value" data-field="forecast_price">{{ output.forecast_price }}</td>
           </tr>
 
           <tr>
             <td class="info_td_label">Actual Hours:</td>
-            <td class="info_td_value">{{ output.actual_hours }}</td>
+            <td class="info_td_value" data-field="actual_hours">{{ output.actual_hours }}</td>
 
             <td class="info_td_label">Average Price:</td>
-            <td class="info_td_value">{{ output.average_price }}</td>
+            <td class="info_td_value" data-field="average_price">{{ output.average_price }}</td>
           </tr>
 
           <tr>
             <td class="info_td_label">Planned Hours:</td>
-            <td class="info_td_value">{{ output.planned_hours }}</td>
+            <td class="info_td_value" data-field="planned_hours">{{ output.planned_hours }}</td>
 
             <td class="info_td_label">Power Draw:</td>
-            <td class="info_td_value">{{ output.power_draw }}</td>
+            <td class="info_td_value" data-field="power_draw">{{ output.power_draw }}</td>
           </tr>
         </table>
       </div>
@@ -182,115 +184,138 @@
   </div>
 
   <script>
-    // Store global data from server
-    const globalData = JSON.parse(document.getElementById('global-data-json').textContent);
+    // Use URL query param ?key=... for auth (no key is needed if Website.AccessKey is blank)
+    const accessKey = new URLSearchParams(window.location.search).get('key');
 
-    // Helper function to build URL with access key if needed
-    function buildApiUrl(path) {
-      if (globalData.access_key) {
-        const separator = path.includes('?') ? '&' : '?';
-        return `${path}${separator}key=${encodeURIComponent(globalData.access_key)}`;
+    let ws = null;
+
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = new URL(`${protocol}//${window.location.host}/ws`);
+      if (accessKey) {
+        wsUrl.searchParams.set('key', accessKey);
       }
-      return path;
+
+      ws = new WebSocket(wsUrl.toString());
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+      };
+
+      ws.onmessage = (event) => {
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch (e) {
+          console.error('Bad JSON from server:', event.data);
+          return;
+        }
+
+        if (msg.type === 'state_update' && msg.state) {
+          applySnapshot(msg.state);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket closed; reconnecting soon');
+        ws = null;
+        setTimeout(connectWebSocket, 2000);
+      };
     }
 
-    async function fetchOutputs() {
-      const res = await fetch(buildApiUrl('/api/outputs'));
-      return await res.json();
-    }
-
-    // NEW: Fetch a single output snapshot by ID
-    async function fetchOutput(id) {
-      const res = await fetch(buildApiUrl(`/api/outputs/${id}`));
-      if (res.ok) {
-        return await res.json();
+    function setMode(outputId, mode) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn('WebSocket not connected; cannot send command');
+        return;
       }
-      throw new Error(`Failed to fetch output ${id}`);
+      ws.send(JSON.stringify({
+        type: 'command',
+        action: 'set_mode',
+        output_id: outputId,
+        mode: mode,
+        revert_time_mins: 10
+      }));
     }
 
-    async function setMode(id, mode) {
-      try {
-        console.log(`Setting mode ${mode} for output ${id}`);
-        
-        const response = await fetch(buildApiUrl(`/api/outputs/${id}/mode`), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode })
+    function applySnapshot(snapshot) {
+      // Temp probes
+      if (snapshot.global && Array.isArray(snapshot.global.TempProbeData)) {
+        snapshot.global.TempProbeData.forEach((probe) => {
+          const row = document.querySelector(`#temp-probes tr[data-probe-name="${CSS.escape(probe.name)}"]`);
+          if (!row) return;
+          const tempEl = row.querySelector('[data-probe-field="temperature"]');
+          const timeEl = row.querySelector('[data-probe-field="last_logged_time"]');
+          if (tempEl) tempEl.textContent = probe.temperature ?? '';
+          if (timeEl) timeEl.textContent = probe.last_logged_time ?? '';
         });
-
-        if (response.ok) {
-          const output = await response.json();
-          updateOutputDisplay(output.id || id, output);                    
-        } else {
-          console.error('Failed to set mode 1:', response.statusText);
-        }
-      } catch (error) {
-        console.error('Failed to set mode 2:', error);
-      }
-    }
-
-    function updateOutputDisplay(outputId, outputData) {
-      // Find the card for this output
-      const card = document.querySelector(`[data-output-id="${outputId}"]`);
-
-      console.error(`Updating display for output ${outputId}:`, outputData);
-      if (!card) return;
-
-      // Update mode display if provided
-      if (outputData.mode) {
-        const modeDisplay = card.querySelector('.mode-display');
-        if (modeDisplay) {
-          modeDisplay.textContent = outputData.mode.toUpperCase();
-        }
       }
 
-      // Update status pill if is_on is provided
-      if (outputData.is_on !== undefined) {
-        const statusPill = card.querySelector('.status-pill');
-        if (statusPill) {
-          statusPill.className = `pill status-pill ${outputData.is_on ? 'on' : 'off'}`;
-          statusPill.textContent = outputData.is_on ? 'ON' : 'OFF';
-        }
-      }
+      // Outputs
+      const outputs = snapshot.outputs || {};
+      Object.values(outputs).forEach((output) => {
+        if (!output || !output.id) return;
+        const card = document.querySelector(`[data-output-id="${output.id}"]`);
+        if (!card) return;
 
-      // Update reason text if provided
-      if (outputData.reason !== undefined) {
-        const reasonSpan = card.querySelector('.reason-text');
-        if (reasonSpan) {
-          reasonSpan.textContent = outputData.reason || '';
-        }
-      }
+        // Mode display
+        const modeEl = card.querySelector('[data-field="mode"]');
+        if (modeEl && output.mode) modeEl.textContent = String(output.mode).toUpperCase();
 
-      // Update button states if mode is provided
-      if (outputData.mode) {
-        const buttons = card.querySelectorAll('.mode-btn');
-        buttons.forEach(btn => {
-          const btnMode = btn.getAttribute('data-mode');
-          if (btnMode === outputData.mode) {
-            btn.classList.add('active');
-          } else {
-            btn.classList.remove('active');
+        // Status pill
+        if (typeof output.is_on === 'boolean') {
+          const pill = card.querySelector('.status-pill');
+          if (pill) {
+            pill.className = `pill status-pill ${output.is_on ? 'on' : 'off'}`;
+            pill.textContent = output.is_on ? 'ON' : 'OFF';
           }
+        }
+
+        // Reason
+        const reasonEl = card.querySelector('[data-field="reason"]');
+        if (reasonEl) reasonEl.textContent = output.reason || '';
+
+        // Start/stop label + time
+        const startStopLabel = card.querySelectorAll('[data-field="start_stop_label"]');
+        const startStopTime = card.querySelectorAll('[data-field="start_stop_time"]');
+        const isOn = !!output.is_on;
+        startStopLabel.forEach((el) => el.textContent = isOn ? 'Stop At:' : 'Start At:');
+        const timeValue = isOn ? (output.stopping_at || '') : (output.next_start_time || '');
+        startStopTime.forEach((el) => el.textContent = timeValue);
+
+        // Simple field updates
+        const fields = [
+          'actual_energy_used', 'actual_cost', 'current_price',
+          'target_hours', 'forecast_energy_used', 'forecast_price', 'forecast_cost',
+          'actual_hours', 'total_energy_used', 'average_price', 'total_cost',
+          'required_hours', 'power_draw', 'planned_hours'
+        ];
+        fields.forEach((field) => {
+          const elements = card.querySelectorAll(`[data-field="${field}"]`);
+          elements.forEach((el) => {
+            const v = output[field];
+            el.textContent = (v === null || v === undefined) ? '' : String(v);
+          });
         });
-      }
+
+        // Button active states
+        if (output.mode) {
+          const buttons = card.querySelectorAll('.mode-btn');
+          buttons.forEach((btn) => {
+            const btnMode = btn.getAttribute('data-mode');
+            if (btnMode === output.mode) {
+              btn.classList.add('active');
+            } else {
+              btn.classList.remove('active');
+            }
+          });
+        }
+      });
     }
 
-    async function refreshAllOutputs() {
-      try {
-        const data = await fetchOutputs();
+    // Full page refresh to pick up template/config changes
+    setInterval(() => window.location.reload(), 60000);
 
-        // Update each output's display using updateOutputDisplay
-        Object.values(data.outputs).forEach(output => {
-          updateOutputDisplay(output.id, output);
-        });
-      } catch (error) {
-        console.error('Failed to refresh outputs:', error);
-      }
-    }
-
-    // Use the poll interval from global data
-    const refreshInterval = (globalData.PollInterval || 4) * 1000;
-    setInterval(refreshAllOutputs, refreshInterval);
+    connectWebSocket();
 </script>
 </body>
 </html>

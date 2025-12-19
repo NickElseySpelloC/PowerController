@@ -1,4 +1,5 @@
 """The PowerController class that orchestrates power management."""
+import contextlib
 import datetime as dt
 import queue
 import time
@@ -91,8 +92,32 @@ class PowerController:
 
         self._io_lock = RLock()  # NEW: serialize state/CSV writes
 
+        # Optional callback used to notify the webapp (WebSocket) layer that a new snapshot should be pushed.
+        # This is set by main.py once the ASGI webapp is initialised.
+        self._webapp_notify: Callable[[], None] | None = None
+        self._last_webapp_notify: dt.datetime | None = None
+
         self._initialise(skip_shelly_initialization=True)
         self.update_device_locations = True
+
+    def set_webapp_notifier(self, notify: Callable[[], None] | None) -> None:
+        """Register a callback invoked when the webapp should push a new snapshot."""
+        self._webapp_notify = notify
+
+    def _maybe_notify_webapp(self, *, force: bool = False) -> None:
+        notify = self._webapp_notify
+        if not notify:
+            return
+
+        now = DateHelper.now()
+        # Throttle periodic pushes to the polling interval; force=True bypasses throttle.
+        if not force and self._last_webapp_notify is not None and (now - self._last_webapp_notify).total_seconds() < self.poll_interval:
+            return
+
+        self._last_webapp_notify = now
+        # Web push is best-effort; do not crash the controller loop.
+        with contextlib.suppress(Exception):
+            notify()
 
     def get_webapp_data(self) -> dict:
         """Returns a dict object with a snapshot of the current state of all outputs.
@@ -118,7 +143,6 @@ class PowerController:
 
         # Now build the snapshot
         global_data = {
-            "access_key": self.config.get("Website", "AccessKey"),
             "AppLabel": self.app_label,
             "PollInterval": self.webapp_refresh,
             "TempProbeData": temp_probe_data,
@@ -177,8 +201,9 @@ class PowerController:
 
         while not stop_event.is_set():
             self.print_to_console(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
-            self._clear_commands()          # Get all commands from the queue and apply them
-            self._run_scheduler_tick()
+            force_refresh = self._run_scheduler_tick()
+            # Push updates periodically and immediately after commands.
+            self._maybe_notify_webapp(force=force_refresh)
             self.wake_event.clear()
             self.wake_event.wait(timeout=self.poll_interval)
 
@@ -472,8 +497,14 @@ class PowerController:
         # Post the state data to the PowerController Viewer web app if needed
         self._post_state_to_web_viewer(view, force_post)
 
-    def _run_scheduler_tick(self):
-        """Do all the control processing of the main loop."""
+    def _run_scheduler_tick(self) -> bool:
+        """Do all the control processing of the main loop.
+
+        Returns:
+            bool: True if one or more commands were processed or there has been a state change.
+        """
+        commands_processed = self._clear_commands()          # Get all commands from the queue and apply them
+
         # Refresh the Amber price data if it's time to do so
         self.pricing.refresh_price_data_if_time()
 
@@ -496,7 +527,7 @@ class PowerController:
         self._review_run_plans(view)
 
         # Evaluate the conditions for each output and make changes if needed
-        self._evaluate_conditions(view)
+        state_change = self._evaluate_conditions(view)
 
         # Deal with config changes including downstream objects
         self._check_for_configuration_changes(view)
@@ -509,6 +540,8 @@ class PowerController:
 
         # Check for fatal error recovery
         self._check_fatal_error_recovery()
+
+        return commands_processed or state_change
 
     def _refresh_device_statuses(self) -> ShellyView:
         """Refresh the status of all devices.
@@ -588,8 +621,13 @@ class PowerController:
         for output in self.outputs:
             output.review_run_plan(view)
 
-    def _evaluate_conditions(self, view: ShellyView):
-        """Evaluate the conditions for each output."""
+    def _evaluate_conditions(self, view: ShellyView) -> bool:
+        """Evaluate the conditions for each output.
+
+        Returns:
+            bool: True if one or more outputs changed state, False otherwise.
+        """
+        state_change = False
         for output in self.outputs:
             # See if we have a requested action from the output
             pending_action = output.get_action_request()
@@ -602,6 +640,7 @@ class PowerController:
                     continue  # Go to next output, don't evaluate conditions yet
 
                 # Request has completed, successfully or not. Clear the request ID in the output
+                state_change = True
                 view = self._refresh_device_statuses()  # Refresh the view after the change
 
                 if request_result.ok:
@@ -613,7 +652,10 @@ class PowerController:
             requested_action = output.evaluate_conditions(view=view, output_sequences=self._shelly_sequence_requests, on_complete=self.set_wake_event)
 
             if requested_action:
+                state_change = True
                 self._execute_action_on_output(output, requested_action, view)
+
+        return state_change
 
     def _execute_action_on_output(self, output: OutputManager, requested_action: OutputAction, view: ShellyView):
         # If the Output requests a change, post it to the ShellyWorker and wait for it to complete
@@ -665,9 +707,9 @@ class PowerController:
         """Apply a command posted to the controller."""
         view = self._get_latest_status_view()
         if cmd.kind == "set_mode":
-            # To DO: Push new mode into relevant Output, deal with this in the evaluation_conditions() func
             output_id = cmd.payload["output_id"]
             new_mode = AppMode(cmd.payload["mode"])
+            revert_time_mins = cmd.payload.get("revert_time_mins")
             output = self._find_output(LookupMode.ID, output_id)
             output = output[0] if output else None
             if not output:
@@ -675,7 +717,7 @@ class PowerController:
 
             # Set the new mode, the output will deal with it in the next tick
             # And evaluate the conditions immediately if the mode has changed
-            output.set_app_mode(new_mode, view)
+            output.set_app_mode(new_mode, view, revert_minutes=revert_time_mins)
         elif cmd.kind == "shelly_sequence_completed":
             seq_id = cmd.payload.get("sequence_id")
             label = cmd.payload.get("label")
@@ -698,16 +740,23 @@ class PowerController:
             return True
         return bool(self.command_pending)
 
-    def _clear_commands(self):
-        """Clear all commands in the command queue."""
+    def _clear_commands(self) -> bool:
+        """Clear all commands in the command queue.
+
+        Returns:
+            bool: True if one or more commands were processed.
+        """
+        processed = False
         while True:
             try:
                 cmd = self.cmd_q.get_nowait()
             except queue.Empty:
                 break
             self._apply_command(cmd)
+            processed = True
 
         self.command_pending = False
+        return processed
 
     def _save_output_consumption_data(self):
         """Save usage data for all outputs."""

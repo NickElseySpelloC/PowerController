@@ -65,6 +65,9 @@ class OutputManager:  # noqa: PLR0904
         # Define the output attributes that we will initialise later
         self.system_state: SystemState = SystemState.AUTO  # The overall system state, to be updated
         self.app_mode = AppMode.AUTO  # Defines the override from the mobile app.
+        self.app_mode_max_on_time: int = 0  # Default maximum time in minutes for AppMode ON
+        self.app_mode_max_off_time: int = 0  # Default maximum time in minutes for AppMode OFF
+        self.app_mode_revert_time: dt.datetime | None = None  # If app mode is ON or OFF, the time to revert to AUTO
         self.name = None
         self.id = None  # Lower case, url-safe version of the name
         self.output_config = output_config
@@ -234,6 +237,10 @@ class OutputManager:  # noqa: PLR0904
             if self.min_off_time > self.min_on_time:
                 error_msg = f"MinOffTime {self.min_off_time} must be less than or equal to MinOnTime {self.min_on_time} for output {self.name}."
 
+            # Default revert times in minutes for AppMode ON and OFF
+            self.app_mode_max_on_time = self.output_config.get("MaxAppOnTime", 0)
+            self.app_mode_max_off_time = self.output_config.get("MaxAppOffTime", 0)
+
             # DatesOff
             if not error_msg:
                 dates_off_list = output_config.get("DatesOff", [])
@@ -323,6 +330,7 @@ class OutputManager:  # noqa: PLR0904
             "LastChanged": self.last_changed,
             "Reason": self.reason,
             "AppMode": self.app_mode,
+            "AppModeRevertTime": self.app_mode_revert_time,
             "DeviceMode": self.device_mode,
             "ParentOutputName": self.parent_output_name,
             "DeviceOutputName": self.device_output_name,
@@ -386,6 +394,9 @@ class OutputManager:  # noqa: PLR0904
             "name": self.name,
             "is_on": is_device_output_on,
             "mode": self.app_mode.value,
+            "max_app_mode_on_minutes": self.app_mode_max_on_time,
+            "max_app_mode_off_minutes": self.app_mode_max_off_time,
+            "app_mode_revert_time": self.app_mode_revert_time.strftime("%Y-%m-%d %H:%M") if self.app_mode_revert_time else None,
 
             # Information on the run history and plan
             "target_hours": f"{target_hours:.1f}" if target_hours is not None else "Rest of Day",
@@ -677,12 +688,13 @@ class OutputManager:  # noqa: PLR0904
 
         self.parent_output = parent_output
 
-    def set_app_mode(self, new_mode: AppMode, view: ShellyView):
+    def set_app_mode(self, new_mode: AppMode, view: ShellyView, revert_minutes: int | None = None):
         """Sets the app mode for this output manager.
 
         Args:
             new_mode (AppMode): The new app mode.
             view (ShellyView): The current view of the Shelly devices.
+            revert_minutes (int | None): Optional number of minutes after which to revert to AUTO mode.
         """
         if new_mode not in AppMode:
             self.logger.log_message(f"Invalid AppMode {new_mode} for output {self.name}.", "error")
@@ -693,8 +705,21 @@ class OutputManager:  # noqa: PLR0904
             return
 
         if new_mode != self.app_mode:
+            # If we're setting to ON or OFF mode, set the revert time if specified
+            if new_mode in {AppMode.ON, AppMode.OFF}:
+                if revert_minutes and revert_minutes > 0:
+                    self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=revert_minutes)
+                elif new_mode == AppMode.ON and self.app_mode_max_on_time > 0:
+                    self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_on_time)
+                elif new_mode == AppMode.OFF and self.app_mode_max_off_time > 0:
+                    self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_off_time)
+            else:
+                self.app_mode_revert_time = None
+
             self.app_mode = new_mode
             self.logger.log_message(f"Output {self.name} app mode changed to {self.app_mode.value}.", "debug")
+            if self.app_mode_revert_time:
+                self.logger.log_message(f"Output {self.name} app mode will revert to AUTO at {self.app_mode_revert_time.strftime('%Y-%m-%d %H:%M:%S')}.", "debug")
             # If the app mode has changed, we need to re-evaluate our state
             self.evaluate_conditions(view)
 
@@ -983,21 +1008,20 @@ class OutputManager:  # noqa: PLR0904
         if not is_device_online:
             return False
 
+        passed_revert_time = False
         time_now = DateHelper.now()
-        if self.app_mode == AppMode.ON:
-            max_on_time = self.output_config.get("MaxAppOnTime", 0)
-            if max_on_time > 0 and self.last_turned_on and self.system_state == SystemState.APP_OVERRIDE and self.reason == StateReasonOn.APP_MODE_ON:
-                time_on = (time_now - self.last_turned_on).total_seconds() / 60  # minutes
-                if time_on >= max_on_time:
-                    self.logger.log_message(f"Reverting AppMode ON for output {self.name} after {time_on:.1f} minutes (MaxAppOnTime: {max_on_time})", "debug")
-                    return True
-        if self.app_mode == AppMode.OFF:
-            max_off_time = self.output_config.get("MaxAppOffTime", 0)
-            if max_off_time > 0 and self.last_turned_off and self.system_state == SystemState.APP_OVERRIDE and self.reason == StateReasonOff.APP_MODE_OFF:
-                time_off = (time_now - self.last_turned_off).total_seconds() / 60  # minutes
-                if time_off >= max_off_time:
-                    self.logger.log_message(f"Reverting AppMode ON for output {self.name} after {time_off:.1f} minutes (MaxAppOffTime: {max_off_time})", "debug")
-                    return True
+        if self.app_mode_revert_time and time_now >= self.app_mode_revert_time:
+            passed_revert_time = True
+        if self.app_mode == AppMode.ON and passed_revert_time and self.system_state == SystemState.APP_OVERRIDE and self.reason == StateReasonOn.APP_MODE_ON:
+            assert isinstance(self.last_turned_on, dt.datetime)
+            time_on = (time_now - self.last_turned_on).total_seconds() / 60  # minutes
+            self.logger.log_message(f"Reverting from AppMode ON to AUTO for output {self.name} after {time_on:.1f} minutes", "debug")
+            return True
+        if self.app_mode == AppMode.OFF and passed_revert_time and self.system_state == SystemState.APP_OVERRIDE and self.reason == StateReasonOff.APP_MODE_OFF:
+            assert isinstance(self.last_turned_off, dt.datetime)
+            time_off = (time_now - self.last_turned_off).total_seconds() / 60  # minutes
+            self.logger.log_message(f"Reverting from AppMode OFF to AUTO for output {self.name} after {time_off:.1f} minutes", "debug")
+            return True
 
         return False
 

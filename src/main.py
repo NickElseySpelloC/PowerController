@@ -12,7 +12,7 @@ from controller import PowerController
 from local_enumerations import CONFIG_FILE
 from shelly_worker import ShellyWorker
 from thread_manager import RestartPolicy, ThreadManager
-from webapp import create_flask_app, serve_flask_blocking
+from webapp import create_asgi_app, serve_asgi_blocking
 
 
 def main():
@@ -65,9 +65,8 @@ def main():
         # Create an instance of the main PowerController class which orchestrates the power control
         controller = PowerController(config, logger, shelly_worker, wake_event)
 
-        flask_app = create_flask_app(controller, config, logger)
-        # Disable debug/reloader to prevent extra threads at shutdown
-        flask_app.debug = False
+        asgi_app, web_notifier = create_asgi_app(controller, config, logger)
+        controller.set_webapp_notifier(web_notifier.notify)
     except (RuntimeError, TypeError) as e:
         logger.log_fatal_error(f"Fatal error at startup: {e}")
 
@@ -89,11 +88,11 @@ def main():
         restart=RestartPolicy(mode="never"),
     )
 
-    # Manage Flask as a blocking worker in its own managed thread
+    # Manage the ASGI webapp as a blocking worker in its own managed thread
     tm.add(
         name="webapp",
-        target=serve_flask_blocking,
-        args=(flask_app, config, logger, stop_event),
+        target=serve_asgi_blocking,
+        args=(asgi_app, config, logger, stop_event),
         restart=RestartPolicy(mode="on_crash", max_restarts=3, backoff_seconds=2.0),
     )
 

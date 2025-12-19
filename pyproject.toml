@@ -8,12 +8,15 @@ service_name="PowerController"
 launch_path="src/main.py"
 dependencies = [
     "astral>=3.2",
+    "fastapi>=0.115.0",
     "flask>=3.1.2",
+    "jinja2>=3.1.0",
     "org-enums>=1.0.0",
     "pre-commit>=4.3.0",
     "python-dateutil>=2.9.0.post0",
     "pytz>=2025.2",
     "sc-utility>=2.4.10",
+    "uvicorn[standard]>=0.32.0",
     "werkzeug>=3.1.3",
 ]
 
