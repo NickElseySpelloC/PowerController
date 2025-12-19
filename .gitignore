@@ -29,5 +29,6 @@ save
 src/*.json
 src/*.csv
 src/*.log
-logs/*
+logs
 backup
+simulation_data
