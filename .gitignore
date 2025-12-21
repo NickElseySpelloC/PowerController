@@ -16,6 +16,8 @@ build/
 dist/
 venv/
 wheels/
+.env
+.cache_ggshield
 
 # App 
 /*.txt

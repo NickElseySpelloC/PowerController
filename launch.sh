@@ -15,17 +15,28 @@ HomeDir="${1:-$(pwd)}"
 # make sure HomeDir is an absolute path
 HomeDir="$(cd "$HomeDir" && pwd)"
 
+# Load environment variables from .env if present (in HomeDir)
+# Note: this "sources" the file, so it should contain simple KEY=VALUE lines.
+EnvFile="$HomeDir/.env"
+if [ -f "$EnvFile" ]; then
+  echo "[launcher] Loading environment from $EnvFile ..."
+  set -a
+  # shellcheck disable=SC1090
+  . "$EnvFile"
+  set +a
+fi
+
 # Get the script name from pyproject.toml
 if [ -f "$HomeDir/$PYPROJECT" ]; then
-    ScriptName=$(grep -E '^launch_path *= *"' "$HomeDir/$PYPROJECT" | head -1 | sed -E 's/^launch_path *= *"([^"]+)".*$/\1/')
+  ScriptName=$(grep -E '^launch_path *= *"' "$HomeDir/$PYPROJECT" | head -1 | sed -E 's/^launch_path *= *"([^"]+)".*$/\1/')
 else
-    echo "Error: $PYPROJECT not found."
-    exit 1
+  echo "Error: $PYPROJECT not found."
+  exit 1
 fi
 
 if [ -z "$ScriptName" ]; then
-	echo "Error: launch_path not defined in $PYPROJECT."
-	exit 1
+  echo "Error: launch_path not defined in $PYPROJECT."
+  exit 1
 fi
 
 # Find uv reliably (systemd often has a minimal PATH)
