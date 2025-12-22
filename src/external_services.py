@@ -2,6 +2,7 @@
 
 import gzip
 import json
+import os
 
 import requests
 from sc_utility import DateHelper, JSONEncoder, SCConfigManager, SCLogger
@@ -72,7 +73,9 @@ class ExternalServiceHelper:
         """
         is_enabled = self.config.get("ViewerWebsite", "Enable", default=False)
         base_url = self.config.get("ViewerWebsite", "BaseURL", default=None)
-        access_key = self.config.get("ViewerWebsite", "AccessKey", default=None)
+        access_key = os.environ.get("VIEWER_ACCESS_KEY")
+        if not access_key:
+            access_key = self.config.get("ViewerWebsite", "AccessKey", default=None)
         timeout_wait = self.config.get("ViewerWebsite", "APITimeout", default=5)
 
         if not is_enabled or base_url is None:

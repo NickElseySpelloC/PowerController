@@ -104,21 +104,6 @@ class PowerController:
         """Register a callback invoked when the webapp should push a new snapshot."""
         self._webapp_notify = notify
 
-    def _maybe_notify_webapp(self, *, force: bool = False) -> None:
-        notify = self._webapp_notify
-        if not notify:
-            return
-
-        now = DateHelper.now()
-        # Throttle periodic pushes to the polling interval; force=True bypasses throttle.
-        if not force and self._last_webapp_notify is not None and (now - self._last_webapp_notify).total_seconds() < self.poll_interval:
-            return
-
-        self._last_webapp_notify = now
-        # Web push is best-effort; do not crash the controller loop.
-        with contextlib.suppress(Exception):
-            notify()
-
     def get_webapp_data(self) -> dict:
         """Returns a dict object with a snapshot of the current state of all outputs.
 
@@ -399,6 +384,7 @@ class PowerController:
             "enabled": self.config.get("TempProbeLogging", "Enable", default=False),
             "probes": self.config.get("TempProbeLogging", "Probes", default=[]) or [],
             "logging_interval": self.config.get("TempProbeLogging", "LoggingInterval", default=60),  # minutes
+            "last_reading_within_minutes": self.config.get("TempProbeLogging", "LastReadingWithinMinutes", default=0) or 0,
             "saved_state_file_max_days": self.config.get("TempProbeLogging", "SavedStateFileMaxDays", default=7),
             "history_data_file_name": self.config.get("TempProbeLogging", "HistoryDataFile", default=""),
             "history_data_file_max_days": self.config.get("TempProbeLogging", "SavedStateFileMaxDays", default=0),
@@ -923,7 +909,7 @@ class PowerController:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
 
-    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0914, PLR0915
+    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
         """Log the temperature probes if enabled."""
         if not self.temp_probe_logging.get("enabled"):
             return
@@ -938,10 +924,17 @@ class PowerController:
                 continue
             temperature = view.get_temp_probe_temperature(probe_id)
             last_reading_time = view.get_temp_probe_reading_time(probe_id)
-            if temperature is not None:
-                probe["Temperature"] = temperature
-                probe["LastLoggedTime"] = current_time
-                probe["LastReadingTime"] = last_reading_time
+
+            # Check if we need to skip this reading based on last reading time
+            last_reading_within_minutes = int(self.temp_probe_logging.get("last_reading_within_minutes", 0) or 0)  # pyright: ignore[reportArgumentType]
+            if last_reading_within_minutes > 0 and last_reading_time:
+                minutes_since_last_reading = (current_time - last_reading_time).total_seconds() / 60.0
+                if minutes_since_last_reading > last_reading_within_minutes:
+                    temperature = None  # Invalidate the reading
+
+            probe["Temperature"] = temperature
+            probe["LastLoggedTime"] = current_time
+            probe["LastReadingTime"] = last_reading_time
 
         # Now record the readings to history and trim old entries if the time interval has passed
         last_log_time = self.temp_probe_logging.get("last_log_time")
@@ -958,6 +951,7 @@ class PowerController:
         # Log each probe temperature and save to history
         for probe in self.temp_probe_logging.get("probes", []):
             probe_name = probe.get("Name")
+            probe_display_name = probe.get("DisplayName", probe_name)
             temperature = probe.get("Temperature")
             last_reading_time = probe.get("LastReadingTime")
 
@@ -972,6 +966,7 @@ class PowerController:
                     "Timestamp": current_time,
                     "LastReadingTime": last_reading_time,
                     "ProbeName": probe_name,
+                    "ProbeDisplayName": probe_display_name,
                     "Temperature": temperature,
                 }
                 self.temp_probe_logging["history"].append(history_entry)
@@ -998,17 +993,18 @@ class PowerController:
                 new_data = []
                 for probe in self.temp_probe_logging.get("probes", []):
                     probe_name = probe.get("Name")
+                    probe_display_name = probe.get("DisplayName", probe_name)
                     temperature = probe["Temperature"]
                     if not probe_name or not temperature:
                         continue
 
                     new_data.append({
                         "Timestamp": current_time,
-                        "ProbeName": probe_name,
+                        "ProbeName": probe_display_name,
                         "Temperature": f"{temperature:.1f}",
                     })
-
-                csv_reader.update_csv_file(new_data, max_days=max_history_days)
+                if new_data:
+                    csv_reader.update_csv_file(new_data, max_days=max_history_days)
             except (ImportError, TypeError, ValueError) as e:
                 self.logger.log_message(f"Error initializing CSVReader in _log_temp_probes(): {e}", "error")
                 return
@@ -1078,3 +1074,18 @@ class PowerController:
                     }
                     self.external_service_helper.post_state_to_web_viewer(post_object)
                 self.viewer_website_last_post = DateHelper.now()
+
+    def _maybe_notify_webapp(self, *, force: bool = False) -> None:
+        notify = self._webapp_notify
+        if not notify:
+            return
+
+        now = DateHelper.now()
+        # Throttle periodic pushes to the polling interval; force=True bypasses throttle.
+        if not force and self._last_webapp_notify is not None and (now - self._last_webapp_notify).total_seconds() < self.poll_interval:
+            return
+
+        self._last_webapp_notify = now
+        # Web push is best-effort; do not crash the controller loop.
+        with contextlib.suppress(Exception):
+            notify()

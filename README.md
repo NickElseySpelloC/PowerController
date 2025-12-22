@@ -378,7 +378,7 @@ Settings for the built-in web server that provides a web interface to view and c
 | Port | The port to host the web server on |
 | PageAutoRefresh |  How often to refresh the web page (in seconds). Set to 0 to disable auto-refresh. |
 | DebugMode | Enable or disable debug mode for the web server (should be False in production) |
-| AccessKey | An access key to secure the web interface. Leave blank to disable access control. |
+| AccessKey | An access key to secure the web interface. Alternatively, set the WEBAPP_ACCESS_KEY environment variable. Leave blank to disable access control. |
 
 ### Section: AmberAPI
 
@@ -386,7 +386,7 @@ Settings for the built-in web server that provides a web interface to view and c
 |:--|:--|
 | Mode | Operating mode for the Amber API: Live (attempt to download prices), Offline (pretend Amber API is offline, use cached prices). Disabled (fall back to schedule) | 
 | APIURL | Base URL for API requests. This the servers URL on the Amber developer's page, currently: https://api.amber.com.au/v1 |
-| APIKey | Your Amber API key for authentication. Login to  app.amber.com.au/developers/ and generate a new Token to get your API key.| 
+| APIKey | Your Amber API key for authentication. Alternatively, set the AMBER_API_KEY environment variable. Login to  app.amber.com.au/developers/ and generate a new Token to get your API key.| 
 | Timeout | Number of seconds to wait for Amber to respond to an API call | 
 | MaxConcurrentErrors | Send an email notification if we get this number of concurrent errors from Amber. |
 | RefreshInterval | How often to refresh the pricing data from Amber (in minutes). |
@@ -478,8 +478,9 @@ Optionally use this section to log temperature probe readings to the system stat
 | Parameter | Description |
 |:--|:--|
 | Enable | Set to True or False |
-| Probes | A list of temp probe names, as defined in the ShellyDevices: Devices: [Device]: TempProbes section. |
+| Probes | A list of temp probe names, as defined in the ShellyDevices: Devices: [Device]: TempProbes section. You can optionally add a DisplayName here to be used in logging. |
 | LoggingInterval | Log temp probe readings every N minutes |
+| LastReadingWithinMinutes | Only log readings that have been updated within this number of minutes. 0 to disable. |
 | SavedStateFileMaxDays | Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable. |
 | HistoryDataFile | Leave blank to disable logging to a CSV file. |
 | HistoryDataFileMaxDays | Maximum number of days to keep in the history data file.  0 to disable. |
@@ -510,8 +511,8 @@ Use this section to specify the geographic location and timezone of your install
 | EnableEmail | Set to *True* if you want to allow the PowerController to send emails. If True, the remaining settings in this section must be configured correctly. | 
 | SMTPServer | The SMTP host name that supports TLS encryption. If using a Google account, set to smtp.gmail.com |
 | SMTPPort | The port number to use to connect to the SMTP server. If using a Google account, set to 587 |
-| SMTPUsername | Your username used to login to the SMTP server. If using a Google account, set to your Google email address. |
-| SMTPPassword | The password used to login to the SMTP server. If using a Google account, create an app password for the PowerController at https://myaccount.google.com/apppasswords  |
+| SMTPUsername | Your username used to login to the SMTP server. Alternatively, set the SMTP_USERNAME environment variable. If using a Google account, set to your Google email address. |
+| SMTPPassword | The password used to login to the SMTP server. Alternatively, set the SMTP_PASSWORD environment variable. If using a Google account, create an app password for the PowerController at https://myaccount.google.com/apppasswords  |
 | SubjectPrefix | If set, the PowerController will add this text to the start of any email subject line for emails it sends. |
 
 ### Section: ViewerWebsite
@@ -522,7 +523,7 @@ Use this section to configure integration with the PowerControllerViewer app - s
 |:--|:--|
 | Enable | Set to True to enable integration with the PowerControllerViewer app | 
 | BaseURL | The base URL of the PowerControllerViewer app | 
-| AccessKey | The access key for the PowerControllerViewer app | 
+| AccessKey | The access key for the PowerControllerViewer app. Alternatively, set the VIEWER_ACCESS_KEY environment variable. | 
 | APITimeout | How long to wait in seconds for a response from the PowerControllerViewer app | 
 | Frequency | How often to post the state to the web viewer app (in seconds) | 
 

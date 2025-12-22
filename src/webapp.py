@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -39,7 +40,9 @@ def _get_repo_root() -> Path:
 
 
 def _validate_access_key(config: SCConfigManager, logger: SCLogger, key_from_request: str | None) -> bool:
-    expected_key = config.get("Website", "AccessKey")
+    expected_key = os.environ.get("WEBAPP_ACCESS_KEY")
+    if not expected_key:
+        expected_key = config.get("Website", "AccessKey")
     if expected_key is None:
         return True
     if isinstance(expected_key, str) and not expected_key.strip():

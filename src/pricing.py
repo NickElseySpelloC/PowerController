@@ -1,6 +1,7 @@
 """The pricing module that manages the interface to Amber and determines when to run based on the best pricing strategy."""
 import datetime as dt
 import operator
+import os
 from pathlib import Path
 
 # from zoneinfo import ZoneInfo
@@ -59,7 +60,9 @@ class PricingManager:
         assert isinstance(self.refresh_interval, (int, float))
 
         self.base_url = self.config.get("AmberAPI", "APIURL")
-        self.api_key = self.config.get("AmberAPI", "APIKey")
+        self.api_key = os.environ.get("AMBER_API_KEY")
+        if not self.api_key:
+            self.api_key = self.config.get("AmberAPI", "APIKey")
         if not self.base_url or not self.api_key:
             if self.mode != AmberAPIMode.DISABLED:
                 self.logger.log_message("Amber API is not properly configured, disabling Amber pricing.", "error")

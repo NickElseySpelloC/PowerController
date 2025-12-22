@@ -213,10 +213,12 @@ class ConfigSchema:
                             "type": "dict",
                             "schema": {
                                 "Name": {"type": "string", "required": True},
+                                "DisplayName": {"type": "string", "required": False, "nullable": True},
                             },
                         },
                     },
                     "LoggingInterval": {"type": "number", "required": True, "min": 1, "max": 1440},
+                    "LastReadingWithinMinutes": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 7200},
                     "SavedStateFileMaxDays": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 14},
                     "HistoryDataFile": {"type": "string", "required": False, "nullable": True},
                     "HistoryDataFileMaxDays": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 365},
