@@ -1113,13 +1113,19 @@ class OutputManager:  # noqa: PLR0904
                 continue
 
             probe_temp = view.get_temp_probe_temperature(probe_id)
+            if condition == "GreaterThan":
+                if probe_temp is None:
+                    # Issue 45: If temp probe = N/A for greater than condition, constaint exists
+                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "debug")
+                    return True
+                if probe_temp < set_temp:
+                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
+                    return True
+
             if probe_temp is None:
+                # Issue 45: Ignore temp probe = N/A for less than condition
                 self.logger.log_message(f"Temperature probe {probe_name} not available for output {self.name}.", "debug")
                 continue
-
-            if condition == "GreaterThan" and probe_temp < set_temp:
-                self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
-                return True
 
             if condition == "LessThan" and probe_temp > set_temp:
                 self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a maximum temperature of {set_temp}°C.", "debug")

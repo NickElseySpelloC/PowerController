@@ -49,6 +49,9 @@ class LookupMode(StrEnum):
     INPUT = "input"
 
 
+TRIM_LOGFILE_INTERVAL = dt.timedelta(hours=2)
+
+
 class PowerController:
     """The PowerController class that orchestrates power management."""
 
@@ -65,6 +68,7 @@ class PowerController:
         self.config = config
         self.last_config_check = DateHelper.now()
         self.logger = logger
+        self.logger_last_trim: dt.datetime | None = None
         self.external_service_helper = ExternalServiceHelper(config, logger)
         self.viewer_website_last_post = None
         self.wake_event = wake_event
@@ -121,7 +125,7 @@ class PowerController:
         if self.temp_probe_logging.get("enabled", False):
             for probe in self.temp_probe_logging.get("probes", []):
                 temp_probe_data.append({
-                    "name": probe.get("Name", ""),
+                    "name": probe.get("DisplayName", probe.get("Name", "Unknown")),
                     "temperature": probe.get("Temperature"),
                     "last_logged_time": probe.get("LastReadingTime").strftime("%H:%M") if probe.get("LastReadingTime") else "",
                 })
@@ -526,6 +530,9 @@ class PowerController:
 
         # Check for fatal error recovery
         self._check_fatal_error_recovery()
+
+        # Trim the logfile if needed
+        self._trim_logfile_if_needed()
 
         return commands_processed or state_change
 
@@ -1089,3 +1096,10 @@ class PowerController:
         # Web push is best-effort; do not crash the controller loop.
         with contextlib.suppress(Exception):
             notify()
+
+    def _trim_logfile_if_needed(self) -> None:
+        """Trim the logfile if needed based on time interval."""
+        if not self.logger_last_trim or (DateHelper.now() - self.logger_last_trim) >= TRIM_LOGFILE_INTERVAL:
+            self.logger.trim_logfile()
+            self.logger_last_trim = DateHelper.now()
+            self.logger.log_message("Logfile trimmed.", "debug")
