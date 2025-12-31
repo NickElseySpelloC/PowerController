@@ -97,7 +97,7 @@ class PricingManager:
             return True
         return False
 
-    def refresh_price_data(self, load_from_file: bool = False) -> bool:  # noqa: FBT001, FBT002
+    def refresh_price_data(self, load_from_file: bool = False) -> bool:
         """Refreshes the pricing data from Amber.
 
         Args:
@@ -153,7 +153,7 @@ class PricingManager:
 
         return True
 
-    def _refresh_amber_prices(self, load_from_file: bool = False) -> bool:  # noqa: FBT001, FBT002
+    def _refresh_amber_prices(self, load_from_file: bool = False) -> bool:
         """Retrieves the current raw pricing data from Amber.
 
         Returns:

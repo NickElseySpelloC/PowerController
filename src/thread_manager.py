@@ -99,7 +99,7 @@ class ManagedThread:
 
 
 class ThreadManager:
-    def __init__(self, logger: Any, global_stop: threading.Event | None = None, exit_on_fatal: bool = True):  # NEW: exit_on_fatal parameter  # noqa: FBT001, FBT002
+    def __init__(self, logger: Any, global_stop: threading.Event | None = None, exit_on_fatal: bool = True):  # NEW: exit_on_fatal parameter
         self.logger = logger
         self.global_stop = global_stop or threading.Event()
         self.exit_on_fatal = exit_on_fatal  # NEW

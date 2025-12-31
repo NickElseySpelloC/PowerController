@@ -733,7 +733,7 @@ class OutputManager:  # noqa: PLR0904
     def formulate_output_sequence(self,
                                   system_state: SystemState,
                                   reason: StateReasonOn | StateReasonOff,
-                                  output_state: bool,     # noqa: FBT001
+                                  output_state: bool,
                                   view: ShellyView,
                                   output_sequences: dict[str, ShellySequenceRequest] | None = None,
                                   on_complete: Callable[[ShellySequenceResult], None] | None = None) -> OutputAction:
@@ -1032,7 +1032,7 @@ class OutputManager:  # noqa: PLR0904
 
         return False
 
-    def _should_respect_minimum_runtime(self, proposed_state: bool, view: ShellyView) -> bool:  # noqa: FBT001
+    def _should_respect_minimum_runtime(self, proposed_state: bool, view: ShellyView) -> bool:
         """Check if we should delay state change due to minimum runtime constraints.
 
         Args:

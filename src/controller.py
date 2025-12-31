@@ -300,7 +300,7 @@ class PowerController:
         self.logger.log_message(f"Submitted pool sequence job_id={job_id}", "debug")
 
     # Private Functions ===========================================================================
-    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: FBT001, FBT002, PLR0912, PLR0915
+    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: PLR0912, PLR0915
         """(re) initialise the power controller."""
         # See if we have a system state file to load
         saved_state = self._load_system_state()
@@ -489,7 +489,7 @@ class PowerController:
             self.logger.log_message(f"Loaded system state from {system_state_path}", "debug")
             return state_data
 
-    def _save_system_state(self, view: ShellyView, force_post: bool = False):  # noqa: FBT001, FBT002
+    def _save_system_state(self, view: ShellyView, force_post: bool = False):
         """Saves the system state to disk.
 
         Args:
@@ -1085,7 +1085,7 @@ class PowerController:
                 else:
                     self.logger.clear_notifiable_issue(entity=f"Shelly device {device_name}", issue_type="Internal Temperature Exceeds Threshold")
 
-    def _post_state_to_web_viewer(self, view: ShellyView, force_post: bool = False):  # noqa: FBT001, FBT002
+    def _post_state_to_web_viewer(self, view: ShellyView, force_post: bool = False):
         """
         Post to the web server if needed.
 
@@ -1183,7 +1183,7 @@ class PowerController:
             import_start_date = (DateHelper.now() - dt.timedelta(days=days_of_history)).date()
 
         try:
-            charging_data = get_charging_data_as_dict(self.config, start_date=import_start_date)
+            charging_data = get_charging_data_as_dict(self.config, start_date=import_start_date, convert_to_local=True)
             if charging_data:
                 self.logger.log_message(f"Imported {len(charging_data["sessions"])} charging sessions from TeslaMate starting from {import_start_date}.", "debug")
 

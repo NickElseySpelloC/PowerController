@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import datetime as dt
 from contextlib import contextmanager
-from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 from psycopg.rows import tuple_row
@@ -117,16 +117,31 @@ class TeslaMateDb:
             conn.close()
 
     @staticmethod
-    def _start_ts_from_date(start_date: date) -> datetime:
+    def _start_ts_from_date(start_date: dt.date) -> dt.datetime:
         # TeslaMate stores timestamp without timezone; treat date as local midnight.
-        local_tz = datetime.now().astimezone().tzinfo
-        return datetime(
+        local_tz = dt.datetime.now().astimezone().tzinfo
+        return dt.datetime(
             start_date.year, start_date.month, start_date.day, 0, 0, 0, tzinfo=local_tz
         )
 
-    def get_sessions_since(
-        self, start_date: date, geofence_name: str | None = None
-    ) -> list[ChargingSession]:
+    def get_sessions_since(self,
+                           start_date: dt.date,
+                           geofence_name: str | None = None,
+                           convert_to_local: bool = True
+                          ) -> list[ChargingSession]:
+        """Get charging sessions since the given date.
+
+        Args:
+            start_date: The date from which to start fetching sessions.
+            geofence_name: Optional geofence name to filter sessions.
+            convert_to_local: Whether to convert datetime objects to local timezone strings.
+
+        Raises:
+            ConnectionError: If unable to connect to the TeslaMate database.
+
+        Returns:
+            list[ChargingSession]: List of ChargingSession objects.
+        """
         start_ts = self._start_ts_from_date(start_date)
 
         try:
@@ -142,12 +157,19 @@ class TeslaMateDb:
 
         sessions: list[ChargingSession] = []
         for r in rows:
+            sess_start_date = r[2]
+            sess_end_date = r[3]
+            if convert_to_local:
+                sess_start_date = self._convert_dt_to_local(sess_start_date)
+                if sess_end_date:
+                    sess_end_date = self._convert_dt_to_local(sess_end_date)
+
             sessions.append(
                 ChargingSession(
                     id=int(r[0]),
                     car_id=int(r[1]),
-                    start_date=r[2],
-                    end_date=r[3],
+                    start_date=sess_start_date,
+                    end_date=sess_end_date,
                     duration_min=int(r[4]) if r[4] is not None else None,
                     start_battery_level=int(r[5]) if r[5] is not None else None,
                     end_battery_level=int(r[6]) if r[6] is not None else None,
@@ -161,9 +183,23 @@ class TeslaMateDb:
         return sessions
 
     def get_5min_buckets_since(self,
-                               start_date: date,
-                               geofence_name: str | None = None
-                          ) -> list[tuple[int, datetime, datetime, float]]:
+                               start_date: dt.date,
+                               geofence_name: str | None = None,
+                               convert_to_local: bool = True
+                          ) -> list[tuple[int, dt.datetime, dt.datetime, float]]:
+        """Get 5min charging bucket records since start_date.
+
+        Args:
+            start_date: The date from which to start fetching sessions.
+            geofence_name: Optional geofence name to filter sessions.
+            convert_to_local: Whether to convert datetime objects to local timezone strings.
+
+        Raises:
+            ConnectionError: If unable to connect to the TeslaMate database.
+
+        Returns:
+            list: List of charging bucket objects.
+        """
         start_ts = self._start_ts_from_date(start_date)
 
         try:
@@ -177,4 +213,27 @@ class TeslaMateDb:
             raise ConnectionError(error_msg) from e
 
         # rows: (charging_process_id, bucket_start, bucket_end, kwh_added)
-        return [(int(r[0]), r[1], r[2], (float(r[3]) or float(0))) for r in rows]
+        return_rows: list[tuple[int, dt.datetime, dt.datetime, float]] = []
+        for r in rows:
+            charging_process_id = int(r[0])
+            bucket_start = r[1]
+            bucket_end = r[2]
+            if convert_to_local:
+                bucket_start = self._convert_dt_to_local(bucket_start)
+                bucket_end = self._convert_dt_to_local(bucket_end)
+            kwh_added = float(r[3]) or float(0)
+
+            return_rows.append(
+                (charging_process_id, bucket_start, bucket_end, kwh_added)
+            )
+        return return_rows
+
+    def _convert_dt_to_local(self, obj: Any) -> Any:  # noqa: PLR6301
+        local_tz = dt.datetime.now().astimezone().tzinfo
+
+        if isinstance(obj, dt.datetime):
+            # Treat naive datetimes as UTC (TeslaMate timestamps are stored without TZ)
+            utc_dt = obj if obj.tzinfo is not None else obj.replace(tzinfo=dt.UTC)
+            local_dt = utc_dt.astimezone(local_tz)
+            return local_dt
+        return obj

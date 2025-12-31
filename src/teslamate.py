@@ -78,12 +78,13 @@ def print_charging_data(config: SCConfigManager, start_date: dt.date) -> None:
                 )
 
 
-def get_charging_data(config: SCConfigManager, start_date: dt.date) -> TeslaImportResult | None:
+def get_charging_data(config: SCConfigManager, start_date: dt.date, convert_to_local: bool = True) -> TeslaImportResult | None:
     """Return the charging data as a TeslaImportResult object.
 
     Args:
         config: The SCConfigManager instance with TeslaMate config.
         start_date: The date from which to start importing charging data.
+        convert_to_local: Whether to convert datetime objects to local timezone strings.
 
     Raises:
         ConnectionError: If unable to connect to the TeslaMate database.
@@ -97,19 +98,23 @@ def get_charging_data(config: SCConfigManager, start_date: dt.date) -> TeslaImpo
     db = TeslaMateDb(cfg)
 
     try:
-        result = import_charging_buckets(db, start_date=start_date, geofence_name=cfg.geofence_name)
+        result = import_charging_buckets(db, start_date=start_date, geofence_name=cfg.geofence_name, convert_to_local=convert_to_local)
     except ConnectionError as e:
         raise ConnectionError(e) from e
     else:
         return result
 
 
-def get_charging_data_as_dict(config: SCConfigManager, start_date: dt.date) -> dict | None:
+def get_charging_data_as_dict(config: SCConfigManager, start_date: dt.date, convert_to_local: bool = True) -> dict | None:
     """Return the charging data as a dict.
 
     Args:
         config: The SCConfigManager instance with TeslaMate config.
         start_date: The date from which to start importing charging data.
+        convert_to_local: Whether to convert datetime objects to local timezone strings.
+
+    Raises:
+        ConnectionError: If unable to connect to the TeslaMate database.
 
     Raises:
         ConnectionError: If unable to connect to the TeslaMate database.
@@ -117,16 +122,14 @@ def get_charging_data_as_dict(config: SCConfigManager, start_date: dt.date) -> d
     Returns:
         dict | None: The imported charging data, or None if not enabled.
     """
-    cfg = DbConfig(config)
-    if not cfg.enabled:
-        return None  # Skip if not enabled
-    db = TeslaMateDb(cfg)
-
     try:
-        result = import_charging_buckets(db, start_date=start_date, geofence_name=cfg.geofence_name)
+        result = get_charging_data(config=config, start_date=start_date, convert_to_local=convert_to_local)
     except ConnectionError as e:
         raise ConnectionError(e) from e
     else:
+        if result is None:
+            return None
+
         return_dict = {
             "start_date": result.start_date.isoformat(),
             "sessions": [asdict(s) for s in result.sessions],

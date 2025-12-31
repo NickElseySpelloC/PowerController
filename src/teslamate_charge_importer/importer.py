@@ -10,10 +10,10 @@ if TYPE_CHECKING:
     from .db import TeslaMateDb
 
 
-def import_charging_buckets(db: TeslaMateDb, start_date: date, geofence_name: str | None = None) -> TeslaImportResult:
+def import_charging_buckets(db: TeslaMateDb, start_date: date, geofence_name: str | None = None, convert_to_local: bool = True) -> TeslaImportResult:
     try:
-        sessions = db.get_sessions_since(start_date, geofence_name=geofence_name)
-        raw = db.get_5min_buckets_since(start_date, geofence_name=geofence_name)
+        sessions = db.get_sessions_since(start_date, geofence_name=geofence_name, convert_to_local=convert_to_local)
+        raw = db.get_5min_buckets_since(start_date, geofence_name=geofence_name, convert_to_local=convert_to_local)
     except (ConnectionError) as e:
         raise ConnectionError(e) from e
     else:

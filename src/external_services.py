@@ -24,7 +24,7 @@ class ExternalServiceHelper:
         self.logger = logger
         self.heartbeat_last_post = None
 
-    def ping_heatbeat(self, is_fail: bool | None = None) -> bool:  # noqa: FBT001
+    def ping_heatbeat(self, is_fail: bool | None = None) -> bool:
         """Ping the heartbeat URL to check if the service is available.
 
         Args:
