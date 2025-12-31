@@ -34,3 +34,4 @@ src/*.log
 logs
 backup
 simulation_data
+system_state.*

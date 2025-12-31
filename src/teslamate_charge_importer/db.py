@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import psycopg
@@ -152,8 +151,8 @@ class TeslaMateDb:
                     duration_min=int(r[4]) if r[4] is not None else None,
                     start_battery_level=int(r[5]) if r[5] is not None else None,
                     end_battery_level=int(r[6]) if r[6] is not None else None,
-                    charge_energy_added_kwh=r[7] if r[7] is not None else None,
-                    charge_energy_used_kwh=r[8] if r[8] is not None else None,
+                    charge_energy_added_kwh=float(r[7]) if r[7] is not None else None,
+                    charge_energy_used_kwh=float(r[8]) if r[8] is not None else None,
                     cost=r[9] if r[9] is not None else None,
                     geofence_name=r[10] if r[10] is not None else None,
                     short_address=r[11] if r[11] is not None else None,
@@ -161,9 +160,10 @@ class TeslaMateDb:
             )
         return sessions
 
-    def get_5min_buckets_since(
-        self, start_date: date, geofence_name: str | None = None
-    ) -> list[tuple[int, datetime, datetime, Decimal]]:
+    def get_5min_buckets_since(self,
+                               start_date: date,
+                               geofence_name: str | None = None
+                          ) -> list[tuple[int, datetime, datetime, float]]:
         start_ts = self._start_ts_from_date(start_date)
 
         try:
@@ -177,4 +177,4 @@ class TeslaMateDb:
             raise ConnectionError(error_msg) from e
 
         # rows: (charging_process_id, bucket_start, bucket_end, kwh_added)
-        return [(int(r[0]), r[1], r[2], (r[3] or Decimal(0))) for r in rows]
+        return [(int(r[0]), r[1], r[2], (float(r[3]) or float(0))) for r in rows]

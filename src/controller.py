@@ -4,7 +4,6 @@ import datetime as dt
 import queue
 import time
 from collections.abc import Callable
-from dataclasses import asdict
 from enum import StrEnum
 from pathlib import Path
 from threading import Event, RLock
@@ -39,7 +38,12 @@ from pricing import PricingManager
 from scheduler import Scheduler
 from shelly_view import ShellyView
 from shelly_worker import ShellyWorker
-from teslamate import get_charging_data, print_charging_data
+from teslamate import (
+    get_charging_data_as_dict,
+    merge_bucket_dict_records,
+    merge_session_dict_records,
+    print_charging_data,
+)
 
 
 class LookupMode(StrEnum):
@@ -324,7 +328,15 @@ class PowerController:
 
         # Initialise the TeslaMate import settings
         self.tesla_import_enabled = bool(self.config.get("TeslaMate", "Enable", default=False))
-        # TO DO: Get tesla data from saved state
+        # Get tesla data from saved state
+        if saved_state:
+            self.tesla_charge_data["start_date"] = saved_state.get("TeslaChargeData", {}).get("start_date", None)
+            self.tesla_charge_data["sessions"] = saved_state.get("TeslaChargeData", {}).get("sessions", [])
+            self.tesla_charge_data["buckets"] = saved_state.get("TeslaChargeData", {}).get("buckets", [])
+        else:
+            self.tesla_charge_data["start_date"] = None
+            self.tesla_charge_data["sessions"] = []
+            self.tesla_charge_data["buckets"] = []
 
         # Read the shelly output sequences from the config
         try:
@@ -388,7 +400,10 @@ class PowerController:
                 self.logger.log_message(f"Meter device {output.device_meter_name} is used by {output.name} and at least one other output.", "warning")
 
             # Validate that the output's OutputSequence exists
-            # TO DO: Do this for On and Off if defined
+            if output.output_config.get("TurnOnSequence") and output.output_config.get("TurnOnSequence") not in self._shelly_sequence_requests:
+                self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOnSequence {output.output_config.get("TurnOnSequence")}.")
+            if output.output_config.get("TurnOffSequence") and output.output_config.get("TurnOffSequence") not in self._shelly_sequence_requests:
+                self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOffSequence {output.output_config.get("TurnOffSequence")}.")
 
         # Sort outputs so parents are evaluated first
         list.sort(self.outputs, key=lambda x: not x.is_parent)
@@ -1135,6 +1150,25 @@ class PowerController:
             self.logger.log_message("Logfile trimmed.", "debug")
 
     def _import_teslamate_charging_data_if_needed(self) -> None:
+        """
+        Import the latest TeslaMate charging data into the controller state, if enabled and due.
+
+        This method:
+        - Exits early when TeslaMate import is disabled.
+        - Rate-limits imports using ``self.tesla_last_import_query`` and ``TESLAMATE_QUERY_INTERVAL``.
+        - Determines the import start date from ``self.tesla_charge_data["start_date"]``; if absent,
+            defaults to ``DaysOfHistory`` (fallback 14 days) from the ``TeslaMate`` config section.
+        - Calls ``get_charging_data_as_dict(self.config, start_date=import_start_date)`` to fetch data.
+        - If data is returned, merges newly imported ``sessions`` and ``buckets`` into the existing
+            ``self.tesla_charge_data`` using an ID-based merge strategy, then updates
+            ``self.tesla_charge_data["start_date"]`` to today and persists merged results in
+            ``self.tesla_charge_data``.
+
+        Logging/Errors:
+        - Logs the number of imported sessions at debug level.
+        - Logs and suppresses ``ConnectionError`` failures.
+        - On success, logs a debug message and updates ``self.tesla_last_import_query``.
+        """
         """Import the latest TeslaMate charging data if enabled."""
         if not self.tesla_import_enabled:
             return
@@ -1149,16 +1183,25 @@ class PowerController:
             import_start_date = (DateHelper.now() - dt.timedelta(days=days_of_history)).date()
 
         try:
-            charging_data = get_charging_data(self.config, start_date=import_start_date)
+            charging_data = get_charging_data_as_dict(self.config, start_date=import_start_date)
             if charging_data:
-                self.logger.log_message(f"Imported {len(charging_data.sessions)} charging sessions from TeslaMate starting from {import_start_date}.", "debug")
+                self.logger.log_message(f"Imported {len(charging_data["sessions"])} charging sessions from TeslaMate starting from {import_start_date}.", "debug")
 
                 # TO DO: ChatGPT to implement processing logic here
-                # For now we'll just save the raw data to the tesla_charge_data dict which gets saved into the state file
-                self.tesla_charge_data["start_date"] = import_start_date    # TO DO: Update to today's date after processing
-                # TO DO: Need to merge these with existing data rather than overwrite
-                self.tesla_charge_data["sessions"] = [asdict(s) for s in charging_data.sessions]
-                self.tesla_charge_data["buckets"] = [asdict(b) for b in charging_data.buckets]
+
+                # Merge sessions
+                existing_sessions = self.tesla_charge_data.get("sessions") or []
+                new_sessions = charging_data.get("sessions") or []
+                self.tesla_charge_data["sessions"] = merge_session_dict_records(existing_sessions, new_sessions)
+
+                # Remove any existing bucket records whose bucket_start date is on/after the import_start_date.
+                # This avoids duplicates when we re-import a sliding window of bucket data.
+                existing_buckets = self.tesla_charge_data.get("buckets") or []
+                new_buckets = charging_data.get("buckets") or []
+                self.tesla_charge_data["buckets"] = merge_bucket_dict_records(existing_buckets, new_buckets, import_start_date)
+
+                # Now that we have data, update the start date to today
+                self.tesla_charge_data["start_date"] = DateHelper.today()
 
             self.tesla_last_import_query = DateHelper.now()
         except ConnectionError as e:

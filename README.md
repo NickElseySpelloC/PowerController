@@ -53,7 +53,7 @@ Website:
   Port: 8080                  # The port to host the web server on
   PageAutoRefresh: 30         # How often to refresh the web page (in seconds). Set to 0 to disable auto-refresh.
   DebugMode: True             # Enable or disable debug mode for the web server (should be False in production)
-  AccessKey: <Your website API key here>                 # An access key to secure the web interface. Leave blank to disable access control.
+  AccessKey: <Your website API key here>   # An access key to secure the web interface. Alternatively, set the WEBAPP_ACCESS_KEY environment variable. Leave blank to disable access control.
 
 
 # Settings for the Amber API integration
@@ -61,7 +61,7 @@ AmberAPI:
   # Operating mode for the Amber API: Live (attempt to download prices), Offline (pretend Amber API is offline, use cached prices). Disabled (fall back to schedule)
   Mode: Live
   APIURL: https://api.amber.com.au/v1   # The base URL for the Amber API
-  APIKey: <Your API key here>    # The API key for your account, get one at app.amber.com.au/developers
+  APIKey: <Your API key here>    # The API key for your account, get one at app.amber.com.au/developers. Alternatively, set the AMBER_API_KEY environment variable.
   Timeout: 15               # How long to wait in second for a response from the Amber API
   MaxConcurrentErrors: 4    # Send an email notification if we get this number of concurrent errors from Amber
   RefreshInterval: 15       # How often to refresh the pricing data from Amber (in minutes) 
@@ -283,9 +283,11 @@ TempProbeLogging:
     Enable: True
     Probes:   # A list of temp probes to monitor.
       - Name: Temp Pool Water
+        DisplayName: Pool Water
       - Name: Temp Roof
       - Name: Temp Solar Return
     LoggingInterval: 30  # Log temp probe readings every N minutes
+    LastReadingWithinMinutes: 180  # Only log readings that have been updated within this number of minutes. 0 to disable.
     SavedStateFileMaxDays: 7  # Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable.
     HistoryDataFile: temp_probe_history.csv  # Leave blank to disable logging to a CSV file.
     HistoryDataFileMaxDays: 90  # Maximum number of days to keep in the history data file.  0 to disable.
@@ -330,8 +332,8 @@ Email:
   SendEmailsTo: <Your email address here>   # The email address to send notifications to
   SMTPServer: <Your SMTP server here>       # The SMTP server to use to send the email
   SMTPPort: 587                             # The SMTP server port
-  SMTPUsername: <Your SMTP username here>   # The SMTP username
-  SMTPPassword: <Your SMTP password here>   # The SMTP password or app password
+  SMTPUsername: <Your SMTP username here>   # The SMTP username. Alternatively, set the SMTP_USERNAME environment variable.
+  SMTPPassword: <Your SMTP password here>   # The SMTP password or app password. Alternatively, set the SMTP_PASSWORD environment variable.
   SubjectPrefix: "[My PowerController]: "   # A prefix to add to the email subject line
 
 
@@ -339,7 +341,7 @@ Email:
 ViewerWebsite:
   Enable: False                   # Set to True to enable integration with the PowerControllerViewer app
   BaseURL: http://localhost:8000  # The base URL of the PowerControllerViewer app
-  AccessKey: <Your website API key here>  # The access key for the PowerControllerViewer app
+  AccessKey: <Your website API key here>  # The access key for the PowerControllerViewer app. Alternatively, set the VIEWER_ACCESS_KEY environment variable.
   APITimeout: 5                   # How long to wait in seconds for a response from the PowerControllerViewer app
   Frequency: 10                   # How often to post the state to the web viewer app (in seconds)
 
@@ -350,6 +352,17 @@ HeartbeatMonitor:
   WebsiteURL: https://uptime.betterstack.com/api/v1/heartbeat/myheartbeatid    # The URL of the website to monitor for availability
   HeartbeatTimeout: 5        # How long to wait for a response from the website before considering it down in seconds
   Frequency: 10              # How often to post the state to the heartbeat monitor (in seconds)
+
+# Optionally use this sectionto configure integration with the TeslaMate database to import Tesla charging session data
+TeslaMate:
+  Enable: False           # Set to True to enable integration with the TeslaMate database
+  DaysOfHistory: 14       # Number of days of charging history to keep
+  Host: 127.0.0.1         # The host address of the TeslaMate database (or use the TESLAMATE_DB_HOST environment variable)
+  Port: 5432              # The port number of the TeslaMate database (or use the TESLAMATE_DB_PORT environment variable)
+  DatabaseName: teslamate # The name of the TeslaMate database (or use the TESLAMATE_DB_NAME environment variable)
+  DBUsername: teslamate   # The username to connect to the TeslaMate database (or use the TESLAMATE_DB_USER environment variable)
+  DBPassword: <Your password here>  # The password to connect to the TeslaMate database (or use the TESLAMATE_DB_PASSWORD environment variable)
+  GeofenceName: Home     # Optionally, only query the charging data within this geofence name. Leave blank to disable.
 ```
 
 ## Configuration Parameters
@@ -536,6 +549,12 @@ Use this section to configure integration with the PowerControllerViewer app - s
 | WebsiteURL | Each time the app runs successfully, you can have it hit this URL to record a heartbeat. This is optional. If the app exist with a fatal error, it will append /fail to this URL. | 
 | HeartbeatTimeout | How long to wait for a response from the website before considering it down in seconds. | 
 | Frequency | How often to post the state to the heartbeat monitor (in seconds) | 
+
+### Section: TeslaMate
+
+This can be used to import Tesla charging data from a local network instance of [TeslaMate ](https://docs.teslamate.org/docs/installation/docker). This feature is a work in progress, for now it only logs charging data to the system state file. 
+
+If you want to limit data imports to home charging, first set a geofence name in the TeslaMaste dashboard (Home > Dashboards > TeslaMate > Charges) and then set this geofence name in the GeofenceName config parameter.
 
 
 # Setting up the Smart Switch

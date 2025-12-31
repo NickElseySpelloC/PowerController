@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from .models import EnergyBucket, TeslaImportResult
@@ -21,7 +20,7 @@ def import_charging_buckets(db: TeslaMateDb, start_date: date, geofence_name: st
         buckets: list[EnergyBucket] = []
         for session_id, bucket_start, bucket_end, kwh_added in raw:
             # avg kW over 5 minutes = kWh * 12
-            avg_kw = (kwh_added * Decimal("12.0"))
+            avg_kw = (kwh_added * 12.0)
             buckets.append(
                 EnergyBucket(
                     charging_process_id=session_id,
