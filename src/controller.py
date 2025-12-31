@@ -4,6 +4,7 @@ import datetime as dt
 import queue
 import time
 from collections.abc import Callable
+from dataclasses import asdict
 from enum import StrEnum
 from pathlib import Path
 from threading import Event, RLock
@@ -38,6 +39,7 @@ from pricing import PricingManager
 from scheduler import Scheduler
 from shelly_view import ShellyView
 from shelly_worker import ShellyWorker
+from teslamate import get_charging_data, print_charging_data
 
 
 class LookupMode(StrEnum):
@@ -50,6 +52,7 @@ class LookupMode(StrEnum):
 
 
 TRIM_LOGFILE_INTERVAL = dt.timedelta(hours=2)
+TESLAMATE_QUERY_INTERVAL = dt.timedelta(minutes=10)
 
 
 class PowerController:
@@ -89,6 +92,15 @@ class PowerController:
         # Temp probe logging
         self.temp_probe_logging = {}
         self.temp_probe_history: list[dict] = []
+
+        # TeslaMate charging data import
+        self.tesla_import_enabled: bool = False
+        self.tesla_last_import_query: dt.datetime | None = None
+        self.tesla_charge_data: dict = {
+            "start_date": None,
+            "sessions": [],
+            "buckets": [],
+        }
 
         # Create the two run_planner types
         self.scheduler = Scheduler(self.config, self.logger)
@@ -185,11 +197,12 @@ class PowerController:
         """
         self.logger.log_message("Power controller starting main control loop.", "detailed")
 
-        if self.run_self_tests():
-            return
-
         while not stop_event.is_set():
             self.print_to_console(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
+
+            # Run self tests if in testing mode
+            self.run_self_tests()
+
             force_refresh = self._run_scheduler_tick()
             # Push updates periodically and immediately after commands.
             self._maybe_notify_webapp(force=force_refresh)
@@ -229,8 +242,17 @@ class PowerController:
         if not self.config.get("General", "TestingMode", default=False):
             return False
 
+        # Run output level self tests
         for output in self.outputs:
             output.run_self_tests()
+
+        # TeslaMate DB connection test
+        try:
+            start_date = dt.date(2025, 12, 25)
+            print(print_charging_data(self.config, start_date=start_date))
+            self.logger.log_message("Successfully connected to TeslaMate database and ran sample query.", "debug")
+        except (ConnectionError) as e:
+            self.logger.log_message(f"Failed to connect to TeslaMate database or run sample query: {e}", "error")
 
         return True
 
@@ -299,6 +321,10 @@ class PowerController:
         if len(output_names) != len(set(output_names)):
             self.logger.log_fatal_error("Output names must be unique.")
             return
+
+        # Initialise the TeslaMate import settings
+        self.tesla_import_enabled = bool(self.config.get("TeslaMate", "Enable", default=False))
+        # TO DO: Get tesla data from saved state
 
         # Read the shelly output sequences from the config
         try:
@@ -471,6 +497,7 @@ class PowerController:
                 "Outputs": [],
                 "Scheduler": self.scheduler.get_save_object(),
                 "TempProbeLogging": self.temp_probe_logging,
+                "TeslaChargeData": self.tesla_charge_data,
             }
             for output in self.outputs:
                 output_save_object = output.get_save_object(view)
@@ -509,6 +536,9 @@ class PowerController:
 
         # Monitor device internal temperatures and log if needed
         self._monitor_device_internal_temps(view)
+
+        # Import the latest TeslaMate charging data if needed
+        self._import_teslamate_charging_data_if_needed()
 
         # Calculate the running totals for each output
         self._calculate_running_totals(view)
@@ -1103,3 +1133,36 @@ class PowerController:
             self.logger.trim_logfile()
             self.logger_last_trim = DateHelper.now()
             self.logger.log_message("Logfile trimmed.", "debug")
+
+    def _import_teslamate_charging_data_if_needed(self) -> None:
+        """Import the latest TeslaMate charging data if enabled."""
+        if not self.tesla_import_enabled:
+            return
+
+        if self.tesla_last_import_query and (DateHelper.now() - self.tesla_last_import_query) < TESLAMATE_QUERY_INTERVAL:
+            return  # Not time to query yet
+
+        import_start_date = self.tesla_charge_data.get("start_date")
+        if not import_start_date:
+            # Default to 30 days ago
+            days_of_history = int(self.config.get("TeslaMate", "DaysOfHistory", default=14)) or 14  # pyright: ignore[reportArgumentType]
+            import_start_date = (DateHelper.now() - dt.timedelta(days=days_of_history)).date()
+
+        try:
+            charging_data = get_charging_data(self.config, start_date=import_start_date)
+            if charging_data:
+                self.logger.log_message(f"Imported {len(charging_data.sessions)} charging sessions from TeslaMate starting from {import_start_date}.", "debug")
+
+                # TO DO: ChatGPT to implement processing logic here
+                # For now we'll just save the raw data to the tesla_charge_data dict which gets saved into the state file
+                self.tesla_charge_data["start_date"] = import_start_date    # TO DO: Update to today's date after processing
+                # TO DO: Need to merge these with existing data rather than overwrite
+                self.tesla_charge_data["sessions"] = [asdict(s) for s in charging_data.sessions]
+                self.tesla_charge_data["buckets"] = [asdict(b) for b in charging_data.buckets]
+
+            self.tesla_last_import_query = DateHelper.now()
+        except ConnectionError as e:
+            self.logger.log_message(f"Failed to import TeslaMate charging data: {e}", "error")
+        else:
+            self.logger.log_message("Successfully imported TeslaMate charging data.", "debug")
+            self.tesla_last_import_query = DateHelper.now()

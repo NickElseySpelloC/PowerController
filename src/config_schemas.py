@@ -40,6 +40,7 @@ class ConfigSchema:
             },
             "General": {
                 "type": "dict",
+                "required": False,
                 "schema": {
                     "Label": {"type": "string", "required": False, "nullable": True},
                     "PollingInterval": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 600},
@@ -53,6 +54,7 @@ class ConfigSchema:
             },
             "Website": {
                 "type": "dict",
+                "required": False,
                 "schema": {
                     "HostingIP": {"type": "string", "required": False, "nullable": True},
                     "Port": {"type": "number", "required": False, "nullable": True, "min": 80, "max": 65535},
@@ -203,6 +205,7 @@ class ConfigSchema:
             },
             "TempProbeLogging": {
                 "type": "dict",
+                "required": False,
                 "schema": {
                     "Enable": {"type": "boolean", "required": False, "nullable": True},
                     "Probes": {
@@ -252,6 +255,7 @@ class ConfigSchema:
             },
             "HeartbeatMonitor": {
                 "type": "dict",
+                "required": False,
                 "schema": {
                     "Enable": {"type": "boolean", "required": False, "nullable": True},
                     "WebsiteURL": {"type": "string", "required": False, "nullable": True},
@@ -261,6 +265,7 @@ class ConfigSchema:
             },
             "ViewerWebsite": {
                 "type": "dict",
+                "required": False,
                 "schema": {
                     "Enable": {"type": "boolean", "required": False, "nullable": True},
                     "Label": {"type": "string", "required": False, "nullable": True},
@@ -270,6 +275,23 @@ class ConfigSchema:
                     "Frequency": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                 },
             },
+
+            "TeslaMate": {
+                "type": "dict",
+                "required": False,
+                "schema": {
+                    "Enable": {"type": "boolean", "required": False, "nullable": True},
+                    "DaysOfHistory": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 60},
+                    "Host": {"type": "string", "required": False, "nullable": True},
+                    "Port": {"type": "number", "required": False, "nullable": True},
+                    "DatabaseName": {"type": "string", "required": False, "nullable": True},
+                    "DBUsername": {"type": "string", "required": False, "nullable": True},
+                    "DBPassword": {"type": "string", "required": False, "nullable": True},
+                    "GeofenceName": {"type": "string", "required": False, "nullable": True},
+                },
+            },
+
+
         }
 
         self.amber_usage_csv_config = [

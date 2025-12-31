@@ -321,3 +321,14 @@ HeartbeatMonitor:
   WebsiteURL: https://uptime.betterstack.com/api/v1/heartbeat/myheartbeatid    # The URL of the website to monitor for availability
   HeartbeatTimeout: 5        # How long to wait for a response from the website before considering it down in seconds
   Frequency: 10              # How often to post the state to the heartbeat monitor (in seconds)
+
+# Optionally use this sectionto configure integration with the TeslaMate database to import Tesla charging session data
+TeslaMate:
+  Enable: False           # Set to True to enable integration with the TeslaMate database
+  DaysOfHistory: 14       # Number of days of charging history to keep
+  Host: 127.0.0.1         # The host address of the TeslaMate database (or use the TESLAMATE_DB_HOST environment variable)
+  Port: 5432              # The port number of the TeslaMate database (or use the TESLAMATE_DB_PORT environment variable)
+  DatabaseName: teslamate # The name of the TeslaMate database (or use the TESLAMATE_DB_NAME environment variable)
+  DBUsername: teslamate   # The username to connect to the TeslaMate database (or use the TESLAMATE_DB_USER environment variable)
+  DBPassword: <Your password here>  # The password to connect to the TeslaMate database (or use the TESLAMATE_DB_PASSWORD environment variable)
+  GeofenceName: Home     # Optionally, only query the charging data within this geofence name. Leave blank to disable.

@@ -1,0 +1,484 @@
+{
+    "SchemaVersion": 1,
+    "StateFileType": "PowerController",
+    "DeviceName": "Sydney Dev PowerController",
+    "SaveTime": "2025-12-31T10:59:44.155850+11:00",
+    "SaveTime__datatype": "datetime",
+    "Outputs": [
+        {
+            "Name": "DEV A1",
+            "SystemState": "DateOff condition met for today",
+            "SystemState__enum": "org_enums.enum_power_controller.SystemState.DATE_OFF",
+            "IsOn": false,
+            "LastChanged": "2025-12-31T10:59:44.144754+11:00",
+            "LastChanged__datatype": "datetime",
+            "Reason": "DateOff condition met for today",
+            "Reason__enum": "org_enums.enum_power_controller.StateReasonOff.DATE_OFF",
+            "AppMode": "auto",
+            "AppMode__enum": "org_enums.enum_power_controller.AppMode.AUTO",
+            "AppModeRevertTime": null,
+            "DeviceMode": "Schedule",
+            "ParentOutputName": null,
+            "DeviceOutputName": "Sydney Dev A O1",
+            "DeviceMeterName": null,
+            "DeviceInputName": null,
+            "DeviceInputMode": "Ignore",
+            "DeviceInputMode__enum": "local_enumerations.InputMode.IGNORE",
+            "ScheduleName": "Pool Solar",
+            "AmberChannel": "general",
+            "MaxBestPrice": 35.0,
+            "MaxPriorityPrice": 40.0,
+            "MinHours": 2,
+            "MaxHours": 8,
+            "TargetHours": 7,
+            "RunPlanTargetMode": "run for target hours",
+            "RunPlanTargetMode__enum": "org_enums.enum_power_controller.RunPlanTargetHours.NORMAL",
+            "LastTurnedOn": "2025-12-29T11:30:29.204744+11:00",
+            "LastTurnedOn__datatype": "datetime",
+            "LastTurnedOff": "2025-12-29T11:30:34.186322+11:00",
+            "LastTurnedOff__datatype": "datetime",
+            "MinOnTime": 0,
+            "MinOffTime": 0,
+            "DatesOff": [
+                {
+                    "StartDate": "2025-12-01",
+                    "StartDate__datatype": "date",
+                    "EndDate": "2026-01-01",
+                    "EndDate__datatype": "date"
+                }
+            ],
+            "RunPlan": {
+                "Source": "Schedule",
+                "Source__enum": "org_enums.enum_power_controller.RunPlanMode.SCHEDULE",
+                "Channel": null,
+                "LastUpdate": "2025-12-31T10:59:44.140041+11:00",
+                "LastUpdate__datatype": "datetime",
+                "Status": "The run plan was filled successfully.",
+                "Status__enum": "org_enums.enum_power_controller.RunPlanStatus.READY",
+                "RequiredHours": 8,
+                "PriorityHours": 2.0,
+                "PlannedHours": 8.0,
+                "RemainingHours": 7.983333333333333,
+                "NextStartDateTime": "2025-12-31T10:59:00+11:00",
+                "NextStartDateTime__datatype": "datetime",
+                "NextStopDateTime": "2025-12-31T18:59:00+11:00",
+                "NextStopDateTime__datatype": "datetime",
+                "ForecastAveragePrice": 22.72,
+                "ForecastEnergyUsage": 0.0,
+                "EstimatedCost": 0.0,
+                "RunPlan": [
+                    {
+                        "Date": "2025-12-31",
+                        "Date__datatype": "date",
+                        "StartDateTime": "2025-12-31T10:59:00+11:00",
+                        "StartDateTime__datatype": "datetime",
+                        "EndDateTime": "2025-12-31T18:59:00+11:00",
+                        "EndDateTime__datatype": "datetime",
+                        "Minutes": 480,
+                        "Price": 22.72,
+                        "ForecastEnergyUsage": 0.0,
+                        "EstimatedCost": 0.0,
+                        "SlotCount": 2
+                    }
+                ],
+                "SlotMinMinutes": 0,
+                "SlotGapMinutes": 0
+            },
+            "RunHistory": {
+                "LastUpdate": "2025-12-31T10:59:44.131822+11:00",
+                "LastUpdate__datatype": "datetime",
+                "HistoryDays": 2,
+                "LastStartTime": null,
+                "LastMeterRead": 0,
+                "CurrentPrice": 20,
+                "CurrentTotals": {
+                    "EnergyUsed": 0,
+                    "HourlyEnergyUsed": 0.0,
+                    "TotalCost": 0.0,
+                    "AveragePrice": 0,
+                    "ActualHours": 0.011085548611111112,
+                    "ActualDays": 2,
+                    "ActualHoursPerDay": 0.005542774305555556
+                },
+                "EarlierTotals": {
+                    "EnergyUsed": 0,
+                    "HourlyEnergyUsed": 0.0,
+                    "TotalCost": 0.0,
+                    "AveragePrice": 0.0,
+                    "ActualHours": 0.0,
+                    "ActualDays": 0
+                },
+                "AlltimeTotals": {
+                    "EnergyUsed": 0,
+                    "HourlyEnergyUsed": 0.0,
+                    "TotalCost": 0.0,
+                    "AveragePrice": 0,
+                    "ActualHours": 0.011085548611111112,
+                    "ActualDays": 2
+                },
+                "DailyData": [
+                    {
+                        "Date": "2025-12-29",
+                        "Date__datatype": "date",
+                        "TargetHours": 7,
+                        "PriorShortfall": 0.0,
+                        "ActualHours": 0.011085548611111112,
+                        "EnergyUsed": 0,
+                        "HourlyEnergyUsed": 0.0,
+                        "TotalCost": 0.0,
+                        "AveragePrice": 0,
+                        "DeviceRuns": [
+                            {
+                                "SystemState": "Automatic control based on schedule or best price",
+                                "SystemState__enum": "org_enums.enum_power_controller.SystemState.AUTO",
+                                "ReasonStarted": "Run plan dictates that the output should be on",
+                                "ReasonStarted__enum": "org_enums.enum_power_controller.StateReasonOn.ACTIVE_RUN_PLAN",
+                                "ReasonStopped": "DateOff condition met for today",
+                                "ReasonStopped__enum": "org_enums.enum_power_controller.StateReasonOff.DATE_OFF",
+                                "StartTime": "2025-12-29T11:28:16.186442+11:00",
+                                "StartTime__datatype": "datetime",
+                                "EndTime": "2025-12-29T11:28:51.112832+11:00",
+                                "EndTime__datatype": "datetime",
+                                "ActualHours": 0.00970177138888889,
+                                "MeterReadAtStart": 0,
+                                "PriorMeterRead": 0,
+                                "LastActualPrice": 20,
+                                "EnergyUsed": 0,
+                                "TotalCost": 0.0,
+                                "AveragePrice": 0.0
+                            },
+                            {
+                                "SystemState": "App has overridden the mode",
+                                "SystemState__enum": "org_enums.enum_power_controller.SystemState.APP_OVERRIDE",
+                                "ReasonStarted": "App has overridden the mode to on",
+                                "ReasonStarted__enum": "org_enums.enum_power_controller.StateReasonOn.APP_MODE_ON",
+                                "ReasonStopped": "DateOff condition met for today",
+                                "ReasonStopped__enum": "org_enums.enum_power_controller.StateReasonOff.DATE_OFF",
+                                "StartTime": "2025-12-29T11:30:29.205633+11:00",
+                                "StartTime__datatype": "datetime",
+                                "EndTime": "2025-12-29T11:30:34.187238+11:00",
+                                "EndTime__datatype": "datetime",
+                                "ActualHours": 0.0013837772222222223,
+                                "MeterReadAtStart": 0,
+                                "PriorMeterRead": 0,
+                                "LastActualPrice": 20,
+                                "EnergyUsed": 0,
+                                "TotalCost": 0.0,
+                                "AveragePrice": 0.0
+                            }
+                        ]
+                    },
+                    {
+                        "Date": "2025-12-31",
+                        "Date__datatype": "date",
+                        "TargetHours": 7,
+                        "PriorShortfall": 4,
+                        "ActualHours": 0.0,
+                        "EnergyUsed": 0,
+                        "HourlyEnergyUsed": 0.0,
+                        "TotalCost": 0.0,
+                        "AveragePrice": 0,
+                        "DeviceRuns": []
+                    }
+                ]
+            }
+        }
+    ],
+    "Scheduler": {
+        "Schedules": [
+            {
+                "Name": "General",
+                "Windows": [
+                    {
+                        "StartTime": "00:00",
+                        "EndTime": "07:30",
+                        "DaysOfWeek": "All",
+                        "Price": 20
+                    },
+                    {
+                        "StartTime": "07:30",
+                        "EndTime": "09:00",
+                        "DaysOfWeek": "All",
+                        "Price": 16
+                    },
+                    {
+                        "StartTime": "09:00",
+                        "EndTime": "15:00",
+                        "DaysOfWeek": "All",
+                        "Price": 13
+                    },
+                    {
+                        "StartTime": "15:00",
+                        "EndTime": "17:00",
+                        "DaysOfWeek": "All",
+                        "Price": 33
+                    },
+                    {
+                        "StartTime": "17:00",
+                        "EndTime": "21:00",
+                        "DaysOfWeek": "All",
+                        "Price": 51
+                    },
+                    {
+                        "StartTime": "21:00",
+                        "EndTime": "23:59",
+                        "DaysOfWeek": "All",
+                        "Price": 22
+                    }
+                ]
+            },
+            {
+                "Name": "Controlled Load",
+                "Windows": [
+                    {
+                        "StartTime": "00:00",
+                        "EndTime": "07:30",
+                        "DaysOfWeek": "All",
+                        "Price": 11
+                    },
+                    {
+                        "StartTime": "07:30",
+                        "EndTime": "09:00",
+                        "DaysOfWeek": "All",
+                        "Price": 8
+                    },
+                    {
+                        "StartTime": "09:00",
+                        "EndTime": "15:00",
+                        "DaysOfWeek": "All",
+                        "Price": 5
+                    },
+                    {
+                        "StartTime": "15:00",
+                        "EndTime": "17:00",
+                        "DaysOfWeek": "All",
+                        "Price": 10
+                    },
+                    {
+                        "StartTime": "17:00",
+                        "EndTime": "21:00",
+                        "DaysOfWeek": "All",
+                        "Price": 22
+                    },
+                    {
+                        "StartTime": "21:00",
+                        "EndTime": "23:59",
+                        "DaysOfWeek": "All",
+                        "Price": 25
+                    }
+                ]
+            },
+            {
+                "Name": "Pool Solar",
+                "Windows": [
+                    {
+                        "StartTime": "09:00",
+                        "EndTime": "16:00",
+                        "DaysOfWeek": "All",
+                        "Price": 20
+                    },
+                    {
+                        "StartTime": "16:00",
+                        "EndTime": "22:00",
+                        "DaysOfWeek": "All",
+                        "Price": 25
+                    }
+                ]
+            },
+            {
+                "Name": "Test Schedule",
+                "Windows": [
+                    {
+                        "StartTime": "00:00",
+                        "EndTime": "09:00",
+                        "DaysOfWeek": "All",
+                        "Price": 20
+                    }
+                ]
+            },
+            {
+                "Name": "Pool Heating",
+                "Windows": [
+                    {
+                        "StartTime": "10:00",
+                        "EndTime": "16:00",
+                        "DaysOfWeek": "All"
+                    },
+                    {
+                        "StartTime": "22:00",
+                        "EndTime": "23:59",
+                        "DaysOfWeek": "All"
+                    }
+                ]
+            }
+        ],
+        "Dawn": "05:17:51.205711",
+        "Dawn__datatype": "time",
+        "Dusk": "20:38:56.693764",
+        "Dusk__datatype": "time"
+    },
+    "TempProbeLogging": {
+        "enabled": true,
+        "probes": [
+            {
+                "Name": "Temp Pool Water",
+                "DisplayName": "Pool Water",
+                "ProbeID": 2,
+                "Temperature": null,
+                "LastLoggedTime": "2025-12-31T10:59:44.053797+11:00",
+                "LastLoggedTime__datatype": "datetime",
+                "LastReadingTime": null
+            },
+            {
+                "Name": "Temp Roof",
+                "ProbeID": 4,
+                "Temperature": 34.7,
+                "LastLoggedTime": "2025-12-31T10:59:44.053797+11:00",
+                "LastLoggedTime__datatype": "datetime",
+                "LastReadingTime": "2025-12-31T10:59:43.290247+11:00",
+                "LastReadingTime__datatype": "datetime"
+            },
+            {
+                "Name": "Sydney Pool Solar",
+                "DisplayName": "Controller Box",
+                "ProbeID": 1,
+                "Temperature": 60.5,
+                "LastLoggedTime": "2025-12-31T10:59:44.053797+11:00",
+                "LastLoggedTime__datatype": "datetime",
+                "LastReadingTime": "2025-12-31T10:59:43.290206+11:00",
+                "LastReadingTime__datatype": "datetime"
+            }
+        ],
+        "logging_interval": 1,
+        "last_reading_within_minutes": 2,
+        "saved_state_file_max_days": 2,
+        "history_data_file_name": "logs/temperature_history.csv",
+        "history_data_file_max_days": 2,
+        "last_log_time": "2025-12-31T10:59:44.053797+11:00",
+        "last_log_time__datatype": "datetime",
+        "history": [
+            {
+                "Timestamp": "2025-12-29T11:28:16.148970+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:28:15.370025+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Temp Roof",
+                "ProbeDisplayName": "Temp Roof",
+                "Temperature": 42.2
+            },
+            {
+                "Timestamp": "2025-12-29T11:28:16.148970+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:28:15.369998+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Sydney Pool Solar",
+                "ProbeDisplayName": "Controller Box",
+                "Temperature": 66.5
+            },
+            {
+                "Timestamp": "2025-12-29T11:28:50.742715+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:28:50.013815+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Temp Roof",
+                "ProbeDisplayName": "Temp Roof",
+                "Temperature": 42.1
+            },
+            {
+                "Timestamp": "2025-12-29T11:28:50.742715+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:28:50.013785+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Sydney Pool Solar",
+                "ProbeDisplayName": "Controller Box",
+                "Temperature": 66.9
+            },
+            {
+                "Timestamp": "2025-12-29T11:29:51.922080+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:29:51.919918+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Temp Roof",
+                "ProbeDisplayName": "Temp Roof",
+                "Temperature": 41.7
+            },
+            {
+                "Timestamp": "2025-12-29T11:29:51.922080+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:29:51.919682+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Sydney Pool Solar",
+                "ProbeDisplayName": "Controller Box",
+                "Temperature": 67.1
+            },
+            {
+                "Timestamp": "2025-12-29T11:31:01.772401+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:31:00.646768+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Temp Roof",
+                "ProbeDisplayName": "Temp Roof",
+                "Temperature": 41.2
+            },
+            {
+                "Timestamp": "2025-12-29T11:31:01.772401+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:31:00.646740+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Sydney Pool Solar",
+                "ProbeDisplayName": "Controller Box",
+                "Temperature": 67.3
+            },
+            {
+                "Timestamp": "2025-12-29T11:32:14.263535+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:32:14.262849+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Temp Roof",
+                "ProbeDisplayName": "Temp Roof",
+                "Temperature": 40.8
+            },
+            {
+                "Timestamp": "2025-12-29T11:32:14.263535+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-29T11:32:14.262801+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Sydney Pool Solar",
+                "ProbeDisplayName": "Controller Box",
+                "Temperature": 67.5
+            },
+            {
+                "Timestamp": "2025-12-31T10:59:44.053797+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-31T10:59:43.290247+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Temp Roof",
+                "ProbeDisplayName": "Temp Roof",
+                "Temperature": 34.7
+            },
+            {
+                "Timestamp": "2025-12-31T10:59:44.053797+11:00",
+                "Timestamp__datatype": "datetime",
+                "LastReadingTime": "2025-12-31T10:59:43.290206+11:00",
+                "LastReadingTime__datatype": "datetime",
+                "ProbeName": "Sydney Pool Solar",
+                "ProbeDisplayName": "Controller Box",
+                "Temperature": 60.5
+            }
+        ]
+    },
+    "TeslaChargeData": {
+        "start_date": "2025-12-17",
+        "start_date__datatype": "date",
+        "sessions": [
+            {
+                "id": 1,
+                "car_id": 1,
+                "start_date": "2025-12-24T02:39:00.585000",
+                "start_date__datatype": "datetime",
+                "end_date": "2025-12-24T03:00:01.824000",
+                "end_date__datatype": "datetime",
+                "duration_min": 21,
+                "start_battery_level": 80,
+                "end_battery_level": 85,
+                "charge_energy_added_kwh": 
