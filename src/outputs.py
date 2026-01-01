@@ -61,6 +61,7 @@ class OutputManager:  # noqa: PLR0904
             self.report_critical_errors_delay = None
         self.scheduler = scheduler
         self.pricing = pricing
+        self.type: str = "shelly"
 
         # Define the output attributes that we will initialise later
         self.system_state: SystemState = SystemState.AUTO  # The overall system state, to be updated
@@ -394,6 +395,7 @@ class OutputManager:  # noqa: PLR0904
         power_draw = view.get_meter_power(self.device_meter_id) if self.device_meter_id else 0
         data = {
             "id": self.id,
+            "allow_actions": True,
             "name": self.name,
             "is_on": is_device_output_on,
             "mode": self.app_mode.value,

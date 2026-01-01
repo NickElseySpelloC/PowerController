@@ -57,6 +57,7 @@
             </div>
           </div>
         </div>
+        {% if output.allow_actions %}
         <div class="button-group">
           <button class="mode-btn {{ 'active' if output.mode == 'on' else '' }}" 
                   data-mode="on" 
@@ -68,6 +69,7 @@
                   data-mode="auto" 
                   onclick="setMode('{{ output.id }}', 'auto')">Auto</button>
         </div>
+        {% endif %}
       </div>
       <div class="row">
         <!-- Full table for desktop -->

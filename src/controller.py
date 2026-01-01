@@ -42,8 +42,9 @@ from teslamate import (
     get_charging_data_as_dict,
     merge_bucket_dict_records,
     merge_session_dict_records,
-    print_charging_data,
+    # print_charging_data,
 )
+from teslamate_output import TeslaMateOutput
 
 
 class LookupMode(StrEnum):
@@ -246,17 +247,21 @@ class PowerController:
         if not self.config.get("General", "TestingMode", default=False):
             return False
 
-        # Run output level self tests
-        for output in self.outputs:
-            output.run_self_tests()
+        # Test pricing module
+        as_at_time: dt.datetime = DateHelper.now() - dt.timedelta(hours=12)
+        self.pricing.get_price(as_at_time)
 
-        # TeslaMate DB connection test
-        try:
-            start_date = dt.date(2025, 12, 25)
-            print(print_charging_data(self.config, start_date=start_date))
-            self.logger.log_message("Successfully connected to TeslaMate database and ran sample query.", "debug")
-        except (ConnectionError) as e:
-            self.logger.log_message(f"Failed to connect to TeslaMate database or run sample query: {e}", "error")
+        # Run output level self tests
+        # for output in self.outputs:
+        #     output.run_self_tests()
+
+        # # TeslaMate DB connection test
+        # try:
+        #     start_date = dt.date(2025, 12, 25)
+        #     print(print_charging_data(self.config, start_date=start_date))
+        #     self.logger.log_message("Successfully connected to TeslaMate database and ran sample query.", "debug")
+        # except (ConnectionError) as e:
+        #     self.logger.log_message(f"Failed to connect to TeslaMate database or run sample query: {e}", "error")
 
         return True
 
@@ -300,7 +305,7 @@ class PowerController:
         self.logger.log_message(f"Submitted pool sequence job_id={job_id}", "debug")
 
     # Private Functions ===========================================================================
-    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: PLR0912, PLR0915
+    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: PLR0912, PLR0914, PLR0915
         """(re) initialise the power controller."""
         # See if we have a system state file to load
         saved_state = self._load_system_state()
@@ -328,6 +333,7 @@ class PowerController:
 
         # Initialise the TeslaMate import settings
         self.tesla_import_enabled = bool(self.config.get("TeslaMate", "Enable", default=False))
+        tesla_charge_data_days_of_history = int(self.config.get("TeslaMate", "DaysOfHistory", default=14)) or 14  # pyright: ignore[reportArgumentType]
         # Get tesla data from saved state
         if saved_state:
             self.tesla_charge_data["start_date"] = saved_state.get("TeslaChargeData", {}).get("start_date", None)
@@ -350,6 +356,8 @@ class PowerController:
         self.outputs.clear()    # Clear any existing outputs
         try:
             for output_cfg in outputs_config:
+                output_type = (output_cfg.get("Type") or "shelly").strip().lower() if isinstance(output_cfg.get("Type"), str) else (output_cfg.get("Type") or "shelly")
+
                 # Search for an existing output with the same name and update it if found
                 if any(o.name == output_cfg.get("Name") for o in self.outputs):
                     existing_output = next(o for o in self.outputs if o.name == output_cfg.get("Name"))
@@ -362,7 +370,14 @@ class PowerController:
                     output_state = next((o for o in saved_state["Outputs"] if o.get("Name") == output_cfg.get("Name")), None)
 
                 # Create a new output manager
-                output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, output_state)
+                if output_type == "shelly":
+                    output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, output_state)
+                if output_type == "teslamate":
+                    output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.pricing, self.tesla_charge_data, output_state)
+                if output_type == "meter":
+                    # Not implemented yet
+                    self.logger.log_fatal_error(f"Output type 'meter' is not implemented yet for output {output_cfg.get('Name')}.")
+                    continue
                 self.outputs.append(output_manager)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")
@@ -379,6 +394,8 @@ class PowerController:
 
         # Finally do some cross output validation
         for output in self.outputs:
+            output_cfg = getattr(output, "output_config", {})
+
             # Make sure the output's parent is not itself or a child of itself
             if output.parent_output:
                 parent = output.parent_output
@@ -389,21 +406,32 @@ class PowerController:
                         break
                     parent = parent.parent_output
 
-            # Make sure each output device is only used once
-            list_output_devices = self._find_output(LookupMode.OUTPUT, output.device_output_name)
-            if len(list_output_devices) > 1:
-                self.logger.log_fatal_error(f"Output device {output.device_output_name} is used by more than one output.")
+            # Make sure each Shelly output device is only used once
+            device_output_name = getattr(output, "device_output_name", None)
+            if device_output_name:
+                list_output_devices = self._find_output(LookupMode.OUTPUT, device_output_name)
+                if len(list_output_devices) > 1:
+                    self.logger.log_fatal_error(f"Output device {device_output_name} is used by more than one output.")
 
-            # Display a warning if mutiple outputs use the same meter device
-            list_meter_devices = self._find_output(LookupMode.METER, output.device_meter_name)
-            if len(list_meter_devices) > 1:
-                self.logger.log_message(f"Meter device {output.device_meter_name} is used by {output.name} and at least one other output.", "warning")
+            # Display a warning if multiple outputs use the same meter device
+            device_meter_name = getattr(output, "device_meter_name", None)
+            if device_meter_name:
+                list_meter_devices = self._find_output(LookupMode.METER, device_meter_name)
+                if len(list_meter_devices) > 1:
+                    self.logger.log_message(f"Meter device {device_meter_name} is used by {output.name} and at least one other output.", "warning")
 
-            # Validate that the output's OutputSequence exists
-            if output.output_config.get("TurnOnSequence") and output.output_config.get("TurnOnSequence") not in self._shelly_sequence_requests:
-                self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOnSequence {output.output_config.get("TurnOnSequence")}.")
-            if output.output_config.get("TurnOffSequence") and output.output_config.get("TurnOffSequence") not in self._shelly_sequence_requests:
-                self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOffSequence {output.output_config.get("TurnOffSequence")}.")
+            # Validate that the output's OutputSequence exists (Shelly outputs only)
+            if isinstance(output_cfg, dict):
+                if output_cfg.get("TurnOnSequence") and output_cfg.get("TurnOnSequence") not in self._shelly_sequence_requests:
+                    self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOnSequence {output_cfg.get('TurnOnSequence')}.")
+                if output_cfg.get("TurnOffSequence") and output_cfg.get("TurnOffSequence") not in self._shelly_sequence_requests:
+                    self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOffSequence {output_cfg.get('TurnOffSequence')}.")
+
+            # If this is a teslamate output, validate that its DaysOfHistory is not more than the global setting
+            if isinstance(output, TeslaMateOutput):
+                tesla_output_days_of_history = int(output_cfg.get("DaysOfHistory", 14)) or 14  # pyright: ignore[reportArgumentType]
+                if tesla_output_days_of_history > tesla_charge_data_days_of_history:
+                    self.logger.log_message(f"TeslaMate output {output.name} has DaysOfHistory {tesla_output_days_of_history} which is more than the global TeslaMate DaysOfHistory setting of {tesla_charge_data_days_of_history}.", "error")
 
         # Sort outputs so parents are evaluated first
         list.sort(self.outputs, key=lambda x: not x.is_parent)
@@ -414,6 +442,58 @@ class PowerController:
         # Reinitialize the scheduler and pricing manager
         self.scheduler.initialise()
         self.pricing.initialise()
+
+    def _run_scheduler_tick(self) -> bool:
+        """Do all the control processing of the main loop.
+
+        Returns:
+            bool: True if one or more commands were processed or there has been a state change.
+        """
+        commands_processed = self._clear_commands()          # Get all commands from the queue and apply them
+
+        # Refresh the Amber price data if it's time to do so
+        self.pricing.refresh_price_data_if_time()
+
+        # Get a snapshot of all Shelly devices
+        view = self._refresh_device_statuses()
+
+        # Get the location data for all devices and save it to each OutputManager if needed
+        self._save_device_location_data()
+
+        # Log the temp probe data if needed
+        self._log_temp_probes(view)
+
+        # Monitor device internal temperatures and log if needed
+        self._monitor_device_internal_temps(view)
+
+        # Import the latest TeslaMate charging data if needed
+        self._import_teslamate_charging_data_if_needed()
+
+        # Calculate the running totals for each output
+        self._calculate_running_totals(view)
+
+        # Regenerate the run_plan for each output if needed
+        self._review_run_plans(view)
+
+        # Evaluate the conditions for each output and make changes if needed
+        state_change = self._evaluate_conditions(view)
+
+        # Deal with config changes including downstream objects
+        self._check_for_configuration_changes(view)
+
+        # Save the system state to disk
+        self._save_system_state(view)
+
+        # Ping the heartbeat monitor - this function takes care of frequency checks
+        self.external_service_helper.ping_heatbeat()
+
+        # Check for fatal error recovery
+        self._check_fatal_error_recovery()
+
+        # Trim the logfile if needed
+        self._trim_logfile_if_needed()
+
+        return commands_processed or state_change
 
     def _configure_temp_probe_logging(self, saved_state: dict | None, view: ShellyView) -> dict:
         """Configure the temp probes to log.
@@ -529,58 +609,6 @@ class PowerController:
         # Post the state data to the PowerController Viewer web app if needed
         self._post_state_to_web_viewer(view, force_post)
 
-    def _run_scheduler_tick(self) -> bool:
-        """Do all the control processing of the main loop.
-
-        Returns:
-            bool: True if one or more commands were processed or there has been a state change.
-        """
-        commands_processed = self._clear_commands()          # Get all commands from the queue and apply them
-
-        # Refresh the Amber price data if it's time to do so
-        self.pricing.refresh_price_data_if_time()
-
-        # Get a snapshot of all Shelly devices
-        view = self._refresh_device_statuses()
-
-        # Get the location data for all devices and save it to each OutputManager if needed
-        self._save_device_location_data()
-
-        # Log the temp probe data if needed
-        self._log_temp_probes(view)
-
-        # Monitor device internal temperatures and log if needed
-        self._monitor_device_internal_temps(view)
-
-        # Import the latest TeslaMate charging data if needed
-        self._import_teslamate_charging_data_if_needed()
-
-        # Calculate the running totals for each output
-        self._calculate_running_totals(view)
-
-        # Regenerate the run_plan for each output if needed
-        self._review_run_plans(view)
-
-        # Evaluate the conditions for each output and make changes if needed
-        state_change = self._evaluate_conditions(view)
-
-        # Deal with config changes including downstream objects
-        self._check_for_configuration_changes(view)
-
-        # Save the system state to disk
-        self._save_system_state(view)
-
-        # Ping the heartbeat monitor - this function takes care of frequency checks
-        self.external_service_helper.ping_heatbeat()
-
-        # Check for fatal error recovery
-        self._check_fatal_error_recovery()
-
-        # Trim the logfile if needed
-        self._trim_logfile_if_needed()
-
-        return commands_processed or state_change
-
     def _refresh_device_statuses(self) -> ShellyView:
         """Refresh the status of all devices.
 
@@ -620,7 +648,9 @@ class PowerController:
         """Get the location data for all devices and save it to each OutputManager."""
         if self.update_device_locations:
             for output in self.outputs:
-                device_name = output.device_name
+                device_name = getattr(output, "device_name", None)
+                if not device_name:
+                    continue
 
                 req_id = self.shelly_worker.request_device_location(device_name)
                 done = self.shelly_worker.wait_for_result(req_id, timeout=4.0)
@@ -853,11 +883,11 @@ class PowerController:
         if mode == LookupMode.NAME:
             return [o for o in self.outputs if o.name == identity]
         if mode == LookupMode.OUTPUT:
-            return [o for o in self.outputs if o.device_output_name == identity]
+            return [o for o in self.outputs if getattr(o, "device_output_name", None) == identity]
         if mode == LookupMode.METER:
-            return [o for o in self.outputs if o.device_meter_name == identity]
+            return [o for o in self.outputs if getattr(o, "device_meter_name", None) == identity]
         if mode == LookupMode.INPUT:
-            return [o for o in self.outputs if o.device_input_name == identity]
+            return [o for o in self.outputs if getattr(o, "device_input_name", None) == identity]
         return []
 
     def _read_shelly_sequences_from_config(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
@@ -1150,44 +1180,31 @@ class PowerController:
             self.logger.log_message("Logfile trimmed.", "debug")
 
     def _import_teslamate_charging_data_if_needed(self) -> None:
-        """
-        Import the latest TeslaMate charging data into the controller state, if enabled and due.
+        """Import the latest TeslaMate charging data into the controller state, if enabled and due.
 
-        This method:
-        - Exits early when TeslaMate import is disabled.
-        - Rate-limits imports using ``self.tesla_last_import_query`` and ``TESLAMATE_QUERY_INTERVAL``.
-        - Determines the import start date from ``self.tesla_charge_data["start_date"]``; if absent,
-            defaults to ``DaysOfHistory`` (fallback 14 days) from the ``TeslaMate`` config section.
-        - Calls ``get_charging_data_as_dict(self.config, start_date=import_start_date)`` to fetch data.
-        - If data is returned, merges newly imported ``sessions`` and ``buckets`` into the existing
-            ``self.tesla_charge_data`` using an ID-based merge strategy, then updates
-            ``self.tesla_charge_data["start_date"]`` to today and persists merged results in
-            ``self.tesla_charge_data``.
+        This method stores raw imported data under ``self.tesla_charge_data`` and persists it in the
+        system state file under ``TeslaChargeData``.
 
-        Logging/Errors:
-        - Logs the number of imported sessions at debug level.
-        - Logs and suppresses ``ConnectionError`` failures.
-        - On success, logs a debug message and updates ``self.tesla_last_import_query``.
+        Notes:
+            - Imported datetimes are expected to be local-time aware.
+            - Import is rate-limited by ``TESLAMATE_QUERY_INTERVAL``.
         """
-        """Import the latest TeslaMate charging data if enabled."""
         if not self.tesla_import_enabled:
             return
 
         if self.tesla_last_import_query and (DateHelper.now() - self.tesla_last_import_query) < TESLAMATE_QUERY_INTERVAL:
             return  # Not time to query yet
 
+        days_of_history = int(self.config.get("TeslaMate", "DaysOfHistory", default=14)) or 14  # pyright: ignore[reportArgumentType]
         import_start_date = self.tesla_charge_data.get("start_date")
         if not import_start_date:
             # Default to 30 days ago
-            days_of_history = int(self.config.get("TeslaMate", "DaysOfHistory", default=14)) or 14  # pyright: ignore[reportArgumentType]
             import_start_date = (DateHelper.now() - dt.timedelta(days=days_of_history)).date()
 
         try:
             charging_data = get_charging_data_as_dict(self.config, start_date=import_start_date, convert_to_local=True)
             if charging_data:
                 self.logger.log_message(f"Imported {len(charging_data["sessions"])} charging sessions from TeslaMate starting from {import_start_date}.", "debug")
-
-                # TO DO: ChatGPT to implement processing logic here
 
                 # Merge sessions
                 existing_sessions = self.tesla_charge_data.get("sessions") or []
@@ -1199,6 +1216,11 @@ class PowerController:
                 existing_buckets = self.tesla_charge_data.get("buckets") or []
                 new_buckets = charging_data.get("buckets") or []
                 self.tesla_charge_data["buckets"] = merge_bucket_dict_records(existing_buckets, new_buckets, import_start_date)
+
+                # Remove any session or bucket records older than the retention period
+                cutoff_date = DateHelper.now().date() - dt.timedelta(days=days_of_history)
+                self.tesla_charge_data["sessions"] = [s for s in self.tesla_charge_data["sessions"] if s.get("start_date") and s["start_date"].date() >= cutoff_date]
+                self.tesla_charge_data["buckets"] = [b for b in self.tesla_charge_data["buckets"] if b.get("bucket_start") and b["bucket_start"].date() >= cutoff_date]
 
                 # Now that we have data, update the start date to today
                 self.tesla_charge_data["start_date"] = DateHelper.today()
