@@ -325,10 +325,11 @@ HeartbeatMonitor:
 # Optionally use this sectionto configure integration with the TeslaMate database to import Tesla charging session data
 TeslaMate:
   Enable: False           # Set to True to enable integration with the TeslaMate database
-  DaysOfHistory: 14       # Number of days of charging history to keep. This must be longer than or equal to the DaysOfHistory setting for each Tesla output.
+  RefreshInterval: 10     # How often to refresh the TeslaMate data (in minutes)
   Host: 127.0.0.1         # The host address of the TeslaMate database (or use the TESLAMATE_DB_HOST environment variable)
   Port: 5432              # The port number of the TeslaMate database (or use the TESLAMATE_DB_PORT environment variable)
   DatabaseName: teslamate # The name of the TeslaMate database (or use the TESLAMATE_DB_NAME environment variable)
   DBUsername: teslamate   # The username to connect to the TeslaMate database (or use the TESLAMATE_DB_USER environment variable)
   DBPassword: <Your password here>  # The password to connect to the TeslaMate database (or use the TESLAMATE_DB_PASSWORD environment variable)
   GeofenceName: Home     # Optionally, only query the charging data within this geofence name. Leave blank to disable.
+  SaveRawData: False    # Save the raw imported TeslaMate data the system state file for debugging. Set to False (the default) to reduce file size.

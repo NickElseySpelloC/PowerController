@@ -142,7 +142,7 @@ class Scheduler:
             return run_plan
 
     def get_current_price(self, schedule: dict) -> float:
-        """Get the current price from the pricing manager.
+        """Get the current price from the schedule for the current time.
 
         Args:
             schedule (dict): The schedule dictionary.
@@ -160,6 +160,29 @@ class Scheduler:
         for slot in slots:
             if slot["StartTime"] <= current_time <= slot["EndTime"]:
                 # Get the current price from the pricing manager
+                return slot["Price"]
+
+        return self.default_price  # pyright: ignore[reportReturnType]
+
+    def get_price(self, schedule: dict, as_at_time: dt.datetime) -> float:
+        """Get the price from the schedule at the specified time.
+
+        Args:
+            schedule (dict): The schedule dictionary.
+            as_at_time (dt.datetime): The datetime to get the price for.
+
+        Returns:
+            float: The current price in AUD/kWh, or 0 if not available.
+        """
+        # Get the slots for the current time
+        slots = self.get_schedule_slots(schedule)
+        if not slots:
+            return self.default_price  # pyright: ignore[reportReturnType]
+
+        # See if we have a slot that encompasses the current time
+        lookup_time = as_at_time.time()
+        for slot in slots:
+            if slot["StartTime"] <= lookup_time <= slot["EndTime"]:
                 return slot["Price"]
 
         return self.default_price  # pyright: ignore[reportReturnType]

@@ -24,10 +24,11 @@ from typing import TYPE_CHECKING, Any
 from org_enums import AppMode, StateReasonOff, StateReasonOn, SystemState
 from sc_utility import DateHelper, SCConfigManager, SCLogger
 
-from local_enumerations import AmberChannel
+from local_enumerations import DEFAULT_PRICE, AmberChannel
 
 if TYPE_CHECKING:
     from pricing import PricingManager
+    from scheduler import Scheduler
 
 
 def _local_midnight(day: dt.date) -> dt.datetime:
@@ -105,6 +106,7 @@ class TeslaMateOutput:
         output_config: dict[str, Any],
         config: SCConfigManager,
         logger: SCLogger,
+        scheduler: Scheduler,
         pricing: PricingManager,
         tesla_charge_data: dict[str, Any],
         saved_state: dict[str, Any] | None = None,
@@ -116,14 +118,13 @@ class TeslaMateOutput:
             config: Global config manager.
             logger: Logger.
             pricing: PricingManager.
+            scheduler (Scheduler): The scheduler for managing time-based operations.
             tesla_charge_data: Controller-owned TeslaChargeData dict.
             saved_state: Previously saved output state object, if present.
         """
         self.output_config = output_config
         self.config = config
         self.logger = logger
-        self.pricing = pricing
-        self.amber_channel = AmberChannel.GENERAL
         self._tesla_charge_data = tesla_charge_data
 
         self.name: str = output_config.get("Name") or "Tesla"
@@ -131,6 +132,14 @@ class TeslaMateOutput:
 
         self.type: str = "teslamate"
         self.car_id: int | None = None
+
+        # pricing and scheduling
+        self.pricing = pricing
+        self.amber_channel = AmberChannel.GENERAL
+        self.scheduler = scheduler
+        self.schedule_name = None
+        self.schedule = None
+        self.default_price: float = self.config.get("General", "DefaultPrice", default=DEFAULT_PRICE) or DEFAULT_PRICE  # pyright: ignore[reportAttributeAccessIssue]
 
         self.system_state: SystemState = SystemState.EXTERNAL_CONTROL
         self.app_mode: AppMode = AppMode.AUTO
@@ -186,6 +195,14 @@ class TeslaMateOutput:
                 # self.id is url encoded version of name
                 self.id = urllib.parse.quote(self.name.lower().replace(" ", "_"))
 
+            # Schedule
+            if not error_msg:
+                self.schedule_name = output_config.get("Schedule")
+                if self.schedule_name:
+                    self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
+                    if not self.schedule:
+                        error_msg = f"Schedule {self.schedule_name} for output {self.name} not found in OperatingSchedules."
+
             # Amber Channel
             self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
             if self.amber_channel not in AmberChannel:
@@ -227,6 +244,16 @@ class TeslaMateOutput:
     def get_action_request(self) -> None:
         """TeslaMate outputs never request actions."""
 
+    def get_schedule(self) -> dict | None:
+        """Get the schedule for this output.
+
+        TO DO: Update when scheduling is supported.
+
+        Returns:
+            dict: The schedule or None if none assigned.
+        """
+        return self.schedule
+
     @staticmethod
     def shutdown(_view: Any) -> bool:
         """TeslaMate outputs have nothing to shut down.
@@ -240,6 +267,16 @@ class TeslaMateOutput:
         """No-op (read-only output)."""
         _ = (view, revert_minutes)
         self.app_mode = new_mode
+
+    def run_self_tests(self):
+        """Run self tests on the output manager."""
+        print(f"Running self tests for output {self.name}:")
+
+        as_at_time = DateHelper.now() - dt.timedelta(hours=12)
+        print(f"  - Price at {as_at_time.isoformat()}: {self.get_price(as_at_time):.2f} c/kWh")
+
+        as_at_time = DateHelper.now() + dt.timedelta(days=4)
+        print(f"  - Price at {as_at_time.isoformat()}: {self.get_price(as_at_time):.2f} c/kWh")
 
     # --- State / UI / CSV ---
     def get_save_object(self, view: Any) -> dict[str, Any]:  # noqa: ARG002
@@ -345,6 +382,37 @@ class TeslaMateOutput:
             "power_draw": self._current_power_draw_text(),
             "current_price": "N/A",
         }
+
+    def get_price(self, as_at_time: dt.datetime) -> float:
+        """Get the price for this output at the specified time.
+
+        Args:
+            as_at_time: The time to get the price for. If None, uses current time.
+
+        Returns:
+            The price in c/kWh.
+        """
+        # First see if we an Amber price
+        price = self.pricing.get_price(as_at_time=as_at_time, channel_id=self.amber_channel)
+        if price is not None and price > 0.0:
+            return price
+
+        # Failing that, get the prices for the current schedule slot, if any
+        if self.schedule:
+            price = self.scheduler.get_price(self.schedule, as_at_time)
+            if price is not None and price > 0.0:
+                return price
+
+        # Fall back to default price
+        return self.default_price
+
+    def get_days_of_history(self) -> int:
+        """Get the number of days of history stored.
+
+        Returns:
+            int: The number of days of history.
+        """
+        return int(self.output_config.get("DaysOfHistory") or 14)
 
     # --- Internal helpers ---
     def _current_power_draw_text(self) -> str:
@@ -607,7 +675,7 @@ class TeslaMateOutput:
         return sorted(daily_map.values(), key=operator.itemgetter("Date"))
 
     def _apply_history_limit(self, daily_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        max_days = int(self.output_config.get("DaysOfHistory") or 30)
+        max_days = self.get_days_of_history()
         if max_days > 0 and len(daily_list) > max_days:
             return daily_list[-max_days:]
         return daily_list

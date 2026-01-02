@@ -927,6 +927,14 @@ class OutputManager:  # noqa: PLR0904
 
         return return_str
 
+    def get_schedule(self) -> dict | None:
+        """Get the schedule for this output.
+
+        Returns:
+            dict: The schedule or None if none assigned.
+        """
+        return self.schedule
+
     def get_consumption_data(self) -> list[dict]:
         """Get the consumption data for this output.
 
@@ -936,6 +944,16 @@ class OutputManager:  # noqa: PLR0904
         if self.run_history:
             return self.run_history.get_consumption_data()
         return []
+
+    def get_days_of_history(self) -> int:
+        """Get the number of days of history stored.
+
+        Returns:
+            int: The number of days of history.
+        """
+        if self.run_history:
+            return self.run_history.get_days_of_history()
+        return 14
 
     def print_to_console(self, message: str):
         """Print a message to the console if PrintToConsole is enabled.
@@ -948,58 +966,9 @@ class OutputManager:  # noqa: PLR0904
 
         self.logger.log_message(message, "debug")
 
-    def run_self_tests(self):  # noqa: PLR0914
+    def run_self_tests(self):
         """Run self tests on the output manager."""
-        print(f"\nRunning self tests for output {self.name}...")
-        self.run_plan = None
-        hourly_energy_used = 1000
-
-        # Mock some values
-        max_hours = 20
-        min_hours = 2
-        target_hours = 3.5
-        actual_hours = 0
-        prior_shortfall = 0.5
-        max_best_price = 32.0
-        max_priority_price = 42.0
-        min_slot_length = 10  # minutes
-        min_time_between_slots = 5  # minutes
-        channel = AmberChannel.GENERAL
-        schedule = "Hot Water"
-
-        # Calculate the inputs
-        hours_remaining = target_hours - actual_hours + prior_shortfall
-        required_hours = max(0.0, hours_remaining)
-        required_hours = min(max_hours, required_hours)
-        priority_hours = min(min_hours, required_hours)
-
-        # Get a best price run plan
-        run_plan = self.pricing.get_run_plan(required_hours=required_hours,
-                                             priority_hours=priority_hours,
-                                             max_price=max_best_price,
-                                             max_priority_price=max_priority_price,
-                                             channel_id=channel,
-                                             hourly_energy_usage=hourly_energy_used,
-                                             slot_min_minutes=min_slot_length,
-                                             slot_min_gap_minutes=min_time_between_slots)  # pyright: ignore[reportArgument
-        if run_plan:
-            print(f"Best Price: {RunPlanner.print_info(run_plan, self.name)}")
-        else:
-            print(f"Self Test Best Price Run Plan: No run plan could be generated for output {self.name}.")
-
-        # # Get a Schedule run plan
-        run_plan = self.scheduler.get_run_plan(operating_schedule_name=schedule,
-                                               required_hours=required_hours,
-                                               priority_hours=priority_hours,
-                                               max_price=max_best_price,
-                                               max_priority_price=max_priority_price,
-                                               hourly_energy_usage=hourly_energy_used,
-                                               slot_min_minutes=min_slot_length,
-                                               slot_min_gap_minutes=min_time_between_slots)  # pyright: ignore[reportArgumentType]
-        if run_plan:
-            print(f"Schedule: {RunPlanner.print_info(run_plan, self.name)}")
-        else:
-            print(f"Self Test Schedule Run Plan: No run plan could be generated for output {self.name}.")
+        print(f"Running self tests for output {self.name}: Nothing to do here.")
 
     # Private Functions ===========================================================================
     def _should_revert_app_override(self, view: ShellyView) -> bool:

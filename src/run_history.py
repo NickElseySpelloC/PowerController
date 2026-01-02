@@ -56,7 +56,7 @@ class RunHistory:
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
         self.output_name = output_config.get("Name") or "Unknown"
         self.max_shortfall_hours = 0 if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else output_config.get("MaxShortfallHours", 0) or 0
-        self.max_history_days = output_config.get("DaysOfHistory", 7)
+        self._max_history_days = output_config.get("DaysOfHistory", 7)
 
     def tick(self, status_data: OutputStatusData) -> bool:
         """Perform periodic updates to the run history.
@@ -72,7 +72,7 @@ class RunHistory:
             have_rolled = True
             # Handle removal of oldest day if beyond threshold
             oldest_day = self.history["DailyData"][0]
-            if self.history["HistoryDays"] > self.max_history_days:
+            if self.history["HistoryDays"] > self._max_history_days:
                 # Add totals for rolling off days to EarlierTotals
                 self.history["EarlierTotals"]["EnergyUsed"] += oldest_day["EnergyUsed"]
                 self.history["EarlierTotals"]["TotalCost"] += oldest_day["TotalCost"]
@@ -289,6 +289,14 @@ class RunHistory:
             float: The average price in c/kWh.
         """
         return (total_cost / (energy_used / 1000)) * 100 if energy_used > 0 else 0
+
+    def get_days_of_history(self) -> int:
+        """Get the configured number of days of history to maintain.
+
+        Returns:
+            int: The number of days of history.
+        """
+        return self._max_history_days
 
     # Private Functions ============================================================================
     @staticmethod

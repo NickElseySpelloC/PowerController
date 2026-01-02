@@ -284,13 +284,14 @@ class ConfigSchema:
                 "required": False,
                 "schema": {
                     "Enable": {"type": "boolean", "required": False, "nullable": True},
-                    "DaysOfHistory": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 60},
+                    "RefreshInterval": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 60},
                     "Host": {"type": "string", "required": False, "nullable": True},
                     "Port": {"type": "number", "required": False, "nullable": True},
                     "DatabaseName": {"type": "string", "required": False, "nullable": True},
                     "DBUsername": {"type": "string", "required": False, "nullable": True},
                     "DBPassword": {"type": "string", "required": False, "nullable": True},
                     "GeofenceName": {"type": "string", "required": False, "nullable": True},
+                    "SaveRawData": {"type": "boolean", "required": False, "nullable": True},
                 },
             },
 
