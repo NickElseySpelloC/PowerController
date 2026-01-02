@@ -252,6 +252,16 @@ class PowerController:
         as_at_time: dt.datetime = DateHelper.now() - dt.timedelta(hours=12)
         self.pricing.get_price(as_at_time)
 
+        # List Tesla sessions if TeslaMate import is enabled
+        # if self.tesla_import_enabled:
+        #     for session in self.tesla_charge_data.get("sessions") or []:
+        #         if session.get("id") >= 7:
+        #             self.logger.log_message(f"TeslaMate Session: {session}", "debug")
+
+        #     for bucket in self.tesla_charge_data.get("buckets") or []:
+        #         if bucket.get("charging_process_id") >= 7:
+        #             self.logger.log_message(f"TeslaMate Bucket: {bucket}", "debug")
+
         # Run output level self tests
         for output in self.outputs:
             output.run_self_tests()
@@ -1187,7 +1197,7 @@ class PowerController:
         if not self.tesla_import_enabled:
             return
 
-        query_interval_mins = int(self.config.get("TeslaMate", "RefreshInterval", default=15) or 15)  # pyright: ignore[reportArgumentType]
+        query_interval_mins = int(self.config.get("TeslaMate", "RefreshInterval", default=120) or 120)  # pyright: ignore[reportArgumentType]
         if self.tesla_last_import_query and (DateHelper.now() - self.tesla_last_import_query) < dt.timedelta(minutes=query_interval_mins):
             return  # Not time to query yet
 

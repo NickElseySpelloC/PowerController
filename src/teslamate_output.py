@@ -637,6 +637,24 @@ class TeslaMateOutput:
         per_day_session: dict[tuple[dt.date, int], dict[str, Any]],
         session_by_id: dict[int, dict[str, Any]],
     ) -> list[dict[str, Any]]:
+        """Build the daily data list from aggregated per-day, per-session data.
+
+        Args:
+            per_day_session: Aggregated per-day, per-session data.
+            session_by_id: Indexed session data by session ID.
+
+        Returns:
+            A list of daily data dicts.
+        """
+        now = DateHelper.now()
+        today = now.date()
+
+        in_progress_session_ids: set[int] = {
+            sid
+            for sid, sess in session_by_id.items()
+            if isinstance(sess, dict) and _as_local_dt(sess.get("end_date")) is None
+        }
+
         daily_map: dict[dt.date, dict[str, Any]] = {}
         for (day, sid), agg in per_day_session.items():
             day_obj = daily_map.get(day)
@@ -646,7 +664,17 @@ class TeslaMateOutput:
 
             start_dt = agg["start"]
             end_dt = agg["end"]
-            actual_hours = max(0.0, (end_dt - start_dt).total_seconds() / 3600.0)
+
+            # Handle in-progress charging sessions:
+            # - Totals should report up-to-date values.
+            # - DeviceRun EndTime and ReasonStopped should be null.
+            is_in_progress = False
+            # Consider "currently charging" if the most recent bucket end is recent.
+            if sid in in_progress_session_ids and day == today and (now - end_dt) <= dt.timedelta(minutes=20):
+                is_in_progress = True
+
+            end_for_totals = now if is_in_progress else end_dt
+            actual_hours = max(0.0, (end_for_totals - start_dt).total_seconds() / 3600.0)
             energy_wh = round(float(agg["kwh"]) * 1000.0)
             total_cost = agg["cost"]
             average_price = 0.0
@@ -657,9 +685,9 @@ class TeslaMateOutput:
                 {
                     "SystemState": self.system_state,
                     "ReasonStarted": StateReasonOn.CHARGING_STARTED,
-                    "ReasonStopped": StateReasonOff.CHARGING_ENDED,
+                    "ReasonStopped": None if is_in_progress else StateReasonOff.CHARGING_ENDED,
                     "StartTime": start_dt,
-                    "EndTime": end_dt,
+                    "EndTime": None if is_in_progress else end_dt,
                     "ActualHours": actual_hours,
                     "MeterReadAtStart": 0.0,
                     "PriorMeterRead": 0.0,
