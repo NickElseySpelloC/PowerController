@@ -121,9 +121,8 @@ class ConfigSchema:
                     "type": "dict",
                     "schema": {
                         "Name": {"type": "string", "required": True},
-                        "Type": {"type": "string", "required": False, "nullable": True, "allowed": ["shelly", "teslamate"]},
+                        "Type": {"type": "string", "required": False, "nullable": True, "allowed": ["shelly", "teslamate", "meter"]},
                         "CarID": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 1000000},
-
                         "DeviceOutput": {"type": "string", "required": False, "nullable": True},
                         "Mode": {"type": "string", "required": False, "nullable": True, "allowed": ["Schedule", "BestPrice"]},
                         "Schedule": {"type": "string", "required": False, "nullable": True},
@@ -150,6 +149,8 @@ class ConfigSchema:
                             },
                         },
                         "DeviceMeter": {"type": "string", "required": False, "nullable": True},
+                        "PowerOnThresholdWatts": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 20000},
+                        "PowerOffThresholdWatts": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 20000},
                         "MaxDailyEnergyUse": {"type": "number", "required": False, "nullable": True, "min": 100, "max": 50000},
                         "DeviceInput": {"type": "string", "required": False, "nullable": True},
                         "DeviceInputMode": {"type": "string", "required": False, "nullable": True, "allowed": ["Ignore", "TurnOn", "TurnOff"]},
@@ -161,6 +162,8 @@ class ConfigSchema:
                         "MaxAppOffTime": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 2880},
                         "TurnOnSequence": {"type": "string", "required": False, "nullable": True},
                         "TurnOffSequence": {"type": "string", "required": False, "nullable": True},
+                        "HideFromWebApp": {"type": "boolean", "required": False, "nullable": True},
+                        "HideFromViewerApp": {"type": "boolean", "required": False, "nullable": True},
                         "TempProbeConstraints": {
                             "type": "list",
                             "required": False,

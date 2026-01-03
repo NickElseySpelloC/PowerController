@@ -33,6 +33,7 @@ from local_enumerations import (
     ShellyStep,
     StepKind,
 )
+from meter_output import MeterOutput
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
@@ -155,10 +156,17 @@ class PowerController:
             "TempProbeData": temp_probe_data,
         }
 
+        # outputs_data = {
+        #     output.id: output.get_webapp_data(view)
+        #     for output in self.outputs
+        # }
+
         outputs_data = {
-            output.id: output.get_webapp_data(view)
-            for output in self.outputs
         }
+        for output in self.outputs:
+            output_data = output.get_webapp_data(view)
+            if output_data:
+                outputs_data[output.id] = output_data
 
         return_dict = {
             "global": global_data,
@@ -264,6 +272,9 @@ class PowerController:
 
         # Run output level self tests
         for output in self.outputs:
+            run_self_tests_fn = getattr(output, "run_self_tests", None)
+            if not callable(run_self_tests_fn):
+                continue
             output.run_self_tests()
 
         return True
@@ -378,9 +389,7 @@ class PowerController:
                 if output_type == "teslamate":
                     output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.tesla_charge_data, output_state)
                 if output_type == "meter":
-                    # Not implemented yet
-                    self.logger.log_fatal_error(f"Output type 'meter' is not implemented yet for output {output_cfg.get('Name')}.")
-                    continue
+                    output_manager = MeterOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, output_state)
                 self.outputs.append(output_manager)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")
@@ -1140,12 +1149,15 @@ class PowerController:
 
             if time_since_last_post >= frequency or force_post:  # pyright: ignore[reportOperatorIssue]
                 for output in self.outputs:
+                    save_object = output.get_save_object(view)
+                    if not save_object:
+                        continue
                     post_object = {
                         "SchemaVersion": SCHEMA_VERSION,
                         "StateFileType": "PowerController",
                         "DeviceName": f"{self.app_label} - {output.name}",
                         "SaveTime": DateHelper.now(),
-                        "Output": output.get_save_object(view),
+                        "Output": save_object,
                         "Scheduler": self.scheduler.get_save_object(output.get_schedule()) if output.get_schedule() else {},
                     }
                     self.external_service_helper.post_state_to_web_viewer(post_object)

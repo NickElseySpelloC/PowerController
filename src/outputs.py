@@ -324,10 +324,14 @@ class OutputManager:  # noqa: PLR0904
         Returns:
             dict: The representation of the output object.
         """
+        if self.output_config.get("HideFromViewerApp", False):
+            return {}
+
         output_dict = {
             "Name": self.name,
             "SystemState": self.system_state,
             "IsOn": view.get_output_state(self.device_output_id),
+            "Type": self.type,
             "LastChanged": self.last_changed,
             "Reason": self.reason,
             "AppMode": self.app_mode,
@@ -363,8 +367,11 @@ class OutputManager:  # noqa: PLR0904
             view (ShellyView): The current view of the Shelly devices.
 
         Returns:
-            dict: The web application data.
+            dict: The web application data or an empty dist if the output is hidden.
         """
+        if self.output_config.get("HideFromWebApp", False):
+            return {}
+
         is_device_output_on = view.get_output_state(self.device_output_id)
         current_action = self.get_action_request()
         if current_action and current_action.request:

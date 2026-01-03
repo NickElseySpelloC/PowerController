@@ -2,7 +2,9 @@
 The Power Controller is a Python-based automation tool that schedules and controls a power load based on electricity pricing and user-configurable parameters. It integrates with the Amber API to fetch real-time electricity prices and optimizes the device operation to minimize costs while maintaining required run-time thresholds.
 
 # Features
-* Multiple devices supported. 
+* Multiple output devices supported. 
+* Extract of Tesla charging data and pricing of the same.
+* Support for meter only outputs
 * Dynamic Scheduling: Adjusts device operation based on real-time electricity prices.
 * Normal scheduling: Turn devices on / off based on a time of day / day of week schedule, including support for dusk / dawn triggers. Schedule can be used for fall back if Amber pricing unavailable. 
 * Simple web app to view the current state of each device and manually override if needed. 
@@ -182,6 +184,7 @@ OperatingSchedules:
 # Configure each switched output that controls your devices and how they behave
 Outputs:  
   - Name: Pool Pump                 # A name for this output - used in the web interface  
+    Type: shelly                    # The type of output - shelly (default), teslamate or meter
     DeviceOutput: Filter Pump Power  # The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section
     Mode: BestPrice                 # Operating mode: BestPrice (run for target hours at best price), Schedule (run according to schedule only)
     Schedule: Pool Pump             # The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section
@@ -212,6 +215,7 @@ Outputs:
     MinOnTime: 30                   # Minimum minutes to stay on once turned on
     MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling)    
   - Name: Solar Heating
+    Type: shelly
     DeviceOutput: Solar Pump Power
     Mode: Schedule
     Schedule: Pool Heating
@@ -233,6 +237,7 @@ Outputs:
         Condition: LessThan
         Temperature: 30.0    
   - Name: Hot Water Heater
+    Type: shelly
     DeviceOutput: Hot Water O1
     Mode: BestPrice
     Schedule: Hot Water
@@ -241,6 +246,15 @@ Outputs:
     MaxBestPrice: 23.0
     MaxPriorityPrice: 30.0
     DeviceMeter: Hot Water M1
+    HideFromWebApp: True      # If True, this output will not be shown in the built-in web app
+    HideFromViewerApp: True  # If True, this output will not be shown in the PowerControllerViewer app
+- Name: Tesla
+    Type: teslamate
+    CarID: 1                   # The ID of the car in TeslaMate to control (this is usually 1 if you only have one car)
+    DaysOfHistory: 14            # How many days of history to keep for this device in the system state file
+    AmberChannel: general       # The Amber pricing channel to use for pricing this device, typically general or controlledLoad
+    Schedule: General           # The operating schedule to use for pricing this device when not using Amber pricing - must match a Name in the OperatingSchedules section
+
 
 # Use this to define a sequence of actions to perform on outputs when turning On or off
 OutputSequences:
@@ -356,13 +370,14 @@ HeartbeatMonitor:
 # Optionally use this sectionto configure integration with the TeslaMate database to import Tesla charging session data
 TeslaMate:
   Enable: False           # Set to True to enable integration with the TeslaMate database
-  DaysOfHistory: 14       # Number of days of charging history to keep
+  RefreshInterval: 10     # How often to refresh the TeslaMate data (in minutes)
   Host: 127.0.0.1         # The host address of the TeslaMate database (or use the TESLAMATE_DB_HOST environment variable)
   Port: 5432              # The port number of the TeslaMate database (or use the TESLAMATE_DB_PORT environment variable)
   DatabaseName: teslamate # The name of the TeslaMate database (or use the TESLAMATE_DB_NAME environment variable)
   DBUsername: teslamate   # The username to connect to the TeslaMate database (or use the TESLAMATE_DB_USER environment variable)
   DBPassword: <Your password here>  # The password to connect to the TeslaMate database (or use the TESLAMATE_DB_PASSWORD environment variable)
   GeofenceName: Home     # Optionally, only query the charging data within this geofence name. Leave blank to disable.
+  SaveRawData: False    # Save the raw imported TeslaMate data the system state file for debugging. Set to False (the default) to reduce file size.
 ```
 
 ## Configuration Parameters
@@ -405,6 +420,7 @@ Settings for the built-in web server that provides a web interface to view and c
 | RefreshInterval | How often to refresh the pricing data from Amber (in minutes). |
 | UsageDataFile | Set to the name of a CSV file to log hourly energy usage and costs as reported by Amber. |
 | UsageMaxDays | Maximum number of days to keep in the usage data file. |
+| PricesCacheFile | The name of the file to cache Amber pricing data. | 
 
 ### Section: ShellyDevices
 
@@ -432,12 +448,14 @@ Configure each switched output that controls your devices and how they behave. T
 
 | Parameter | Description | 
 |:--|:--|
-| Name | A name for this output - used in the web interface   |
+| Name | A name for this output - used in the web interface. |
+| Type | Configures what type of output this is:<br>shelly: The default. A fully functional Shelly relay output with associated metering, input controls, etc. <br>meter: A Shelly only meter. Useful if you want to monitor and log energy usage from a Shelly energy meter.<br>teslamate: A special "output" this imports Tesla charging data from using TeslaMate. Requires the TeslaMate: section to be properly configured (see below.)  |
 | DeviceOutput | The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section |
 | Mode | Operating mode: BestPrice (run for target hours at best price), Schedule (run according to schedule only) |
 | Schedule | The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section |
-| ConstraintSchedule |  |
+| ConstraintSchedule | An optional constraint schedule that limits when the output can run, even in BestPrice mode. |
 | AmberChannel | The Amber pricing channel to use for this device, typically general or controlledLoad |
+| CarID | The numeric ID of the Tesla you want to import data for. Leave blank to get data for all vehicles. You can get the CarID from the URL parameter car_id= in the TeslaMate "charges" dashboard |
 | DaysOfHistory | How many days of history to keep for this device |
 | MinHours | Minimum number of hours to run each day |
 | MaxHours | Maximum number of hours to run each day |
@@ -459,7 +477,46 @@ Configure each switched output that controls your devices and how they behave. T
 | TurnOffSequence | Name of the output sequence to run when turning off this output |
 | MaxAppOnTime | If we turned this output on via the app, revert to auto after this number of minutes. Set to 0 to disable. |
 | MaxAppOffTime | If we turned this output off via the app, revert to auto after this number of minutes. Set to 0 to disable. |
+| HideFromWebApp | If True, this output will not be shown in the built-in web app |
+| HideFromViewerApp | If True, this output will not be shown in the PowerControllerViewer app |
 | TempProbeConstraints | Optional list of temperature probe constraints that must be met for the output to run. Each entry must include:<br>**TempProbe**: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: [Device]: TempProbes section.<br>**Condition**: Either _GreaterThan_ or _LessThan_<br>**Temperature**: The threshold temperature on degress C. |
+
+Some of the Output settings are only applicable to some fo the output Types:
+
+| Setting | shelly | meter | teslamate |
+|:--|:--|:--|:--|
+| Name | ✓ | ✓ | ✓ |
+| Type | ✓ | ✓ | ✓ |
+| DeviceOutput | ✓ | ✓ |  |
+| Mode | ✓ | ✓ | ✓ |
+| Schedule | ✓ | ✓ | ✓ |
+| ConstraintSchedule | ✓ |   |   |
+| AmberChannel | ✓ | ✓ | ✓ |
+| CarID |   |   | ✓ |
+| DaysOfHistory | ✓ | ✓ | ✓ |
+| MinHours | ✓ |   |   |
+| MaxHours | ✓ |   |   |
+| TargetHours | ✓ |   |   |
+| MonthlyTargetHours | ✓ |   |   |
+| MaxShortfallHours | ✓ |   |   |
+| MaxBestPrice | ✓ |   |   |
+| MaxPriorityPrice | ✓ |   |   |
+| DatesOff | ✓ |   |   |
+| DeviceMeter | ✓ | ✓ |   |
+| MaxDailyEnergyUse | ✓ | ✓ |   |
+| DeviceInput | ✓ |   |   |
+| DeviceInputMode | ✓ |   |   |
+| StopOnExit | ✓ |   |   |
+| MinOnTime | ✓ |   |   |
+| MinOffTime | ✓ |   |   |
+| ParentOutput | ✓ |   |   |
+| TurnOnSequence | ✓ |   |   |
+| TurnOffSequence  ✓ |   |   |
+| MaxAppOnTime | ✓ |   |   |
+| MaxAppOffTime | ✓ |   |   |
+| HideFromWebApp | ✓ | ✓ | ✓ |
+| HideFromViewerApp | ✓ | ✓ | ✓ |
+| TempProbeConstraints | ✓ |   |   |
 
 ### Section: OutputSequences
 

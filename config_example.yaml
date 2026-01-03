@@ -151,6 +151,7 @@ OperatingSchedules:
 # Configure each switched output that controls your devices and how they behave
 Outputs:  
   - Name: Pool Pump                 # A name for this output - used in the web interface  
+    Type: shelly                    # The type of output - shelly (default), teslamate or meter
     DeviceOutput: Filter Pump Power  # The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section
     Mode: BestPrice                 # Operating mode: BestPrice (run for target hours at best price), Schedule (run according to schedule only)
     Schedule: Pool Pump             # The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section
@@ -181,6 +182,7 @@ Outputs:
     MinOnTime: 30                   # Minimum minutes to stay on once turned on
     MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling)    
   - Name: Solar Heating
+    Type: shelly
     DeviceOutput: Solar Pump Power
     Mode: Schedule
     Schedule: Pool Heating
@@ -202,6 +204,7 @@ Outputs:
         Condition: LessThan
         Temperature: 30.0    
   - Name: Hot Water Heater
+    Type: shelly
     DeviceOutput: Hot Water O1
     Mode: BestPrice
     Schedule: Hot Water
@@ -210,6 +213,15 @@ Outputs:
     MaxBestPrice: 23.0
     MaxPriorityPrice: 30.0
     DeviceMeter: Hot Water M1
+    HideFromWebApp: True      # If True, this output will not be shown in the built-in web app
+    HideFromViewerApp: True  # If True, this output will not be shown in the PowerControllerViewer app
+  - Name: Tesla
+    Type: teslamate
+    CarID: 1                   # The ID of the car in TeslaMate to control (this is usually 1 if you only have one car)
+    DaysOfHistory: 14            # How many days of history to keep for this device in the system state file
+    AmberChannel: general       # The Amber pricing channel to use for pricing this device, typically general or controlledLoad
+    Schedule: General           # The operating schedule to use for pricing this device when not using Amber pricing - must match a Name in the OperatingSchedules section
+
 
 # Use this to define a sequence of actions to perform on outputs when turning On or off
 OutputSequences:

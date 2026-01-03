@@ -66,7 +66,7 @@ class ExternalServiceHelper:
             return False
 
     def post_state_to_web_viewer(self, system_state: dict) -> None:
-        """Post the LightingController state to the web server if WebsiteBaseURL is set in config.
+        """Post the state to the web server if WebsiteBaseURL is set in config.
 
         Args:
             system_state (dict): The state data to be posted, json friendly

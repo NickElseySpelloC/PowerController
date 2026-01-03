@@ -1,0 +1,335 @@
+"""Meter-only Shelly output implementation.
+
+This module provides a read-only Output variant which derives ON/OFF state from
+an energy meter's instantaneous power reading, with hysteresis.
+
+Key goals:
+- Select a Shelly meter (DeviceMeter) and log energy usage/costs.
+- Treat the output as ON when power draw crosses configurable thresholds.
+- Use RunHistory to persist daily run history into system_state.
+- No run plan generation and no Shelly actions.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import urllib.parse
+from typing import TYPE_CHECKING, Any
+
+from org_enums import AppMode, RunPlanMode, StateReasonOff, StateReasonOn, SystemState
+
+from local_enumerations import DEFAULT_PRICE, AmberChannel, OutputStatusData
+from run_history import RunHistory
+
+if TYPE_CHECKING:
+    from sc_utility import SCConfigManager, SCLogger
+
+
+class MeterOutput:
+    """Read-only output backed by a Shelly energy meter."""
+
+    def __init__(
+        self,
+        output_config: dict[str, Any],
+        config: SCConfigManager,
+        logger: SCLogger,
+        scheduler: Any,
+        pricing: Any,
+        view: Any,
+        saved_state: dict[str, Any] | None = None,
+    ):
+        self.output_config = output_config
+        self.config = config
+        self.logger = logger
+        self.scheduler = scheduler
+        self.pricing = pricing
+
+        self.type: str = "meter"
+
+        self.system_state: SystemState = SystemState.EXTERNAL_CONTROL
+        self.app_mode: AppMode = AppMode.AUTO
+
+        self.name: str = output_config.get("Name") or "Meter"
+        self.id: str = urllib.parse.quote(self.name.lower().replace(" ", "_"))
+
+        # Pricing config (reuse existing fields where possible)
+        self.device_mode: RunPlanMode = RunPlanMode.BEST_PRICE
+        self.amber_channel = AmberChannel.GENERAL
+        self.schedule_name: str | None = None
+        self.schedule: dict | None = None
+        self.default_price: float = self.config.get("General", "DefaultPrice", default=DEFAULT_PRICE) or DEFAULT_PRICE  # pyright: ignore[reportAttributeAccessIssue]
+
+        # Meter config
+        self.device_meter_name: str | None = None
+        self.device_meter_id: int = 0
+
+        # Hysteresis thresholds
+        self.power_on_threshold_watts: float = 0.0
+        self.power_off_threshold_watts: float = 0.0
+
+        # OutputManager compatibility fields (meter outputs are never parent/child by default).
+        self.parent_output_name: str | None = None
+        self.parent_output: Any | None = None
+        self.is_parent: bool = False
+
+        # State tracking
+        self.last_changed: dt.datetime | None = None
+        self.reason: Any | None = None
+        self._is_on: bool = bool(saved_state.get("IsOn")) if isinstance(saved_state, dict) else False
+
+        saved_history = saved_state.get("RunHistory") if isinstance(saved_state, dict) else None
+        try:
+            self.run_history = RunHistory(self.logger, self._effective_history_config(output_config), saved_history)
+        except RuntimeError as e:
+            self.logger.log_fatal_error(f"Error initializing RunHistory for output {self.name}: {e}")
+            self.run_history = RunHistory(self.logger, self._effective_history_config(output_config), None)
+
+        self.initialise(output_config, view)
+        self.logger.log_message(f"Output {self.name} initialised.", "debug")
+
+    @staticmethod
+    def _effective_history_config(output_config: dict[str, Any]) -> dict[str, Any]:
+        """Return a config dict suitable for RunHistory.
+
+        Meter-only outputs typically don't have a meaningful TargetHours. Default to
+        TargetHours=-1 ("all hours") unless explicitly provided.
+        """
+        cfg = dict(output_config or {})
+        if cfg.get("TargetHours") is None:
+            cfg["TargetHours"] = -1
+        return cfg
+
+    def set_parent_output(self, parent: Any) -> None:
+        self.parent_output = parent
+
+    def initialise(self, output_config: dict[str, Any], view: Any) -> None:  # noqa: PLR0912, PLR0915
+        self.output_config = output_config
+
+        error_msg = None
+        try:
+            self.name = output_config.get("Name") or "Meter"
+            self.id = urllib.parse.quote(self.name.lower().replace(" ", "_"))
+
+            # Meter selection
+            self.device_meter_name = output_config.get("DeviceMeter")
+            if not self.device_meter_name:
+                error_msg = f"DeviceMeter is not set for meter output {self.name}."
+            else:
+                self.device_meter_id = view.get_meter_id(self.device_meter_name)
+                if not self.device_meter_id:
+                    error_msg = f"DeviceMeter {self.device_meter_name} not found for meter output {self.name}."
+
+            # Thresholds (defaults chosen to be conservative)
+            if not error_msg:
+                on_th = output_config.get("PowerOnThresholdWatts", 50)
+                off_th = output_config.get("PowerOffThresholdWatts", 30)
+                try:
+                    self.power_on_threshold_watts = float(on_th)
+                    self.power_off_threshold_watts = float(off_th)
+                except (TypeError, ValueError):
+                    error_msg = f"Invalid PowerOnThresholdWatts/PowerOffThresholdWatts for meter output {self.name}."
+
+            if not error_msg and self.power_off_threshold_watts > self.power_on_threshold_watts:
+                error_msg = (
+                    f"PowerOffThresholdWatts ({self.power_off_threshold_watts}) must be <= "
+                    f"PowerOnThresholdWatts ({self.power_on_threshold_watts}) for meter output {self.name}."
+                )
+
+            # Pricing mode: reuse existing Mode values (BestPrice=Amber, Schedule=Schedule pricing)
+            if not error_msg:
+                mode = output_config.get("Mode") or RunPlanMode.BEST_PRICE
+                self.device_mode = mode
+                if self.device_mode not in RunPlanMode:
+                    error_msg = f"A valid Mode has not been set for meter output {self.name}."
+
+            # Amber channel
+            if not error_msg:
+                self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
+                if self.amber_channel not in AmberChannel:
+                    error_msg = f"Invalid AmberChannel {self.amber_channel} for meter output {self.name}."
+
+            # Schedule (required if using schedule pricing)
+            if not error_msg:
+                self.schedule_name = output_config.get("Schedule")
+                if self.device_mode == RunPlanMode.SCHEDULE:
+                    if not self.schedule_name:
+                        error_msg = f"Schedule is required for meter output {self.name} when Mode is Schedule."
+                    else:
+                        self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
+                        if not self.schedule:
+                            error_msg = f"Schedule {self.schedule_name} for meter output {self.name} not found in OperatingSchedules."
+                else:
+                    # Optional schedule for fallback pricing
+                    self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name) if self.schedule_name else None
+
+            # ParentOutput (optional; stored for generic linking)
+            if not error_msg:
+                self.parent_output_name = output_config.get("ParentOutput")
+
+            # Reinitialise the run_history object
+            if not error_msg:
+                self.run_history.initialise(self._effective_history_config(output_config))
+
+        except (RuntimeError, KeyError, IndexError) as e:
+            raise RuntimeError from e
+        else:
+            if error_msg:
+                raise RuntimeError(error_msg)
+
+            # Finally calculate running totals so the object is immediately usable
+            self.calculate_running_totals(view)
+
+    # --- Controller loop hooks ---
+    @staticmethod
+    def tell_device_status_updated(_view: Any) -> None:
+        return
+
+    def calculate_running_totals(self, view: Any) -> None:
+        power_draw = (view.get_meter_power(self.device_meter_id) or 0.0) if self.device_meter_id else 0.0
+
+        # Apply hysteresis
+        new_is_on = self._is_on
+        if power_draw >= self.power_on_threshold_watts:
+            new_is_on = True
+        elif power_draw <= self.power_off_threshold_watts:
+            new_is_on = False
+
+        status_data = OutputStatusData(
+            meter_reading=(view.get_meter_energy(self.device_meter_id) or 0.0) if self.device_meter_id else 0.0,
+            power_draw=power_draw,
+            is_on=new_is_on,
+            target_hours=None,
+            current_price=self._get_price(),
+        )
+
+        # Start/stop runs based on derived state
+        current_run = self.run_history.get_current_run()
+        if new_is_on and current_run is None:
+            self.run_history.start_run(SystemState.EXTERNAL_CONTROL, StateReasonOn.POWER_INCREASE, status_data)
+            self.last_changed = dt.datetime.now().astimezone()
+            self.reason = StateReasonOn.POWER_INCREASE
+        elif not new_is_on and current_run is not None:
+            self.run_history.stop_run(StateReasonOff.POWER_DECREASE, status_data)
+            self.last_changed = dt.datetime.now().astimezone()
+            self.reason = StateReasonOff.POWER_DECREASE
+
+        self._is_on = new_is_on
+
+        # Always tick totals (handles day rollover, energy/cost accrual for open run)
+        self.run_history.tick(status_data)
+
+    @staticmethod
+    def review_run_plan(_view: Any) -> None:
+        return
+
+    @staticmethod
+    def evaluate_conditions(**_kwargs: Any) -> None:
+        return
+
+    @staticmethod
+    def get_action_request() -> None:
+        return
+
+    def set_app_mode(self, new_mode: AppMode, view: Any, revert_minutes: Any = None) -> None:
+        # Read-only output: accept the value but it has no effect.
+        _ = (view, revert_minutes)
+        self.app_mode = new_mode
+
+    @staticmethod
+    def shutdown(_view: Any) -> bool:
+        return False
+
+    # --- Pricing helpers ---
+    def _get_price(self, as_at_time: dt.datetime | None = None) -> float:
+        """Get the current energy price based on the output's pricing configuration.
+
+        Args:
+            as_at_time: The datetime to get the price for. If None, uses current time
+
+        Returns:
+            The price in c/kWh
+        """
+        if as_at_time is None:
+            as_at_time = dt.datetime.now().astimezone()
+        if self.device_mode == RunPlanMode.BEST_PRICE:
+            price = self.pricing.get_price(as_at_time=as_at_time, channel_id=self.amber_channel)
+            if price is not None and price > 0.0:
+                return float(price)
+
+        if self.schedule:
+            price = self.scheduler.get_price(self.schedule, as_at_time)
+            if price is not None and price > 0.0:
+                return float(price)
+
+        return float(self.default_price)
+
+    # --- State / CSV / UI ---
+    def get_save_object(self, view: Any) -> dict[str, Any]:
+        _ = view
+        if self.output_config.get("HideFromViewerApp", False):
+            return {}
+
+        return {
+            "Name": self.name,
+            "Type": self.type,
+            "SystemState": self.system_state,
+            "IsOn": self._is_on,
+            "LastChanged": self.last_changed,
+            "Reason": self.reason,
+            "AppMode": self.app_mode,
+            "DeviceMeterName": self.device_meter_name,
+            "RunHistory": self.run_history.history,
+        }
+
+    def get_consumption_data(self) -> list[dict[str, Any]]:
+        return self.run_history.get_consumption_data()
+
+    def get_webapp_data(self, view: Any) -> dict[str, Any]:
+        if self.output_config.get("HideFromWebApp", False):
+            return {}
+
+        today = self.run_history.get_current_day()
+        actual_cost = float(today["TotalCost"]) if today else 0.0
+        actual_energy_used = float(today["EnergyUsed"]) if today else 0.0
+        actual_hours = float(today["ActualHours"]) if today else 0.0
+
+        power_draw = (view.get_meter_power(self.device_meter_id) or 0.0) if self.device_meter_id else 0.0
+        current_price = self._get_price()
+
+        reason_text = self.reason.value if self.reason is not None else "Monitoring"
+
+        return {
+            "id": self.id,
+            "allow_actions": False,
+            "name": self.name,
+            "is_on": self._is_on,
+            "mode": self.app_mode.value,
+            "max_app_mode_on_minutes": None,
+            "max_app_mode_off_minutes": None,
+            "app_mode_revert_time": None,
+            "target_hours": "N/A",
+            "actual_hours": f"{actual_hours:.1f}",
+            "required_hours": "0.0",
+            "planned_hours": "0.0",
+            "actual_energy_used": f"{actual_energy_used / 1000.0:.3f}kWh",
+            "actual_cost": f"${actual_cost:.2f}",
+            "forecast_energy_used": "0.000kWh",
+            "forecast_cost": "$0.00",
+            "forecast_price": "N/A",
+            "total_energy_used": f"{actual_energy_used / 1000.0:.3f}kWh",
+            "total_cost": f"${actual_cost:.2f}",
+            "average_price": "N/A",
+            "next_start_time": None,
+            "stopping_at": None,
+            "reason": reason_text,
+            "power_draw": f"{power_draw:.0f}W" if power_draw else "None",
+            "current_price": f"{current_price:.1f} c/kWh" if current_price > 0 else "N/A",
+        }
+
+    def get_schedule(self) -> dict | None:
+        """Get the schedule for this output.
+
+        Returns:
+            dict: The schedule or None if none assigned.
+        """
+        return self.schedule

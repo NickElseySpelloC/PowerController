@@ -21,7 +21,7 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from org_enums import AppMode, StateReasonOff, StateReasonOn, SystemState
+from org_enums import AppMode, RunPlanMode, StateReasonOff, StateReasonOn, SystemState
 from sc_utility import DateHelper, SCConfigManager, SCLogger
 
 from local_enumerations import DEFAULT_PRICE, AmberChannel
@@ -139,6 +139,7 @@ class TeslaMateOutput:
         self.scheduler = scheduler
         self.schedule_name = None
         self.schedule = None
+        self.device_mode: RunPlanMode = RunPlanMode.BEST_PRICE
         self.default_price: float = self.config.get("General", "DefaultPrice", default=DEFAULT_PRICE) or DEFAULT_PRICE  # pyright: ignore[reportAttributeAccessIssue]
 
         self.system_state: SystemState = SystemState.EXTERNAL_CONTROL
@@ -173,7 +174,7 @@ class TeslaMateOutput:
         self.parent_output = parent
 
     # --- Compatibility methods used by PowerController loops ---
-    def initialise(self, output_config: dict[str, Any], _view: Any) -> None:
+    def initialise(self, output_config: dict[str, Any], _view: Any) -> None:  # noqa: PLR0912
         """Reinitialise this output from config.
 
         Args:
@@ -195,13 +196,26 @@ class TeslaMateOutput:
                 # self.id is url encoded version of name
                 self.id = urllib.parse.quote(self.name.lower().replace(" ", "_"))
 
-            # Schedule
+            # Pricing mode: reuse existing Mode values (BestPrice=Amber, Schedule=Schedule pricing)
+            if not error_msg:
+                mode = output_config.get("Mode") or RunPlanMode.BEST_PRICE
+                self.device_mode = mode
+                if self.device_mode not in RunPlanMode:
+                    error_msg = f"A valid Mode has not been set for meter output {self.name}."
+
+            # Schedule (required if using schedule pricing)
             if not error_msg:
                 self.schedule_name = output_config.get("Schedule")
-                if self.schedule_name:
-                    self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
-                    if not self.schedule:
-                        error_msg = f"Schedule {self.schedule_name} for output {self.name} not found in OperatingSchedules."
+                if self.device_mode == RunPlanMode.SCHEDULE:
+                    if not self.schedule_name:
+                        error_msg = f"Schedule is required for meter output {self.name} when Mode is Schedule."
+                    else:
+                        self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
+                        if not self.schedule:
+                            error_msg = f"Schedule {self.schedule_name} for meter output {self.name} not found in OperatingSchedules."
+                else:
+                    # Optional schedule for fallback pricing
+                    self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name) if self.schedule_name else None
 
             # Amber Channel
             self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
@@ -247,8 +261,6 @@ class TeslaMateOutput:
     def get_schedule(self) -> dict | None:
         """Get the schedule for this output.
 
-        TO DO: Update when scheduling is supported.
-
         Returns:
             dict: The schedule or None if none assigned.
         """
@@ -273,10 +285,10 @@ class TeslaMateOutput:
         print(f"Running self tests for output {self.name}:")
 
         as_at_time = DateHelper.now() - dt.timedelta(hours=12)
-        print(f"  - Price at {as_at_time.isoformat()}: {self.get_price(as_at_time):.2f} c/kWh")
+        print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} c/kWh")
 
         as_at_time = DateHelper.now() + dt.timedelta(days=4)
-        print(f"  - Price at {as_at_time.isoformat()}: {self.get_price(as_at_time):.2f} c/kWh")
+        print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} c/kWh")
 
     # --- State / UI / CSV ---
     def get_save_object(self, view: Any) -> dict[str, Any]:  # noqa: ARG002
@@ -288,6 +300,9 @@ class TeslaMateOutput:
         Returns:
             Dict suitable for writing into the controller system_state file.
         """
+        if self.output_config.get("HideFromViewerApp", False):
+            return {}
+
         is_on, reason = self._current_state_from_charge_data()
         self.reason = reason
         return {
@@ -348,6 +363,9 @@ class TeslaMateOutput:
         Returns:
             Snapshot dict in the same shape as other outputs (best-effort).
         """
+        if self.output_config.get("HideFromWebApp", False):
+            return {}
+
         is_on, reason = self._current_state_from_charge_data()
         today = DateHelper.today()
         today_obj = self._get_day(today)
@@ -383,28 +401,28 @@ class TeslaMateOutput:
             "current_price": "N/A",
         }
 
-    def get_price(self, as_at_time: dt.datetime) -> float:
-        """Get the price for this output at the specified time.
+    def _get_price(self, as_at_time: dt.datetime | None = None) -> float:
+        """Get the current energy price based on the output's pricing configuration.
 
         Args:
-            as_at_time: The time to get the price for. If None, uses current time.
+            as_at_time: The datetime to get the price for. If None, uses current time
 
         Returns:
-            The price in c/kWh.
+            The price in c/kWh
         """
-        # First see if we an Amber price
-        price = self.pricing.get_price(as_at_time=as_at_time, channel_id=self.amber_channel)
-        if price is not None and price > 0.0:
-            return price
+        if as_at_time is None:
+            as_at_time = dt.datetime.now().astimezone()
+        if self.device_mode == RunPlanMode.BEST_PRICE:
+            price = self.pricing.get_price(as_at_time=as_at_time, channel_id=self.amber_channel)
+            if price is not None and price > 0.0:
+                return float(price)
 
-        # Failing that, get the prices for the current schedule slot, if any
         if self.schedule:
             price = self.scheduler.get_price(self.schedule, as_at_time)
             if price is not None and price > 0.0:
-                return price
+                return float(price)
 
-        # Fall back to default price
-        return self.default_price
+        return float(self.default_price)
 
     def get_days_of_history(self) -> int:
         """Get the number of days of history stored.
