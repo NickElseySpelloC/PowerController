@@ -571,6 +571,15 @@ class TeslaMateOutput:
         daily_list = self._apply_history_limit(daily_list)
         self._finalize_daily_totals(daily_list)
         current_totals = self._compute_current_totals(daily_list)
+        most_recent_end: dt.datetime | None = None
+        for b in buckets:
+            end_dt = _as_local_dt(b.get("bucket_end"))
+            if end_dt is None:
+                continue
+            if most_recent_end is None or end_dt > most_recent_end:
+                most_recent_end = end_dt
+
+        self.last_changed = most_recent_end or now
         self._save_history(daily_list, current_totals, now)
 
         self._last_rebuild = now

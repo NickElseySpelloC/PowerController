@@ -198,7 +198,7 @@ class MeterOutput:
             meter_reading=(view.get_meter_energy(self.device_meter_id) or 0.0) if self.device_meter_id else 0.0,
             power_draw=power_draw,
             is_on=new_is_on,
-            target_hours=None,
+            target_hours=-1,
             current_price=self._get_price(),
         )
 
