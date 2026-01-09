@@ -224,6 +224,7 @@ class ConfigSchema:
                                 "Name": {"type": "string", "required": True},
                                 "DisplayName": {"type": "string", "required": False, "nullable": True},
                                 "Colour": {"type": "string", "required": False, "nullable": True},
+                                "HideFromViewerApp": {"type": "boolean", "required": False, "nullable": True},
                             },
                         },
                     },

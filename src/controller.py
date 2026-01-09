@@ -1,5 +1,6 @@
 """The PowerController class that orchestrates power management."""
 import contextlib
+import copy
 import datetime as dt
 import queue
 import time
@@ -1164,13 +1165,17 @@ class PowerController:
 
                 # Now post the temp probe logging data if enabled
                 if self.temp_probe_logging.get("enabled", False):
+                    probe_data = copy.deepcopy(self.temp_probe_logging)
+                    # Remove any entries in "probes" where HideFromViewerApp is true
+                    probe_data["probes"] = [probe for probe in probe_data.get("probes", []) if not probe.get("HideFromViewerApp", False)]
+
                     post_object = {
                         "SchemaVersion": SCHEMA_VERSION,
                         "StateFileType": "TempProbes",
                         "DeviceName": f"{self.app_label} - TempProbes",
                         "SaveTime": DateHelper.now(),
                         "Charting": self.config.get("TempProbeLogging", "Charting"),
-                        "TempProbeLogging": self.temp_probe_logging,
+                        "TempProbeLogging": probe_data,
                     }
                     self.external_service_helper.post_state_to_web_viewer(post_object)
                 self.viewer_website_last_post = DateHelper.now()

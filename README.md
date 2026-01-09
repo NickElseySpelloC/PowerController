@@ -548,7 +548,7 @@ Optionally use this section to log temperature probe readings to the system stat
 | Parameter | Description |
 |:--|:--|
 | Enable | Set to True or False |
-| Probes | A list of temp probe names, as defined in the ShellyDevices: Devices: [Device]: TempProbes section. You can optionally add a DisplayName here to be used in logging. |
+| Probes | A list of temp probe names, as defined in the ShellyDevices: Devices: [Device]: TempProbes section. You can optionally add:<br: - A **DisplayName** here to be used in logging.<br>A **Colour** to use when charting this probe.<br>Set **HideFromViewerApp** to True to only log to the CSV file  |
 | LoggingInterval | Log temp probe readings every N minutes |
 | LastReadingWithinMinutes | Only log readings that have been updated within this number of minutes. 0 to disable. |
 | SavedStateFileMaxDays | Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable. |
