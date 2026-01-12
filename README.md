@@ -46,7 +46,7 @@ General:
   DefaultPrice: 32.0
   # Output consumption data file - leave blank to disable
   ConsumptionDataFile: output_consumption_data.csv
-  ConsumptionDataMaxDays: 30    # Maximum number of days to keep in the consumption data file
+  ConsumptionDataMaxDays: 30    # Maximum number of days to keep in the consumption data file. Set to -1 to disable truncation.
 
 
 # Settings for the built-in web server that provides a web interface to view and control the power controller
@@ -69,7 +69,7 @@ AmberAPI:
   RefreshInterval: 15       # How often to refresh the pricing data from Amber (in minutes) 
   # Save usage data to a CSV file for offline use. Leave blank to disable
   UsageDataFile: amber_usage_data.csv
-  UsageMaxDays: 30       # Maximum number of days to keep
+  UsageMaxDays: 30       # Maximum number of days to keep. Set to -1 to disable truncation.
   PricesCacheFile: latest_prices.json   # The name of the file to cache Amber pricing data
 
 
@@ -248,7 +248,7 @@ Outputs:
     DeviceMeter: Hot Water M1
     HideFromWebApp: True      # If True, this output will not be shown in the built-in web app
     HideFromViewerApp: True  # If True, this output will not be shown in the PowerControllerViewer app
-- Name: Tesla
+  - Name: Tesla
     Type: teslamate
     CarID: 1                   # The ID of the car in TeslaMate to control (this is usually 1 if you only have one car)
     DaysOfHistory: 14            # How many days of history to keep for this device in the system state file
@@ -298,8 +298,10 @@ TempProbeLogging:
     Probes:   # A list of temp probes to monitor.
       - Name: Temp Pool Water
         DisplayName: Pool Water
+        Colour: Blue  # Colour to use when charting this probe
       - Name: Temp Roof
       - Name: Temp Solar Return
+        HideFromViewerApp: True      # If True, probe will be logged in CSV file but hidden from the PowerControllerViewer app
     LoggingInterval: 30  # Log temp probe readings every N minutes
     LastReadingWithinMinutes: 180  # Only log readings that have been updated within this number of minutes. 0 to disable.
     SavedStateFileMaxDays: 7  # Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable.
@@ -378,7 +380,9 @@ TeslaMate:
   DBPassword: <Your password here>  # The password to connect to the TeslaMate database (or use the TESLAMATE_DB_PASSWORD environment variable)
   GeofenceName: Home     # Optionally, only query the charging data within this geofence name. Leave blank to disable.
   SaveRawData: False    # Save the raw imported TeslaMate data the system state file for debugging. Set to False (the default) to reduce file size.
+
 ```
+
 
 ## Configuration Parameters
 ### Section: General

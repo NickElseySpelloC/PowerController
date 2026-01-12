@@ -719,8 +719,11 @@ class PricingManager:
         if not file_path:
             self.logger.log_message(f"No valid path for Amber usage data file {file_name}.", "error")
             return False
-        max_days = self.config.get("AmberAPI", "UsageDataMaxDays", default=30) or 30
-        assert isinstance(max_days, int)
+        max_history_days = self.config.get("AmberAPI", "UsageMaxDays", default=30) or 0
+        assert isinstance(max_history_days, int)
+        # Check for -1 meaning unlimited
+        max_history_days = None if max_history_days == -1 else max_history_days
+        today = DateHelper.today()
 
         # Create a CSVreader to read the existing data
         csv_reader = None
@@ -736,10 +739,10 @@ class PricingManager:
         else:
             assert isinstance(csv_reader, CSVReader)
 
-        # If there are any records older than max_days or any records for today, remove them
-        today = DateHelper.today()
-        cutoff_date = today - dt.timedelta(days=max_days)
-        csv_data = [row for row in csv_data if row["Date"] > cutoff_date]
+        # If there are any records older than max_history_days or any records for today, remove them
+        if max_history_days is not None:
+            cutoff_date = today - dt.timedelta(days=max_history_days)
+            csv_data = [row for row in csv_data if row["Date"] > cutoff_date]
 
         # Now determine the most recent date in the existing data
         existing_dates = {row["Date"] for row in csv_data}

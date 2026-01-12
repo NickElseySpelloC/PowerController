@@ -862,6 +862,8 @@ class PowerController:
         max_history_days = int(self.config.get("General", "ConsumptionDataMaxDays", default=30) or 0)  # pyright: ignore[reportArgumentType]
         if not max_history_days:
             return
+        # Check for -1 meaning unlimited
+        max_history_days = None if max_history_days == -1 else max_history_days
 
         # Create a CSVreader to read the existing data
         csv_reader = None
