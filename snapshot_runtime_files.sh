@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 # List of filenames to snapshot
-FILES_TO_SNAPSHOT=("logs/logfile.log" "system_state.json" "config.yaml" "logs/temperature_history.csv" "logs/amber_usage_data.csv")
+FILES_TO_SNAPSHOT=("logs/*" "system_state.json" "config.yaml")
 
 # Maximum age of snapshots in hours
 MAX_HOURS=72
@@ -21,17 +21,20 @@ SNAPSHOT_STAMP_DIR="$SNAPSHOT_DIR/$CURRENT_DATETIME"
 mkdir -p "$SNAPSHOT_STAMP_DIR"
 
 # Copy files to the snapshots directory, creating parent dirs for relative paths
-for FILE in "${FILES_TO_SNAPSHOT[@]}"; do
-    if [[ -f "$FILE" ]]; then
-        # Strip leading slash (safety) so absolute paths don’t escape SNAPSHOT_DIR
-        REL_PATH="${FILE#/}"
-        DEST="$SNAPSHOT_STAMP_DIR/$REL_PATH"
-        mkdir -p "$(dirname "$DEST")"
-        cp -a "$FILE" "$DEST"
-        echo "Snapshot created for $FILE -> $DEST"
-    else
-        echo "File $FILE does not exist, skipping..."
-    fi
+for PATTERN in "${FILES_TO_SNAPSHOT[@]}"; do
+    # Expand the pattern (handle wildcards)
+    shopt -s nullglob
+    for FILE in $PATTERN; do
+        if [[ -f "$FILE" ]]; then
+            # Strip leading slash (safety) so absolute paths don't escape SNAPSHOT_DIR
+            REL_PATH="${FILE#/}"
+            DEST="$SNAPSHOT_STAMP_DIR/$REL_PATH"
+            mkdir -p "$(dirname "$DEST")"
+            cp -a "$FILE" "$DEST"
+            echo "Snapshot created for $FILE -> $DEST"
+        fi
+    done
+    shopt -u nullglob
 done
 
 # Find and delete snapshots older than MAX_HOURS (by file mtime), then prune empty dirs
