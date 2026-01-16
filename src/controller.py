@@ -233,7 +233,7 @@ class PowerController:
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
         with self._io_lock:
-            self.logger.log_message("Startibg PowerController shutdown...", "debug")
+            self.logger.log_message("Starting PowerController shutdown...", "debug")
             view = self._get_latest_status_view()
             for output in self.outputs:
                 if output.shutdown(view):
@@ -932,21 +932,25 @@ class PowerController:
 
         # Reset the output metering data
         self.output_metering = {}
+        self.output_metering["ReportingPeriods"] = []
         self.output_metering["Totals"] = []
+        self.output_metering["Meters"] = []
 
         # Get the global totals for each reporting period and save to self.output_metering
+        # Also add the reporting periods to the system state data
         for period in reporting_periods:
-            global_total = self.pricing.get_usage_totals(period.start_date, period.end_date, period.name)
-            if not global_total:
-                continue    # No data for this period
-            self.output_metering["Totals"].append(global_total)
+            self.output_metering["ReportingPeriods"].append({
+                "Period": period.name,
+                "StartDate": period.start_date,
+                "EndDate": period.end_date,
+            })
+            self.output_metering["Totals"].append(self.pricing.get_usage_totals(period.start_date, period.end_date, period.name))
 
-        # Now get the totals for each output and reporting period from the csv_data 
+        # Now get the totals for each output and reporting period from the csv_data
         outputs_to_log = self.config.get("OutputMetering", "OutputsToLog")
         if not outputs_to_log:
             return
 
-        self.output_metering["Meters"] = []
         for log_output in outputs_to_log:
             if log_output.get("HideFromViewerApp"):
                 continue    # Don't save this output in the system state file and therefore hide from viewer app
@@ -970,9 +974,47 @@ class PowerController:
             for period in reporting_periods:
                 # get the pre-calculated global totals for this period (if any)
                 global_total = next((item for item in self.output_metering["Totals"] if item.get("Period") == period.name), {})
-                output_total = output.get_usage_totals(period.start_date, period.end_date, period.name, global_total)
-                if not output_total:
-                    continue    # No data for this period
+
+                # Setup the default object for this output and period
+                output_total = {
+                    "Period": period.name,
+                    "StartDate": period.start_date,
+                    "EndDate": period.end_date,
+                    "HaveData": False,
+                    "EnergyUsed": 0.0,
+                    "EnergyUsedPcnt": None,
+                    "Cost": 0.0,
+                    "CostPcnt": None,
+                }
+
+                # Validate that csv_data has entries for this output covering the date range
+                has_start_date = any(
+                    item.get("OutputName") == display_name and item.get("Date") <= period.start_date
+                    for item in csv_data
+                )
+                has_end_date = any(
+                    item.get("OutputName") == display_name and item.get("Date") >= period.end_date
+                    for item in csv_data
+                )
+
+                if not has_start_date or not has_end_date:
+                    meter_entry["Usage"].append(output_total)
+                    continue  # Skip this period for this output
+                output_total["HaveData"] = True
+
+                # Now calculate the totals for this output and period from the CSV data
+                for item in csv_data:
+                    if period.start_date <= item["Date"] <= period.end_date:
+                        output_total["EnergyUsed"] += item["EnergyUsed"]
+                        output_total["Cost"] += item["TotalCost"]
+
+                # Now calculate the percentages if we have global usage data
+                if global_total.get("HaveData"):
+                    if global_total.get("EnergyUsed", 0) > 0:
+                        output_total["EnergyUsedPcnt"] = output_total["EnergyUsed"] / global_total["EnergyUsed"]
+                    if global_total.get("Cost", 0) > 0:
+                        output_total["CostPcnt"] = output_total["Cost"] / global_total["Cost"]
+
                 meter_entry["Usage"].append(output_total)
 
             # And finally append this outputs usage to the system state
