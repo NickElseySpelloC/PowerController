@@ -33,6 +33,7 @@ from local_enumerations import (
     ShellySequenceResult,
     ShellyStep,
     StepKind,
+    UsageReportingPeriod,
 )
 from meter_output import MeterOutput
 from outputs import OutputManager
@@ -109,6 +110,9 @@ class PowerController:
             "sessions": [],
             "buckets": [],
         }
+
+        # Metered Output usage data
+        self.output_metering: dict = {}   # To be updated by self._update_system_state_usage_data()
 
         # Create the two run_planner types
         self.scheduler = Scheduler(self.config, self.logger)
@@ -258,25 +262,17 @@ class PowerController:
             return False
 
         # Test pricing module
-        as_at_time: dt.datetime = DateHelper.now() - dt.timedelta(hours=12)
-        self.pricing.get_price(as_at_time)
-
-        # List Tesla sessions if TeslaMate import is enabled
-        # if self.tesla_import_enabled:
-        #     for session in self.tesla_charge_data.get("sessions") or []:
-        #         if session.get("id") >= 7:
-        #             self.logger.log_message(f"TeslaMate Session: {session}", "debug")
-
-        #     for bucket in self.tesla_charge_data.get("buckets") or []:
-        #         if bucket.get("charging_process_id") >= 7:
-        #             self.logger.log_message(f"TeslaMate Bucket: {bucket}", "debug")
+        start_date = DateHelper.today() - dt.timedelta(days=1)
+        end_date = DateHelper.today() - dt.timedelta(days=1)
+        global_totals = self.pricing.get_usage_totals(start_date, end_date, "Test Period")
+        self.logger.log_message(f"PricingManager usage totals from {start_date} to {end_date}: {global_totals}", "debug")
 
         # Run output level self tests
         for output in self.outputs:
             run_self_tests_fn = getattr(output, "run_self_tests", None)
             if not callable(run_self_tests_fn):
                 continue
-            output.run_self_tests()
+            output.run_self_tests(global_totals)
 
         return True
 
@@ -589,7 +585,7 @@ class PowerController:
             force_post (bool): If True, force posting the state to the web viewer.
         """
         # Save the output consumption data if needed
-        self._save_output_consumption_data()
+        self._save_output_usage_data()
 
         system_state_path = self._get_system_state_path()
         if not system_state_path:
@@ -605,6 +601,7 @@ class PowerController:
                 "Scheduler": self.scheduler.get_save_object(),
                 "TempProbeLogging": self.temp_probe_logging,
                 "TeslaChargeData": None,
+                "OutputMetering": self.output_metering,
             }
             # Add Tesla charge data if enabled
             if self.save_tesla_raw_data:
@@ -842,26 +839,63 @@ class PowerController:
         self.command_pending = False
         return processed
 
-    def _save_output_consumption_data(self):
-        """Save usage data for all outputs."""
+    def _save_output_usage_data(self):
+        """Save output usage data for configured outputs."""
+        # Skip everything if OutputMetering is not enabled
+        if not self.config.get("OutputMetering", "Enable", default=False):
+            return
+
+        # Save the data to CSV file for the selected metered outputs
+        csv_data = self._save_usage_data_to_csv()
+
+        # Update the OutputMetering section of the system state file
+        self._update_system_state_usage_data(csv_data)
+
+    def _save_usage_data_to_csv(self) -> list[dict]:
+        """Save usage data for configured outputs to a CSV file.
+
+        Returns:
+            list[dict]: The aggregated usage data saved to CSV, or an empty list if none.
+        """
+        usage_data_file = self.config.get("OutputMetering", "DataFile")
+        if not usage_data_file:
+            return []
+        file_path = SCCommon.select_file_location(usage_data_file)  # pyright: ignore[reportArgumentType]
+        if not file_path:
+            return []
+
+        # Aggregate the usage data from all outputs listed in the OutputMetering: OutputsToLog section of the config file.
         aggregated_data = []
-        for output in self.outputs:
-            output_data = output.get_consumption_data()
+        outputs_to_log = self.config.get("OutputMetering", "OutputsToLog")
+        if not outputs_to_log:
+            return []
+
+        for log_output in outputs_to_log:
+            # Lookup this output in our objects
+            output_name = log_output.get("Output")
+            display_name = log_output.get("DisplayName") or output_name
+            output = next((o for o in self.outputs if o.name == output_name), None)
+            if not output:
+                self.logger.log_message(f"OutputMetering: Output {output_name} not found among configured outputs; skipping.", "error")
+                continue
+
+            # Try and get the usage data for all days in the run history for this output
+            output_data = output.get_daily_usage_data(name=display_name)
+            if not output_data:
+                continue    # No usage data from this output
             if isinstance(output_data, list):
                 aggregated_data.extend(output_data)
             else:
                 aggregated_data.append(output_data)
 
-        usage_data_file = self.config.get("General", "ConsumptionDataFile")
-        if not usage_data_file:
-            return
-        file_path = SCCommon.select_file_location(usage_data_file)  # pyright: ignore[reportArgumentType]
-        if not file_path:
-            return
+        # If we have no data, nothing to do
+        if not aggregated_data:
+            return []
 
-        max_history_days = int(self.config.get("General", "ConsumptionDataMaxDays", default=30) or 0)  # pyright: ignore[reportArgumentType]
+        max_history_days = int(self.config.get("OutputMetering", "DataFileMaxDays", default=30) or 30)  # pyright: ignore[reportArgumentType]
         if not max_history_days:
-            return
+            return []
+
         # Check for -1 meaning unlimited
         max_history_days = None if max_history_days == -1 else max_history_days
 
@@ -870,13 +904,79 @@ class PowerController:
         try:
             schemas = ConfigSchema()
             csv_reader = CSVReader(file_path, schemas.output_consumption_history_config)  # pyright: ignore[reportArgumentType]
-            csv_reader.update_csv_file(aggregated_data, max_days=max_history_days)
+            merged_data = csv_reader.update_csv_file(aggregated_data, max_days=max_history_days)
         except (ImportError, TypeError, ValueError) as e:
             self.logger.log_message(f"Error initializing CSVReader in _save_output_consumption_data(): {e}", "error")
-            return
+            return []
         except RuntimeError as e:
             self.logger.log_message(f"Error updating output consumption history CSV file: {e}", "error")
+            return []
+        else:
+            return merged_data
+
+    def _update_system_state_usage_data(self, csv_data: list[dict]):
+        """Save / update the metered output usage data in the system state file (self.output_metering >> OutputMetering section).
+
+        Args:
+            csv_data (list[dict]): The aggregated usage data saved to CSV.
+        """
+        # First build a list of reporting periods that we want to analyse
+        # TO DO: make this configurable if needed later.
+        reporting_periods = []
+        today = DateHelper.today()
+
+        reporting_periods.append(UsageReportingPeriod("30 Days", today - dt.timedelta(days=30), today - dt.timedelta(days=1)))  # noqa: FURB113
+        reporting_periods.append(UsageReportingPeriod("7 Days", today - dt.timedelta(days=7), today - dt.timedelta(days=1)))
+        reporting_periods.append(UsageReportingPeriod("Yesterday", today - dt.timedelta(days=1), today - dt.timedelta(days=1)))
+        reporting_periods.append(UsageReportingPeriod("Today", today, today))
+
+        # Reset the output metering data
+        self.output_metering = {}
+        self.output_metering["Totals"] = []
+
+        # Get the global totals for each reporting period and save to self.output_metering
+        for period in reporting_periods:
+            global_total = self.pricing.get_usage_totals(period.start_date, period.end_date, period.name)
+            if not global_total:
+                continue    # No data for this period
+            self.output_metering["Totals"].append(global_total)
+
+        # Now get the totals for each output and reporting period from the csv_data 
+        outputs_to_log = self.config.get("OutputMetering", "OutputsToLog")
+        if not outputs_to_log:
             return
+
+        self.output_metering["Meters"] = []
+        for log_output in outputs_to_log:
+            if log_output.get("HideFromViewerApp"):
+                continue    # Don't save this output in the system state file and therefore hide from viewer app
+
+            # Lookup this output in our objects
+            output_name = log_output.get("Output")
+            display_name = log_output.get("DisplayName") or output_name
+            output = next((o for o in self.outputs if o.name == output_name), None)
+            if not output:
+                self.logger.log_message(f"OutputMetering: Output {output_name} not found among configured outputs; skipping.", "error")
+                continue
+
+            # Add the header section
+            meter_entry = {
+                "Output": output_name,
+                "DisplayName": display_name,
+                "Usage": [],
+            }
+
+            # Loop through each reporting period and get the totals for this output
+            for period in reporting_periods:
+                # get the pre-calculated global totals for this period (if any)
+                global_total = next((item for item in self.output_metering["Totals"] if item.get("Period") == period.name), {})
+                output_total = output.get_usage_totals(period.start_date, period.end_date, period.name, global_total)
+                if not output_total:
+                    continue    # No data for this period
+                meter_entry["Usage"].append(output_total)
+
+            # And finally append this outputs usage to the system state
+            self.output_metering["Meters"].append(meter_entry)
 
     def _check_fatal_error_recovery(self):
         """Check for fatal errors in the system and handle them."""

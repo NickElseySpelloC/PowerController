@@ -47,8 +47,6 @@ class ConfigSchema:
                     "ReportCriticalErrorsDelay": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                     "PrintToConsole": {"type": "boolean", "required": False, "nullable": True},
                     "DefaultPrice": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 1000},
-                    "ConsumptionDataFile": {"type": "string", "required": False, "nullable": True},
-                    "ConsumptionDataMaxDays": {"type": "number", "required": False, "nullable": True, "min": -1, "max": 365},
                     "TestingMode": {"type": "boolean", "required": False, "nullable": True},
                 },
             },
@@ -61,6 +59,28 @@ class ConfigSchema:
                     "PageAutoRefresh": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                     "DebugMode": {"type": "boolean", "required": False, "nullable": True},
                     "AccessKey": {"type": "string", "required": False, "nullable": True},
+                },
+            },
+            "OutputMetering": {
+                "type": "dict",
+                "required": False,
+                "schema": {
+                    "Enable": {"type": "boolean", "required": False, "nullable": True},
+                    "DataFile": {"type": "string", "required": True, "nullable": False},
+                    "DataFileMaxDays": {"type": "number", "required": False, "nullable": True, "min": -1, "max": 365},
+                    "OutputsToLog": {
+                        "type": "list",
+                        "required": True,
+                        "nullable": False,
+                        "schema": {
+                            "type": "dict",
+                            "schema": {
+                                "Output": {"type": "string", "required": True},
+                                "DisplayName": {"type": "string", "required": False, "nullable": True},
+                                "HideFromViewerApp": {"type": "boolean", "required": False, "nullable": True},
+                            },
+                        },
+                    },
                 },
             },
             "AmberAPI": {

@@ -1,5 +1,6 @@
 """Holds all the local enumerations used in the project."""
 
+import datetime as dt
 import time
 import uuid
 from collections.abc import Callable
@@ -146,3 +147,12 @@ class OutputAction:
     type: OutputActionType
     system_state: SystemState
     reason: StateReasonOn | StateReasonOff
+
+
+# Metered output usage =======================================
+@dataclass
+class UsageReportingPeriod:
+    """Define a reporting period for metered output usage."""
+    name: str
+    start_date: dt.date
+    end_date: dt.date

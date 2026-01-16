@@ -243,19 +243,84 @@ class RunHistory:
                     return day["HourlyEnergyUsed"]
         return 0.0
 
-    def get_consumption_data(self) -> list[dict]:
+    def get_usage_totals(self, start_date: dt.date, end_date: dt.date, period_name: str, global_usage: dict) -> dict:
+        """Gets the energy usage from the run history between the specified dates.
+
+        If there is no usage data for the specified date range or this output isn't metered, an empty dictionary is returned.
+
+        Example return value:
+        {
+            Period: "7 Days",
+            StartDate: 2025-12-04,
+            EndDate: 2026-01-11,
+            EnergyUsed: 56,
+            EnergyUsedPcnt: 0.34,
+            Cost: 0.23,
+            CostPcnt: 0.35,
+        },
+
+        Args:
+            start_date (dt.date): The start date for the usage totals.
+            end_date (dt.date): The end date for the usage totals.
+            period_name (str): The name of the period for which to get usage totals.
+            global_usage (dict): The global usage data as returned by Amber pricing.
+
+        Returns:
+            totals (dict): A dictionary containing the energy usage.
+        """
+        # Return empty dict if we have no history
+        if not self.history["DailyData"]:
+            return {}
+
+        totals = {
+            "Period": period_name,
+            "StartDate": start_date,
+            "EndDate": end_date,
+            "EnergyUsed": 0,
+            "EnergyUsedPcnt": 0.0,
+            "Cost": 0.0,
+            "CostPcnt": 0.0,
+        }
+
+        # Make sure we have data in the specified range.
+        for item in self.history["DailyData"]:
+            if not any(item["Date"] <= start_date for item in self.history["DailyData"]) or \
+                       not any(item["Date"] >= end_date for item in self.history["DailyData"]):
+                return {}
+
+        for item in self.history["DailyData"]:
+            if start_date <= item["Date"] <= end_date:
+                totals["EnergyUsed"] += item["EnergyUsed"]
+                totals["Cost"] += item["TotalCost"]
+
+        # Now calculate the percentages if we have global usage data
+        if global_usage:
+            if global_usage.get("EnergyUsed", 0) > 0:
+                totals["EnergyUsedPcnt"] = totals["EnergyUsed"] / global_usage["EnergyUsed"]
+            if global_usage.get("Cost", 0) > 0:
+                totals["CostPcnt"] = totals["Cost"] / global_usage["Cost"]
+
+        return totals
+
+    def get_daily_usage_data(self, name: str | None = None) -> list[dict]:
         """Returns a list of historic usage data for each day in the run history.
 
         Data is returned in a CSV friendly format.
 
+        Args:
+            name (str | None): Optional name for the data set.
+
         Returns:
             list[dict]: A list of dictionaries containing date, energy used (Wh), total cost ($), average price (c/kWh), and actual hours for each day.
         """
+        if not self.history["DailyData"]:
+            return []
+
         usage_list = []
         for day in self.history["DailyData"]:
             usage_list.append({
                 "Date": day["Date"],
-                "OutputName": self.output_name,
+                "OutputName": self.output_name if name is None else name,
                 "ActualHours": day["ActualHours"],
                 "TargetHours": day["TargetHours"] or -1,
                 "EnergyUsed": day["EnergyUsed"] / 1000,  # Convert to kWh
@@ -430,7 +495,7 @@ class RunHistory:
             # Make a note of the most recent read so that we don't re-do this code
             current_run["PriorMeterRead"] = status_data.meter_reading
 
-    def _update_totals(self, status_data: OutputStatusData):
+    def _update_totals(self, status_data: OutputStatusData):  # noqa: PLR0915
         """Update all the running totals in the history object.
 
         Args:
@@ -468,7 +533,10 @@ class RunHistory:
         for day in self.history["DailyData"]:
             # Calculate the running total for this day
             day["PriorShortfall"] = max(-self.max_shortfall_hours, min(self.max_shortfall_hours, running_shortfall))
-            # Note: TargetHours will be set when we add the day
+
+            # Issue 53: make sure target hours is up to date
+            if day["Date"] == DateHelper.today():
+                day["TargetHours"] = status_data.target_hours
 
             # Reset the totals for this day
             day["ActualHours"] = 0.0

@@ -41,6 +41,7 @@ class PricingManager:
         self.config = config
         self.logger = logger
         self.next_refresh = DateHelper.now()
+        self.usage_data: list = []  # Usage data
 
         # Amber specific information
         self.concurrent_error_count = 0
@@ -184,6 +185,46 @@ class PricingManager:
             return None
         else:
             return run_plan
+
+    def get_usage_totals(self, start_date: dt.date, end_date: dt.date, period_name: str) -> dict:
+        """Gets the total energy usage between the specified dates.
+
+        If usage data isn't being logged to the CSV file or there's insufficient data, an empty dictionary is returned.
+
+        Args:
+            start_date (dt.date): The start date for the usage totals.
+            end_date (dt.date): The end date for the usage totals.
+            period_name (str): The name of the period for which to get usage totals.
+
+        Returns:
+            totals (dict): A dictionary containing the total energy usage in Wh for each date.
+        """
+        # First scan self.usage_data and make sure we have entries on or before the start_date and on or after the end_date
+        if not self.usage_data:
+            return {}
+        dates_in_data = {entry.get("Date") for entry in self.usage_data if isinstance(entry.get("Date"), dt.date)}  # pyright: ignore[reportOptionalOperand]
+        if not dates_in_data:
+            return {}
+        if min(dates_in_data) > start_date or max(dates_in_data) < end_date:
+            return {}
+
+        return_data = {
+            "Period": period_name,
+            "StartDate": start_date,
+            "EndDate": end_date,
+            "EnergyUsed": 0.0,
+            "Cost": 0.0,
+        }
+
+        # Now aggregate the usage data for the specified date range
+        for entry in self.usage_data:
+            entry_date = entry.get("Date")
+            if not isinstance(entry_date, dt.date):
+                continue
+            if start_date <= entry_date <= end_date:
+                return_data["EnergyUsed"] += entry.get("Usage", 0.0) * 1000 or 0.0
+                return_data["Cost"] += entry.get("Cost", 0.0) or 0.0
+        return return_data
 
     # Private Functions ===========================================================================
     @staticmethod
@@ -825,6 +866,7 @@ class PricingManager:
             self.logger.log_message(f"Error writing usage data file {file_path}: {e}", "error")
             return False
         else:
+            self.usage_data = aggregated_data   # Save the data
             return True
 
     def _get_channel_forecast_prices(self, channel_id: AmberChannel = AmberChannel.GENERAL, which_type: PriceFetchMode = PriceFetchMode.NORMAL) -> list[dict]:

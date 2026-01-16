@@ -942,14 +942,53 @@ class OutputManager:  # noqa: PLR0904
         """
         return self.schedule
 
-    def get_consumption_data(self) -> list[dict]:
+    def get_usage_totals(self, start_date: dt.date, end_date: dt.date, period_name: str, global_usage: dict) -> dict:
+        """Gets the energy usage for this metered output between the specified dates.
+
+        If there is no usage data for the specified date range or this output isn't metered, an empty dictionary is returned.
+
+        Example return value:
+        {
+            Period: "7 Days",
+            StartDate: 2025-12-04,
+            EndDate: 2026-01-11,
+            EnergyUsed: 56,
+            EnergyUsedPcnt: 0.34,
+            Cost: 0.23,
+            CostPcnt: 0.35,
+        },
+
+        Args:
+            start_date (dt.date): The start date for the usage totals.
+            end_date (dt.date): The end date for the usage totals.
+            period_name (str): The name of the period for which to get usage totals.
+            global_usage (dict): The global usage data as returned by Amber pricing.
+
+        Returns:
+            totals (dict): A dictionary containing the energy usage.
+        """
+        # Return None if we don't have a device meter assigned
+        if not self.device_meter_id:
+            return {}
+
+        # Ask the run_history module to get the usage data for us
+        return self.run_history.get_usage_totals(start_date, end_date, period_name, global_usage)
+
+    def get_daily_usage_data(self, name: str | None = None) -> list[dict]:
         """Get the consumption data for this output.
+
+        Args:
+            name (str | None): Optional name for the data set.
 
         Returns:
             list[dict]: The list of consumption data points.
         """
+        # Return None if we don't have a device meter assigned
+        if not self.device_meter_id:
+            return []
+
         if self.run_history:
-            return self.run_history.get_consumption_data()
+            return self.run_history.get_daily_usage_data(name)
         return []
 
     def get_days_of_history(self) -> int:
@@ -973,9 +1012,13 @@ class OutputManager:  # noqa: PLR0904
 
         self.logger.log_message(message, "debug")
 
-    def run_self_tests(self):
+    def run_self_tests(self, global_totals: dict):
         """Run self tests on the output manager."""
-        print(f"Running self tests for output {self.name}: Nothing to do here.")
+        # Test pricing module
+        start_date = DateHelper.today() - dt.timedelta(days=1)
+        end_date = DateHelper.today() - dt.timedelta(days=1)
+        usage_totals = self.get_usage_totals(start_date, end_date, "Test Period", global_totals)
+        self.logger.log_message(f"Output {self.name} usage totals from {start_date} to {end_date}: {usage_totals}", "debug")
 
     # Private Functions ===========================================================================
     def _should_revert_app_override(self, view: ShellyView) -> bool:
@@ -1094,10 +1137,10 @@ class OutputManager:  # noqa: PLR0904
             if condition == "GreaterThan":
                 if probe_temp is None:
                     # Issue 45: If temp probe = N/A for greater than condition, constaint exists
-                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "debug")
+                    # self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "debug")
                     return True
                 if probe_temp < set_temp:
-                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
+                    # self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
                     return True
 
             if probe_temp is None:
@@ -1106,7 +1149,7 @@ class OutputManager:  # noqa: PLR0904
                 continue
 
             if condition == "LessThan" and probe_temp > set_temp:
-                self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a maximum temperature of {set_temp}°C.", "debug")
+                # self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a maximum temperature of {set_temp}°C.", "debug")
                 return True
 
         return False
