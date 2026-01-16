@@ -291,6 +291,20 @@ OutputSequences:
         Retries: 2
         RetryBackoff: 1.0
 
+# Optionally use this section to enable logging of output energy consumption data to CSV and the system state file
+OutputMetering:
+  Enable: True    # Set to True to enable logging of output energy consumption data
+  DataFile: logs/output_consumption_data.csv     # Record to CSV data file. Required
+  DataFileMaxDays: -1  # Maximum number of days to keep in the CSV data file. Set to -1 for unlimited.
+  OutputsToLog:   # A list of outputs to log. These must have a meter associated with them (Outputs: [Item]: DeviceMeter field)
+    - Output: Pool Pump
+      DisplayName: Pool
+    - Output: Solar Heating
+      DisplayName: Solar
+      HideFromViewerApp: True   # If True, exclude this output from the viewer app's metering display page
+    - Output: Hot Water Heater
+      DisplayName: Hot Water
+    - Output: Tesla
 
 # Optionally enable temperature probe logging. The temperature probes must be defined in the Shelly device configuration above.
 TempProbeLogging:
@@ -383,7 +397,6 @@ TeslaMate:
 
 ```
 
-
 ## Configuration Parameters
 ### Section: General
 
@@ -396,8 +409,6 @@ General settings for the Power Controller application.
 | ReportCriticalErrorsDelay | Some critical errors can trigger email notifications - for example the AmberAPI not responding. This is the time in minutes for an issue to persist before we send an email notification. Leave blank to disable. |
 | PrintToConsole | Print some basic information to the console during startup and operation |
 | DefaultPrice | A default price to use if the Amber API is not available and there is no schedule price defined |
-| ConsumptionDataFile | Set to the name of a CSV file to have the system log a daily summary of energy usage and costs for each output. | 
-| ConsumptionDataMaxDays | Maximum number of days to keep in the consumption data file | 
 
 
 ### Section: Website
@@ -544,6 +555,25 @@ Each step entry in the sequence can include the following parameters:
 | State | If the step type is CHANGE_OUTPUT, set this to True to turn the output on, False to turn it off. |
 | Retries | How many retry attempts to make on this step before giving up. |
 | RetryBackoff  | How many seconds to wait between retry attempts. |
+
+
+### Section: OutputMetering
+
+Optionally use this section to enable logging of output energy consumption data to CSV and the system state file. You can list any output here that has a meter.
+
+If the web viewer app is enabled (see ViewerWebsite section below), then usage summaries will be show for each output for the following reporting periods:
+ - Prior 30 days (ending yesterday)
+ - Prior 7 days (ending yesterday)
+ - Yesterday
+ - Today to date
+
+| Parameter | Description | 
+|:--|:--|
+| Enable | Set to False to disable all output meter logging. |
+| DataFile | The name / path of the CSV file to log to |
+| DataFileMaxDays | Maximum number of days to keep in the CSV data file. Set to -1 for unlimited. |
+| OutputsToLog | A list of outputs to include in the logs. Each entry can include:<br>**Output**: The name of the output. Must match a Outputs: [item]: Name entry.<br>**DisplayName**: Optionally use this alternative name in the CSV file and in the web view app.<br>**HideFromViewerApp**: If True, log this output int he CSV file but don't show it in the viewer app.   |
+
 
 ### Section: TempProbeLogging
 
