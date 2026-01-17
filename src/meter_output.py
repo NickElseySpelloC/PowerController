@@ -281,8 +281,8 @@ class MeterOutput:
             "RunHistory": self.run_history.history,
         }
 
-    def get_consumption_data(self) -> list[dict[str, Any]]:
-        return self.run_history.get_consumption_data()
+    def get_daily_usage_data(self, name: str | None = None) -> list[dict[str, Any]]:
+        return self.run_history.get_daily_usage_data(name)
 
     def get_webapp_data(self, view: Any) -> dict[str, Any]:
         if self.output_config.get("HideFromWebApp", False):
