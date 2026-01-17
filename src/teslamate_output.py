@@ -317,8 +317,11 @@ class TeslaMateOutput:
             "RunHistory": self.run_history,
         }
 
-    def get_consumption_data(self) -> list[dict[str, Any]]:
+    def get_daily_usage_data(self, name: str | None = None) -> list[dict[str, Any]]:
         """Return daily consumption records.
+
+        Args:
+            name (str | None): Optional name for the data set.
 
         Returns:
             A list of dicts, one per day, matching the existing consumption CSV schema.
@@ -344,7 +347,7 @@ class TeslaMateOutput:
             out.append(
                 {
                     "Date": day_date,
-                    "OutputName": self.name,
+                    "OutputName": self.name if name is None else name,
                     "ActualHours": actual_hours,
                     "TargetHours": actual_hours,
                     "EnergyUsed": energy_wh / 1000.0,
