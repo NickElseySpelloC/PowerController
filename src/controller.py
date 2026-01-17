@@ -987,24 +987,21 @@ class PowerController:
                     "CostPcnt": None,
                 }
 
-                # Validate that csv_data has entries for this output covering the date range
+                # Validate that csv_data has an entry on or before the start date
                 has_start_date = any(
                     item.get("OutputName") == display_name and item.get("Date") <= period.start_date
                     for item in csv_data
                 )
-                has_end_date = any(
-                    item.get("OutputName") == display_name and item.get("Date") >= period.end_date
-                    for item in csv_data
-                )
 
-                if not has_start_date or not has_end_date:
+                if not has_start_date:
                     meter_entry["Usage"].append(output_total)
                     continue  # Skip this period for this output
                 output_total["HaveData"] = True
 
                 # Now calculate the totals for this output and period from the CSV data
                 for item in csv_data:
-                    if period.start_date <= item["Date"] <= period.end_date:
+                    if period.start_date <= item["Date"] <= period.end_date and item["OutputName"] == display_name:
+                        output_total["HaveData"] = True
                         output_total["EnergyUsed"] += item["EnergyUsed"]
                         output_total["Cost"] += item["TotalCost"]
 
