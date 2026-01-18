@@ -320,6 +320,8 @@ class TeslaMateOutput:
     def get_daily_usage_data(self, name: str | None = None) -> list[dict[str, Any]]:
         """Return daily consumption records.
 
+        Note: Energy usage is returned in kWh.
+
         Args:
             name (str | None): Optional name for the data set.
 

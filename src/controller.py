@@ -834,7 +834,10 @@ class PowerController:
         return processed
 
     def _save_output_usage_data(self):
-        """Save output usage data for configured outputs."""
+        """Save output usage data for configured outputs.
+
+        Note: Energy usage is in kWh.
+        """
         # Skip everything if OutputMetering is not enabled
         if not self.config.get("OutputMetering", "Enable", default=False):
             return
@@ -847,6 +850,8 @@ class PowerController:
 
     def _save_usage_data_to_csv(self) -> list[dict]:
         """Save usage data for configured outputs to a CSV file.
+
+        Note: Energy usage is in kWh.
 
         Returns:
             list[dict]: The aggregated usage data saved to CSV, or an empty list if none.
@@ -873,7 +878,7 @@ class PowerController:
                 self.logger.log_message(f"OutputMetering: Output {output_name} not found among configured outputs; skipping.", "error")
                 continue
 
-            # Try and get the usage data for all days in the run history for this output
+            # Try and get the usage data (kWh) for all days in the run history for this output
             output_data = output.get_daily_usage_data(name=display_name)
             if not output_data:
                 continue    # No usage data from this output
@@ -910,6 +915,8 @@ class PowerController:
 
     def _update_system_state_usage_data(self, csv_data: list[dict]):
         """Save / update the metered output usage data in the system state file (self.output_metering >> OutputMetering section).
+
+        Note: Energy usage is in kWh.
 
         Args:
             csv_data (list[dict]): The aggregated usage data saved to CSV.

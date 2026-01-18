@@ -192,6 +192,8 @@ class PricingManager:
 
         The passed reporting_period object is updated with the totals. If no data is available, the object isn't updated.
 
+        Note: Energy usage is returned in kWh.
+
         Args:
             reporting_period (UsageReportingPeriod): The reporting period to get usage totals for.
         """
@@ -214,7 +216,7 @@ class PricingManager:
                 continue
             if reporting_period.start_date <= entry_date <= reporting_period.end_date:
                 reporting_period.have_global_data = True
-                reporting_period.global_energy_used += entry.get("Usage", 0.0) * 1000 or 0.0
+                reporting_period.global_energy_used += entry.get("Usage", 0.0) or 0.0
                 reporting_period.global_cost += entry.get("Cost", 0.0) or 0.0
 
     # Private Functions ===========================================================================
@@ -739,6 +741,8 @@ class PricingManager:
         """Saves the raw usage data a CSV file, appending and truncating as needed.
 
         Implements https://github.com/NickElseySpelloC/PowerController/issues/11
+
+        Note: Energy usage is saved in kWh.
 
         Returns:
             result (bool): True if the usage data was saved, False if not.

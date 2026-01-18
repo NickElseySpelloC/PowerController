@@ -247,12 +247,13 @@ class RunHistory:
         """Returns a list of historic usage data for each day in the run history.
 
         Data is returned in a CSV friendly format.
+        Note: Energy usage is returned in kWh.
 
         Args:
             name (str | None): Optional name for the data set.
 
         Returns:
-            list[dict]: A list of dictionaries containing date, energy used (Wh), total cost ($), average price (c/kWh), and actual hours for each day.
+            list[dict]: A list of dictionaries containing date, energy used (kWh), total cost ($), average price (c/kWh), and actual hours for each day.
         """
         if not self.history["DailyData"]:
             return []
