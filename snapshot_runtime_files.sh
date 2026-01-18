@@ -50,29 +50,39 @@ CURRENT_TIME=$(date +%s)
 MAX_HOURS_SECONDS=$((MAX_HOURS * 3600))
 MAX_DAYS_SECONDS=$((MAX_DAYS * 86400))
 
-# Process snapshot directories
-declare -A daily_snapshots  # Associative array to track last snapshot per day
+# Helper function to convert timestamp to Unix epoch
+get_snapshot_time() {
+    local DATE_PART="$1"
+    local TIME_PART="$2"
+    
+    local YEAR="${DATE_PART:0:4}"
+    local MONTH="${DATE_PART:4:2}"
+    local DAY="${DATE_PART:6:2}"
+    local HOUR="${TIME_PART:0:2}"
+    local MINUTE="${TIME_PART:2:2}"
+    local SECOND="${TIME_PART:4:2}"
+    
+    # Cross-platform date parsing
+    if date --version >/dev/null 2>&1; then
+        # GNU date (Linux)
+        date -d "$YEAR-$MONTH-$DAY $HOUR:$MINUTE:$SECOND" +%s 2>/dev/null
+    else
+        # BSD date (macOS)
+        date -j -f "%Y-%m-%d %H:%M:%S" "$YEAR-$MONTH-$DAY $HOUR:$MINUTE:$SECOND" +%s 2>/dev/null
+    fi
+}
 
-# Iterate through all snapshot directories (format: YYYYMMDD_HHMMSS)
+# First pass: Delete snapshots older than MAX_DAYS
 for SNAPSHOT in "$SNAPSHOT_DIR"/*/; do
     [[ -d "$SNAPSHOT" ]] || continue
     
     SNAPSHOT_NAME=$(basename "$SNAPSHOT")
     
-    # Parse the timestamp from directory name (YYYYMMDD_HHMMSS)
     if [[ $SNAPSHOT_NAME =~ ^([0-9]{8})_([0-9]{6})$ ]]; then
         DATE_PART="${BASH_REMATCH[1]}"
         TIME_PART="${BASH_REMATCH[2]}"
         
-        # Convert to Unix timestamp
-        YEAR="${DATE_PART:0:4}"
-        MONTH="${DATE_PART:4:2}"
-        DAY="${DATE_PART:6:2}"
-        HOUR="${TIME_PART:0:2}"
-        MINUTE="${TIME_PART:2:2}"
-        SECOND="${TIME_PART:4:2}"
-        
-        SNAPSHOT_TIME=$(date -j -f "%Y-%m-%d %H:%M:%S" "$YEAR-$MONTH-$DAY $HOUR:$MINUTE:$SECOND" +%s 2>/dev/null)
+        SNAPSHOT_TIME=$(get_snapshot_time "$DATE_PART" "$TIME_PART")
         
         if [[ -z "$SNAPSHOT_TIME" ]]; then
             echo "Warning: Could not parse timestamp for $SNAPSHOT_NAME, skipping"
@@ -85,52 +95,44 @@ for SNAPSHOT in "$SNAPSHOT_DIR"/*/; do
         if [[ $AGE_SECONDS -gt $MAX_DAYS_SECONDS ]]; then
             echo "Deleting snapshot older than $MAX_DAYS days: $SNAPSHOT_NAME"
             rm -rf "$SNAPSHOT"
-            continue
-        fi
-        
-        # Keep all snapshots within MAX_HOURS
-        if [[ $AGE_SECONDS -le $MAX_HOURS_SECONDS ]]; then
-            continue
-        fi
-        
-        # For snapshots between MAX_HOURS and MAX_DAYS, track the last one per day
-        DAY_KEY="${DATE_PART}"
-        if [[ -z "${daily_snapshots[$DAY_KEY]}" ]] || [[ "$SNAPSHOT_NAME" > "${daily_snapshots[$DAY_KEY]}" ]]; then
-            daily_snapshots[$DAY_KEY]="$SNAPSHOT_NAME"
         fi
     fi
 done
 
-# Delete snapshots that are not the last snapshot of their day (for days beyond MAX_HOURS)
-for SNAPSHOT in "$SNAPSHOT_DIR"/*/; do
+# Second pass: For days beyond MAX_HOURS, keep only the last snapshot per day
+# Build a list of all snapshot directories sorted in reverse (newest first)
+SNAPSHOTS_SORTED=$(ls -1d "$SNAPSHOT_DIR"/*/ 2>/dev/null | sort -r)
+
+# Track which days we've seen (simple string matching, works in bash 3.2+)
+SEEN_DAYS=""
+
+for SNAPSHOT in $SNAPSHOTS_SORTED; do
     [[ -d "$SNAPSHOT" ]] || continue
     
     SNAPSHOT_NAME=$(basename "$SNAPSHOT")
     
     if [[ $SNAPSHOT_NAME =~ ^([0-9]{8})_([0-9]{6})$ ]]; then
         DATE_PART="${BASH_REMATCH[1]}"
+        TIME_PART="${BASH_REMATCH[2]}"
         
-        # Convert to Unix timestamp to check age
-        YEAR="${DATE_PART:0:4}"
-        MONTH="${DATE_PART:4:2}"
-        DAY="${DATE_PART:6:2}"
-        TIME_PART="${SNAPSHOT_NAME:9}"
-        HOUR="${TIME_PART:0:2}"
-        MINUTE="${TIME_PART:2:2}"
-        SECOND="${TIME_PART:4:2}"
+        SNAPSHOT_TIME=$(get_snapshot_time "$DATE_PART" "$TIME_PART")
         
-        SNAPSHOT_TIME=$(date -j -f "%Y-%m-%d %H:%M:%S" "$YEAR-$MONTH-$DAY $HOUR:$MINUTE:$SECOND" +%s 2>/dev/null)
+        if [[ -z "$SNAPSHOT_TIME" ]]; then
+            continue
+        fi
         
-        if [[ -n "$SNAPSHOT_TIME" ]]; then
-            AGE_SECONDS=$((CURRENT_TIME - SNAPSHOT_TIME))
-            
-            # If this snapshot is beyond MAX_HOURS but within MAX_DAYS
-            if [[ $AGE_SECONDS -gt $MAX_HOURS_SECONDS ]] && [[ $AGE_SECONDS -le $MAX_DAYS_SECONDS ]]; then
-                # Delete if it's not the last snapshot of its day
-                if [[ "${daily_snapshots[$DATE_PART]}" != "$SNAPSHOT_NAME" ]]; then
-                    echo "Deleting non-last snapshot of the day: $SNAPSHOT_NAME"
-                    rm -rf "$SNAPSHOT"
-                fi
+        AGE_SECONDS=$((CURRENT_TIME - SNAPSHOT_TIME))
+        
+        # Only process snapshots between MAX_HOURS and MAX_DAYS
+        if [[ $AGE_SECONDS -gt $MAX_HOURS_SECONDS ]] && [[ $AGE_SECONDS -le $MAX_DAYS_SECONDS ]]; then
+            # Check if we've already seen this day
+            if [[ "$SEEN_DAYS" == *"|$DATE_PART|"* ]]; then
+                # We've already kept a snapshot for this day, delete this one
+                echo "Deleting non-last snapshot of the day: $SNAPSHOT_NAME"
+                rm -rf "$SNAPSHOT"
+            else
+                # First snapshot we've seen for this day (and it's the newest since we're going in reverse)
+                SEEN_DAYS="${SEEN_DAYS}|${DATE_PART}|"
             fi
         fi
     fi
