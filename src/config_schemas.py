@@ -338,14 +338,14 @@ class ConfigSchema:
                 "sort": 2,
             },
             {
-                "name": "StartTime",
-                "type": "time",
-                "format": "%H:%M:%S",
+                "name": "StartDateTime",
+                "type": "datetime",
+                "format": "%Y-%m-%d %H:%M:%S",
             },
             {
-                "name": "EndTime",
-                "type": "time",
-                "format": "%H:%M:%S",
+                "name": "EndDateTime",
+                "type": "datetime",
+                "format": "%Y-%m-%d %H:%M:%S",
             },
             {
                 "name": "Minutes",

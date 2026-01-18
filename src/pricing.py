@@ -719,15 +719,16 @@ class PricingManager:
 
             # Build a return list[dict] in a format suitable for CSV writing
             for entry in response_data:
+                entry_date = dt.datetime.strptime(entry["date"], "%Y-%m-%d").date()  # pyright: ignore[reportArgumentType]  # noqa: DTZ007
                 dt_start = self._convert_utc_dt_string(entry["startTime"])
-                if dt_start.date() == end_date:
+                if entry_date == end_date:
                     continue    # Skip records for today
                 dt_end = self._convert_utc_dt_string(entry["endTime"])
                 new_entry = {
-                    "Date": dt_start.date(),
+                    "Date": entry_date,
                     "Channel": entry["channelType"],
-                    "StartTime": dt_start.time(),
-                    "EndTime": dt_end.time(),
+                    "StartDateTime": dt_start,
+                    "EndDateTime": dt_end,
                     "Minutes": int(entry["duration"]),  # Duration of this slot in minutes
                     "Usage": float(entry["kwh"]),
                     "Price": float(entry["perKwh"]),
@@ -804,8 +805,8 @@ class PricingManager:
 
             if duration_minutes < USAGE_AGGREGATION_INTERVAL:
                 # Parse the start time to get the hour
-                start_time = row["StartTime"]
-                end_time = row["EndTime"]
+                start_time = row["StartDateTime"]
+                end_time = row["EndDateTime"]
                 current_hour = start_time.hour
 
                 # Aggregate all rows for this hour
@@ -818,7 +819,7 @@ class PricingManager:
                 while j < len(csv_data):
                     next_row = csv_data[j]
                     next_date = next_row["Date"]
-                    next_start_time = next_row["StartTime"]
+                    next_start_time = next_row["StartDateTime"]
 
                     # Stop if we've moved to a different date, channel, or hour
                     if (next_date != row_date or
@@ -830,15 +831,15 @@ class PricingManager:
                     total_usage += next_row["Usage"]
                     total_cost += next_row["Cost"]
                     total_minutes += int(next_row["Minutes"])
-                    end_time = next_row["EndTime"]
+                    end_time = next_row["EndDateTime"]
                     j += 1
 
                 # Create aggregated entry
                 new_entry = {
                     "Date": row["Date"],
                     "Channel": row["Channel"],
-                    "StartTime": start_time,
-                    "EndTime": end_time,
+                    "StartDateTime": start_time,
+                    "EndDateTime": end_time,
                     "Minutes": total_minutes,
                     "Usage": total_usage,
                     "Price": total_cost / total_usage * 100 if total_usage > 0 else 0,
