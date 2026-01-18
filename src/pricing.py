@@ -24,6 +24,7 @@ from local_enumerations import (
     AmberAPIMode,
     AmberChannel,
     PriceFetchMode,
+    UsageReportingPeriod,
 )
 from run_plan import RunPlanner
 
@@ -186,48 +187,35 @@ class PricingManager:
         else:
             return run_plan
 
-    def get_usage_totals(self, start_date: dt.date, end_date: dt.date, period_name: str) -> dict:
+    def get_usage_totals(self, reporting_period: UsageReportingPeriod):
         """Gets the total energy usage between the specified dates.
 
-        If usage data isn't being logged to the CSV file or there's insufficient data, a no data dict is returned.
+        The passed reporting_period object is updated with the totals. If no data is available, the object isn't updated.
 
         Args:
-            start_date (dt.date): The start date for the usage totals.
-            end_date (dt.date): The end date for the usage totals.
-            period_name (str): The name of the period for which to get usage totals.
-
-        Returns:
-            totals (dict): A dictionary containing the total energy usage in Wh for each date.
+            reporting_period (UsageReportingPeriod): The reporting period to get usage totals for.
         """
-        # Setup the return data structure
-        return_data = {
-            "Period": period_name,
-            "StartDate": start_date,
-            "EndDate": end_date,
-            "HaveData": False,
-            "EnergyUsed": 0.0,
-            "Cost": 0.0,
-        }
+        # By default return no data
+        reporting_period.have_global_data = False
 
         # First scan self.usage_data and make sure we have entries on or before the start_date and on or after the end_date
         if not self.usage_data:
-            return return_data
+            return
         dates_in_data = {entry.get("Date") for entry in self.usage_data if isinstance(entry.get("Date"), dt.date)}  # pyright: ignore[reportOptionalOperand]
         if not dates_in_data:
-            return return_data
-        if min(dates_in_data) > start_date or max(dates_in_data) < end_date:
-            return return_data
+            return
+        if min(dates_in_data) > reporting_period.start_date or max(dates_in_data) < reporting_period.end_date:
+            return
 
         # Now aggregate the usage data for the specified date range
         for entry in self.usage_data:
             entry_date = entry.get("Date")
             if not isinstance(entry_date, dt.date):
                 continue
-            if start_date <= entry_date <= end_date:
-                return_data["HaveData"] = True
-                return_data["EnergyUsed"] += entry.get("Usage", 0.0) * 1000 or 0.0
-                return_data["Cost"] += entry.get("Cost", 0.0) or 0.0
-        return return_data
+            if reporting_period.start_date <= entry_date <= reporting_period.end_date:
+                reporting_period.have_global_data = True
+                reporting_period.global_energy_used += entry.get("Usage", 0.0) * 1000 or 0.0
+                reporting_period.global_cost += entry.get("Cost", 0.0) or 0.0
 
     # Private Functions ===========================================================================
     @staticmethod

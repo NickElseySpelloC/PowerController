@@ -261,18 +261,12 @@ class PowerController:
         if not self.config.get("General", "TestingMode", default=False):
             return False
 
-        # Test pricing module
-        start_date = DateHelper.today() - dt.timedelta(days=1)
-        end_date = DateHelper.today() - dt.timedelta(days=1)
-        global_totals = self.pricing.get_usage_totals(start_date, end_date, "Test Period")
-        self.logger.log_message(f"PricingManager usage totals from {start_date} to {end_date}: {global_totals}", "debug")
-
         # Run output level self tests
         for output in self.outputs:
             run_self_tests_fn = getattr(output, "run_self_tests", None)
             if not callable(run_self_tests_fn):
                 continue
-            output.run_self_tests(global_totals)
+            output.run_self_tests()
 
         return True
 
@@ -932,90 +926,100 @@ class PowerController:
 
         # Reset the output metering data
         self.output_metering = {}
-        self.output_metering["ReportingPeriods"] = []
         self.output_metering["Totals"] = []
         self.output_metering["Meters"] = []
 
         # Get the global totals for each reporting period and save to self.output_metering
-        # Also add the reporting periods to the system state data
         for period in reporting_periods:
-            self.output_metering["ReportingPeriods"].append({
-                "Period": period.name,
-                "StartDate": period.start_date,
-                "EndDate": period.end_date,
-            })
-            self.output_metering["Totals"].append(self.pricing.get_usage_totals(period.start_date, period.end_date, period.name))
+            self.pricing.get_usage_totals(period)
 
         # Now get the totals for each output and reporting period from the csv_data
         outputs_to_log = self.config.get("OutputMetering", "OutputsToLog")
-        if not outputs_to_log:
-            return
+        if outputs_to_log:
+            for log_output in outputs_to_log:
+                if log_output.get("HideFromViewerApp"):
+                    continue    # Don't save this output in the system state file and therefore hide from viewer app
 
-        for log_output in outputs_to_log:
-            if log_output.get("HideFromViewerApp"):
-                continue    # Don't save this output in the system state file and therefore hide from viewer app
+                # Lookup this output in our objects
+                output_name = log_output.get("Output")
+                display_name = log_output.get("DisplayName") or output_name
+                output = next((o for o in self.outputs if o.name == output_name), None)
+                if not output:
+                    self.logger.log_message(f"OutputMetering: Output {output_name} not found among configured outputs; skipping.", "error")
+                    continue
 
-            # Lookup this output in our objects
-            output_name = log_output.get("Output")
-            display_name = log_output.get("DisplayName") or output_name
-            output = next((o for o in self.outputs if o.name == output_name), None)
-            if not output:
-                self.logger.log_message(f"OutputMetering: Output {output_name} not found among configured outputs; skipping.", "error")
-                continue
-
-            # Add the header section
-            meter_entry = {
-                "Output": output_name,
-                "DisplayName": display_name,
-                "Usage": [],
-            }
-
-            # Loop through each reporting period and get the totals for this output
-            for period in reporting_periods:
-                # get the pre-calculated global totals for this period (if any)
-                global_total = next((item for item in self.output_metering["Totals"] if item.get("Period") == period.name), {})
-
-                # Setup the default object for this output and period
-                output_total = {
-                    "Period": period.name,
-                    "StartDate": period.start_date,
-                    "EndDate": period.end_date,
-                    "HaveData": False,
-                    "EnergyUsed": 0.0,
-                    "EnergyUsedPcnt": None,
-                    "Cost": 0.0,
-                    "CostPcnt": None,
+                # Add the header section
+                meter_entry = {
+                    "Output": output_name,
+                    "DisplayName": display_name,
+                    "Usage": [],
                 }
 
-                # Validate that csv_data has an entry on or before the start date
-                has_start_date = any(
-                    item.get("OutputName") == display_name and item.get("Date") <= period.start_date
-                    for item in csv_data
-                )
+                # Loop through each reporting period and get the totals for this output
+                for period in reporting_periods:
+                    # Setup the default object for this output and period
+                    output_total = {
+                        "Period": period.name,
+                        "StartDate": period.start_date,
+                        "EndDate": period.end_date,
+                        "HaveData": False,
+                        "EnergyUsed": 0.0,
+                        "EnergyUsedPcnt": None,
+                        "Cost": 0.0,
+                        "CostPcnt": None,
+                    }
 
-                if not has_start_date:
+                    # Validate that csv_data has an entry on or before the start date
+                    has_start_date = any(
+                        item.get("OutputName") == display_name and item.get("Date") <= period.start_date
+                        for item in csv_data
+                    )
+
+                    if not has_start_date:
+                        meter_entry["Usage"].append(output_total)
+                        continue  # Skip this period for this output
+                    output_total["HaveData"] = True
+
+                    # Now calculate the totals for this output and period from the CSV data
+                    for item in csv_data:
+                        if period.start_date <= item["Date"] <= period.end_date and item["OutputName"] == display_name:
+                            output_total["HaveData"] = True
+                            output_total["EnergyUsed"] += item["EnergyUsed"]
+                            output_total["Cost"] += item["TotalCost"]
+
+                    # Add usage for this output to the global output totals for this period
+                    period.output_energy_used += output_total["EnergyUsed"]
+                    period.output_cost += output_total["Cost"]
+
+                    # Now calculate the percentages if we have global usage data
+                    if period.have_global_data:
+                        if period.global_energy_used > 0:
+                            output_total["EnergyUsedPcnt"] = output_total["EnergyUsed"] / period.global_energy_used
+                        if period.global_cost > 0:
+                            output_total["CostPcnt"] = output_total["Cost"] / period.global_cost
+
                     meter_entry["Usage"].append(output_total)
-                    continue  # Skip this period for this output
-                output_total["HaveData"] = True
 
-                # Now calculate the totals for this output and period from the CSV data
-                for item in csv_data:
-                    if period.start_date <= item["Date"] <= period.end_date and item["OutputName"] == display_name:
-                        output_total["HaveData"] = True
-                        output_total["EnergyUsed"] += item["EnergyUsed"]
-                        output_total["Cost"] += item["TotalCost"]
+                # And finally append this usage to the system state
+                self.output_metering["Meters"].append(meter_entry)
 
-                # Now calculate the percentages if we have global usage data
-                if global_total.get("HaveData"):
-                    if global_total.get("EnergyUsed", 0) > 0:
-                        output_total["EnergyUsedPcnt"] = output_total["EnergyUsed"] / global_total["EnergyUsed"]
-                    if global_total.get("Cost", 0) > 0:
-                        output_total["CostPcnt"] = output_total["Cost"] / global_total["Cost"]
+        # Finally write out the totals section
+        for period in reporting_periods:
+            period.other_energy_used = period.global_energy_used - period.output_energy_used
+            period.other_cost = period.global_cost - period.output_cost
 
-                meter_entry["Usage"].append(output_total)
-
-            # And finally append this outputs usage to the system state
-            self.output_metering["Meters"].append(meter_entry)
+            self.output_metering["Totals"].append({
+                "Period": period.name,
+                "StartDate": period.start_date,
+                "EndDate": period.end_date,
+                "HaveData": period.have_global_data,
+                "GlobalEnergyUsed": period.global_energy_used,
+                "GlobalCost": period.global_cost,
+                "OutputEnergyUsed": period.output_energy_used,
+                "OutputCost": period.output_cost,
+                "OtherEnergyUsed": period.other_energy_used,
+                "OtherCost": period.other_cost,
+            })
 
     def _check_fatal_error_recovery(self):
         """Check for fatal errors in the system and handle them."""
@@ -1319,6 +1323,19 @@ class PowerController:
                         "TempProbeLogging": probe_data,
                     }
                     self.external_service_helper.post_state_to_web_viewer(post_object)
+
+                # Now post the energy usage data if enabled
+                if self.config.get("OutputMetering", "Enable", default=False):
+                    post_object = {
+                        "SchemaVersion": SCHEMA_VERSION,
+                        "StateFileType": "OutputMetering",
+                        "DeviceName": f"{self.app_label} - OutputMetering",
+                        "SaveTime": DateHelper.now(),
+                        "Totals": self.output_metering.get("Totals", []),
+                        "Meters": self.output_metering.get("Meters", []),
+                    }
+                    self.external_service_helper.post_state_to_web_viewer(post_object)
+
                 self.viewer_website_last_post = DateHelper.now()
 
     def _maybe_notify_webapp(self, *, force: bool = False) -> None:

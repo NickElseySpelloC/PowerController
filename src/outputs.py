@@ -980,7 +980,7 @@ class OutputManager:  # noqa: PLR0904
 
         self.logger.log_message(message, "debug")
 
-    def run_self_tests(self, global_totals: dict):
+    def run_self_tests(self):
         """Run self tests on the output manager."""
         pass  # Currently no self tests defined
 

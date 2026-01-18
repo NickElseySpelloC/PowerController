@@ -156,3 +156,10 @@ class UsageReportingPeriod:
     name: str
     start_date: dt.date
     end_date: dt.date
+    have_global_data: bool = False
+    global_energy_used: float = 0.0
+    global_cost: float = 0.0
+    output_energy_used: float = 0.0
+    output_cost: float = 0.0
+    other_energy_used: float = 0.0
+    other_cost: float = 0.0
