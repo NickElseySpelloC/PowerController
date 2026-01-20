@@ -131,7 +131,13 @@ ShellyDevices:
       Meters:
         - Name: "Hot Water M1"
         - Name: "Hot Water M2"
-
+    - Name: Panel EM1
+      Model: ShellyEMG3
+      Hostname: 192.168.86.44
+      ExpectOffline: True
+      Meters:
+        - Name: "Panel EM1.1"
+        - Name: "Panel EM1.2"   
 
 # Define the operating schedules for your devices. These are used to determine when a device is allowed to run when not using the Amber pricing data.
 OperatingSchedules:
@@ -254,7 +260,26 @@ Outputs:
     DaysOfHistory: 14            # How many days of history to keep for this device in the system state file
     AmberChannel: general       # The Amber pricing channel to use for pricing this device, typically general or controlledLoad
     Schedule: General           # The operating schedule to use for pricing this device when not using Amber pricing - must match a Name in the OperatingSchedules section
-
+  - Name: "EM1.1 Living & Beds"
+    Type: meter
+    DeviceMeter: Panel EM1.1
+    Mode: BestPrice
+    Schedule: General
+    PowerOnThresholdWatts: 40
+    PowerOffThresholdWatts: 10
+    MinEnergyToLog: 20
+    HideFromWebApp: False
+    HideFromViewerApp: True
+  - Name: "EM1.2 Kitchen & Laundry"
+    Type: meter
+    DeviceMeter: Panel EM1.2
+    Mode: BestPrice
+    Schedule: General
+    PowerOnThresholdWatts: 40
+    PowerOffThresholdWatts: 10
+    MinEnergyToLog: 20
+    HideFromWebApp: False
+    HideFromViewerApp: True
 
 # Use this to define a sequence of actions to perform on outputs when turning On or off
 OutputSequences:
@@ -305,6 +330,10 @@ OutputMetering:
     - Output: Hot Water Heater
       DisplayName: Hot Water
     - Output: Tesla
+    - Output: "EM1.1 Living & Beds"
+      DisplayName: "Living & Beds"
+    - Output: "EM1.2 Kitchen & Laundry"
+      DisplayName: "Kitchen & Laundry"
 
 # Optionally enable temperature probe logging. The temperature probes must be defined in the Shelly device configuration above.
 TempProbeLogging:
@@ -396,7 +425,6 @@ TeslaMate:
   SaveRawData: False    # Save the raw imported TeslaMate data the system state file for debugging. Set to False (the default) to reduce file size.
 
 ```
-
 ## Configuration Parameters
 ### Section: General
 
@@ -492,6 +520,9 @@ Configure each switched output that controls your devices and how they behave. T
 | TurnOffSequence | Name of the output sequence to run when turning off this output |
 | MaxAppOnTime | If we turned this output on via the app, revert to auto after this number of minutes. Set to 0 to disable. |
 | MaxAppOffTime | If we turned this output off via the app, revert to auto after this number of minutes. Set to 0 to disable. |
+| PowerOnThresholdWatts | Only applies to meter style outouts. The minimum power draw before this output will be considered "On" |
+| PowerOffThresholdWatts | Only applies to meter style outouts. The maximum power draw before this output will be considered "Off" |
+| MinEnergyToLog | Only applies to meter style outouts.  If a device run is logged with less than this number of Watts, the entry will be discarded |
 | HideFromWebApp | If True, this output will not be shown in the built-in web app |
 | HideFromViewerApp | If True, this output will not be shown in the PowerControllerViewer app |
 | TempProbeConstraints | Optional list of temperature probe constraints that must be met for the output to run. Each entry must include:<br>**TempProbe**: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: [Device]: TempProbes section.<br>**Condition**: Either _GreaterThan_ or _LessThan_<br>**Temperature**: The threshold temperature on degress C. |
@@ -529,6 +560,9 @@ Some of the Output settings are only applicable to some fo the output Types:
 | TurnOffSequence  ✓ |   |   |
 | MaxAppOnTime | ✓ |   |   |
 | MaxAppOffTime | ✓ |   |   |
+| PowerOnThresholdWatts |  | ✓  |   |
+| PowerOffThresholdWatts |  | ✓  |   |
+| MinEnergyToLog |  | ✓  |   |
 | HideFromWebApp | ✓ | ✓ | ✓ |
 | HideFromViewerApp | ✓ | ✓ | ✓ |
 | TempProbeConstraints | ✓ |   |   |

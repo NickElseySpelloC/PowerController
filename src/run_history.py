@@ -84,13 +84,8 @@ class RunHistory:
                 # Now remove the oldest day
                 self.history["DailyData"].pop(0)
 
-            # If the last run for the most recent day is still open, create a new entry for today
             if self.history["DailyData"]:
-                last_day = self.history["DailyData"][-1]
-                if last_day["DeviceRuns"] and last_day["DeviceRuns"][-1]["EndTime"] is None:
-                    local_tz = dt.datetime.now().astimezone().tzinfo
-                    end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59), tzinfo=local_tz)
-                    self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
+                self._handle_open_run_day_rollover(self.history["DailyData"][-1], status_data)
 
             # Check the energy usage for yesterdat and send email if needed
             self._check_yesterday_energy_usage()
@@ -143,15 +138,22 @@ class RunHistory:
         last_run = last_day["DeviceRuns"][-1]
         return last_run
 
-    def start_run(self, new_system_state: SystemState, reason: StateReasonOn, status_data: OutputStatusData):
+    def start_run(
+        self,
+        new_system_state: SystemState,
+        reason: StateReasonOn,
+        status_data: OutputStatusData,
+        start_time: dt.datetime | None = None,
+    ):
         """Add a new run instance to the history.
 
         Args:
             new_system_state (SystemState): The system state when the run started.
             reason (StateReasonOn): The reason why the output was turned on.
             status_data (OutputStatusData): The status data for the associated output.
+            start_time (dt.datetime | None): Optional start time for the run. If None, uses now.
         """
-        start_time = DateHelper.now()
+        start_time = DateHelper.now() if start_time is None else start_time
 
         current_run = self.get_current_run()
         if current_run is not None:
@@ -190,8 +192,9 @@ class RunHistory:
         self.min_energy_to_log = self.output_config.get("MinEnergyToLog", 0) or 0
 
         # Calculate the totals for this run
-        self._calculate_values_for_open_run(status_data)  # This will calculate energy used, actual hours, average price
-        current_run["EndTime"] = DateHelper.now() if stop_time is None else stop_time
+        effective_end_time = DateHelper.now() if stop_time is None else stop_time
+        self._calculate_values_for_open_run(status_data, effective_end_time)  # This will calculate energy used, actual hours, average price
+        current_run["EndTime"] = effective_end_time
         current_run["ReasonStopped"] = reason
 
         # If the energy used is below the minimum to log and this is a meter entry, remove this run from history
@@ -408,17 +411,18 @@ class RunHistory:
         }
         return new_run
 
-    def _calculate_values_for_open_run(self, status_data: OutputStatusData):
+    def _calculate_values_for_open_run(self, status_data: OutputStatusData, current_time: dt.datetime | None = None):
         """Calculate the values for the current open run.
 
         Args:
             status_data (OutputStatusData): The status data for the associated output.
+            current_time (dt.datetime | None): The time to use for duration calculations. If None, uses now.
         """
         current_run = self.get_current_run()
         if current_run is None:
             return
 
-        current_time = DateHelper.now()
+        current_time = DateHelper.now() if current_time is None else current_time
         current_run["ActualHours"] = (current_time - current_run["StartTime"]).total_seconds() / 3600.0
 
         last_meter_read = current_run["PriorMeterRead"]
@@ -560,8 +564,90 @@ class RunHistory:
             return  # No data to check
 
         if prior_energy_used > threashold:
-            warning_msg = f"{self.output_config.get("Name")} output used on {prior_energy_used:.0f}W, which exceeded the expected limit of {threashold}W."
+            warning_msg = f"{self.output_config.get('Name')} output used on {prior_energy_used:.0f}W, which exceeded the expected limit of {threashold}W."
             self.logger.log_message(warning_msg, "warning")
 
             # Send an email notification if configured
             self.logger.send_email("Energy Usage Alert", warning_msg)
+
+    def _estimate_meter_read_at_midnight(
+        self,
+        last_run: dict,
+        status_data: OutputStatusData,
+        start_of_day: dt.datetime,
+        current_time: dt.datetime,
+    ) -> float:
+        """Estimate the meter reading at midnight by pro-rating between ticks.
+
+        Args:
+            last_run (dict): The last open run object for the prior day.
+            status_data (OutputStatusData): Current status snapshot.
+            start_of_day (dt.datetime): Start of the new day (midnight).
+            current_time (dt.datetime): Time associated with the current snapshot.
+
+        Returns:
+            float: Estimated meter reading at midnight.
+        """
+        meter_at_midnight = status_data.meter_reading
+        prior_meter_read = last_run.get("PriorMeterRead") or 0.0
+        if not (
+            prior_meter_read > 0
+            and status_data.meter_reading > prior_meter_read
+            and self.last_tick < start_of_day <= current_time
+        ):
+            return meter_at_midnight
+
+        total_s = (current_time - self.last_tick).total_seconds()
+        before_s = (start_of_day - self.last_tick).total_seconds()
+        if total_s <= 0 or before_s < 0 or before_s > total_s:
+            return meter_at_midnight
+
+        fraction = before_s / total_s
+        return prior_meter_read + (status_data.meter_reading - prior_meter_read) * fraction
+
+    def _handle_open_run_day_rollover(self, last_day: dict, status_data: OutputStatusData) -> None:
+        """Close an open run at day end, and (for meters) start a new run at day start."""
+        if not last_day.get("DeviceRuns"):
+            return
+        if last_day["DeviceRuns"][-1].get("EndTime") is not None:
+            return
+
+        local_tz = dt.datetime.now().astimezone().tzinfo
+        end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59), tzinfo=local_tz)
+
+        if status_data.output_type != "meter":
+            self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
+            return
+
+        last_run = last_day["DeviceRuns"][-1]
+        current_time = DateHelper.now()
+        start_of_day = dt.datetime.combine(DateHelper.today(), dt.time(0, 0, 0), tzinfo=local_tz)
+        meter_at_midnight = self._estimate_meter_read_at_midnight(last_run, status_data, start_of_day, current_time)
+
+        stop_status = OutputStatusData(
+            meter_reading=meter_at_midnight,
+            power_draw=status_data.power_draw,
+            is_on=status_data.is_on,
+            target_hours=status_data.target_hours,
+            current_price=status_data.current_price,
+            output_type=status_data.output_type,
+        )
+        self.stop_run(StateReasonOff.DAY_END, stop_status, end_time)
+
+        start_status = OutputStatusData(
+            meter_reading=meter_at_midnight,
+            power_draw=status_data.power_draw,
+            is_on=True,
+            target_hours=status_data.target_hours,
+            current_price=status_data.current_price,
+            output_type=status_data.output_type,
+        )
+        self.start_run(
+            last_run.get("SystemState") or SystemState.AUTO,
+            StateReasonOn.DAY_START,
+            start_status,
+            start_time=start_of_day,
+        )
+
+        if not status_data.is_on:
+            self.stop_run(StateReasonOff.STATUS_CHANGE, status_data, current_time)

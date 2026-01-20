@@ -377,8 +377,8 @@ wheels = [
 
 [[package]]
 name = "org-enums"
-version = "1.0.1"
-source = { git = "https://github.com/NickElseySpelloC/org_enums?tag=v1.0.1#5ac1addd4e05c0aa37f8052224302858c5a518de" }
+version = "1.0.2"
+source = { git = "https://github.com/NickElseySpelloC/org_enums?tag=v1.0.2#394ca37a2263cb1f32d93bcee1ac67ebe9e4aa93" }
 dependencies = [
     { name = "pytest" },
 ]
@@ -412,7 +412,7 @@ wheels = [
 
 [[package]]
 name = "powercontroller"
-version = "1.6.3"
+version = "1.6.4"
 source = { virtual = "." }
 dependencies = [
     { name = "astral" },
@@ -436,7 +436,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "flask", specifier = ">=3.1.2" },
     { name = "jinja2", specifier = ">=3.1.0" },
-    { name = "org-enums", git = "https://github.com/NickElseySpelloC/org_enums?tag=v1.0.1" },
+    { name = "org-enums", git = "https://github.com/NickElseySpelloC/org_enums?tag=v1.0.2" },
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },

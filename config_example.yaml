@@ -98,7 +98,13 @@ ShellyDevices:
       Meters:
         - Name: "Hot Water M1"
         - Name: "Hot Water M2"
-
+    - Name: Panel EM1
+      Model: ShellyEMG3
+      Hostname: 192.168.86.44
+      ExpectOffline: True
+      Meters:
+        - Name: "Panel EM1.1"
+        - Name: "Panel EM1.2"   
 
 # Define the operating schedules for your devices. These are used to determine when a device is allowed to run when not using the Amber pricing data.
 OperatingSchedules:
@@ -221,7 +227,26 @@ Outputs:
     DaysOfHistory: 14            # How many days of history to keep for this device in the system state file
     AmberChannel: general       # The Amber pricing channel to use for pricing this device, typically general or controlledLoad
     Schedule: General           # The operating schedule to use for pricing this device when not using Amber pricing - must match a Name in the OperatingSchedules section
-
+  - Name: "EM1.1 Living & Beds"
+    Type: meter
+    DeviceMeter: Panel EM1.1
+    Mode: BestPrice
+    Schedule: General
+    PowerOnThresholdWatts: 40
+    PowerOffThresholdWatts: 10
+    MinEnergyToLog: 20
+    HideFromWebApp: False
+    HideFromViewerApp: True
+  - Name: "EM1.2 Kitchen & Laundry"
+    Type: meter
+    DeviceMeter: Panel EM1.2
+    Mode: BestPrice
+    Schedule: General
+    PowerOnThresholdWatts: 40
+    PowerOffThresholdWatts: 10
+    MinEnergyToLog: 20
+    HideFromWebApp: False
+    HideFromViewerApp: True
 
 # Use this to define a sequence of actions to perform on outputs when turning On or off
 OutputSequences:
@@ -272,6 +297,10 @@ OutputMetering:
     - Output: Hot Water Heater
       DisplayName: Hot Water
     - Output: Tesla
+    - Output: "EM1.1 Living & Beds"
+      DisplayName: "Living & Beds"
+    - Output: "EM1.2 Kitchen & Laundry"
+      DisplayName: "Kitchen & Laundry"
 
 # Optionally enable temperature probe logging. The temperature probes must be defined in the Shelly device configuration above.
 TempProbeLogging:
