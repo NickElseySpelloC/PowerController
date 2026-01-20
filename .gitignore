@@ -23,7 +23,7 @@ wheels/
 /*.txt
 /*.json
 /*.csv
-config.yaml
+/*.yaml
 logfile.log
 archive/
 snapshots
@@ -35,3 +35,5 @@ logs
 backup
 simulation_data
 system_state.*
+_config.yaml
+test_files/*

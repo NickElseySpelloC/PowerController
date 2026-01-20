@@ -129,6 +129,7 @@ class OutputStatusData:
     is_on: bool
     target_hours: float | None
     current_price: float
+    output_type: str = "shelly"  # One of "shelly", "teslamate", "meter"
 
 
 class OutputActionType(StrEnum):

@@ -200,6 +200,7 @@ class MeterOutput:
             is_on=new_is_on,
             target_hours=-1,
             current_price=self._get_price(),
+            output_type="meter",
         )
 
         # Start/stop runs based on derived state
@@ -266,9 +267,6 @@ class MeterOutput:
     # --- State / CSV / UI ---
     def get_save_object(self, view: Any) -> dict[str, Any]:
         _ = view
-        if self.output_config.get("HideFromViewerApp", False):
-            return {}
-
         return {
             "Name": self.name,
             "Type": self.type,

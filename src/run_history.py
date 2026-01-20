@@ -187,10 +187,22 @@ class RunHistory:
             # No active run to stop
             return
 
+        self.min_energy_to_log = self.output_config.get("MinEnergyToLog", 0) or 0
+
         # Calculate the totals for this run
         self._calculate_values_for_open_run(status_data)  # This will calculate energy used, actual hours, average price
         current_run["EndTime"] = DateHelper.now() if stop_time is None else stop_time
         current_run["ReasonStopped"] = reason
+
+        # If the energy used is below the minimum to log and this is a meter entry, remove this run from history
+        # Issue 56
+        if current_run["EnergyUsed"] < self.min_energy_to_log and status_data.output_type == "meter":
+            # Remove this run from the history as it didn't use enough energy to log
+            today = DateHelper.today()
+            if self.history["DailyData"] and self.history["DailyData"][-1]["Date"] == today:
+                day_runs = self.history["DailyData"][-1]["DeviceRuns"]
+                if day_runs and day_runs[-1] == current_run:
+                    day_runs.pop()
 
         self._update_totals(status_data)
 

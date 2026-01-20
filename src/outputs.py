@@ -324,9 +324,6 @@ class OutputManager:  # noqa: PLR0904
         Returns:
             dict: The representation of the output object.
         """
-        if self.output_config.get("HideFromViewerApp", False):
-            return {}
-
         output_dict = {
             "Name": self.name,
             "SystemState": self.system_state,
@@ -1233,7 +1230,8 @@ class OutputManager:  # noqa: PLR0904
             power_draw=(view.get_meter_power(self.device_meter_id) or 0) if self.device_meter_id else 0,
             is_on=view.get_output_state(self.device_output_id),
             target_hours=self._get_target_hours(),
-            current_price=self._get_current_price()
+            current_price=self._get_current_price(),
+            output_type="shelly",
         )
 
         return status_data

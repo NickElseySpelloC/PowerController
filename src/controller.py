@@ -1302,9 +1302,12 @@ class PowerController:
 
             if time_since_last_post >= frequency or force_post:  # pyright: ignore[reportOperatorIssue]
                 for output in self.outputs:
-                    save_object = output.get_save_object(view)
-                    if not save_object:
+                    # If this output is marked as hidden from viewer app, skip it
+                    # Fix: Issue 57
+                    if output.output_config.get("HideFromViewerApp", False):
                         continue
+
+                    save_object = output.get_save_object(view)
                     post_object = {
                         "SchemaVersion": SCHEMA_VERSION,
                         "StateFileType": "PowerController",

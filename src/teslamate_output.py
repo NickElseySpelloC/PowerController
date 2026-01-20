@@ -300,9 +300,6 @@ class TeslaMateOutput:
         Returns:
             Dict suitable for writing into the controller system_state file.
         """
-        if self.output_config.get("HideFromViewerApp", False):
-            return {}
-
         is_on, reason = self._current_state_from_charge_data()
         self.reason = reason
         return {
