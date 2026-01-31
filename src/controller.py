@@ -375,13 +375,15 @@ class PowerController:
                     output_state = next((o for o in saved_state["Outputs"] if o.get("Name") == output_cfg.get("Name")), None)
 
                 # Create a new output manager
+                output_manager = None
                 if output_type == "shelly":
                     output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, output_state)
                 if output_type == "teslamate":
                     output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.tesla_charge_data, output_state)
                 if output_type == "meter":
                     output_manager = MeterOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, output_state)
-                self.outputs.append(output_manager)
+                if output_manager:
+                    self.outputs.append(output_manager)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error initializing outputs: {e}")
 
@@ -913,6 +915,83 @@ class PowerController:
         else:
             return merged_data
 
+    def _update_system_state_usage_data_v1_7_0(self, csv_data: list[dict]):
+        """Save / update the metered output usage data in the system state file (self.output_metering >> OutputMetering section).
+
+        Note: Energy usage is in kWh.
+
+        Args:
+            csv_data (list[dict]): The aggregated usage data saved to CSV.
+        """
+        self.output_metering = {}
+        self.output_metering["Summary"] = {
+            "LastUpdated": DateHelper.now(),
+            "FirstDate": None,
+            "LastDate": None,
+            "NumberOfOutputs": 0,
+        }
+        self.output_metering["Meters"] = []
+
+        # Now get the totals for each output and reporting period from the csv_data
+        outputs_to_log = self.config.get("OutputMetering", "OutputsToLog")
+        if outputs_to_log:
+            for log_output in outputs_to_log:
+                if log_output.get("HideFromViewerApp"):
+                    continue    # Don't save this output in the system state file and therefore hide from viewer app
+
+                # Lookup this output in our objects
+                output_name = log_output.get("Output")
+                display_name = log_output.get("DisplayName") or output_name
+                output = next((o for o in self.outputs if o.name == output_name), None)
+                if not output:
+                    self.logger.log_message(f"OutputMetering: Output {output_name} not found among configured outputs; skipping.", "error")
+                    continue
+
+                # Add the header section
+                meter_entry = {
+                    "Output": output_name,
+                    "DisplayName": display_name,
+                    "FirstDate": None,
+                    "LastDate": None,
+                    "Usage": [],
+                }
+
+                # Now calculate the totals for this output and period from the CSV data
+                first_date = None
+                last_date = None
+                for item in csv_data:
+                    if item["OutputName"] != display_name:
+                        continue
+
+                    # Calculate first and last date we have data for
+                    if not first_date or item["Date"] < first_date:
+                        first_date = item["Date"]
+                    if not last_date or item["Date"] > last_date:
+                        last_date = item["Date"]
+
+                    # Create the entry for this output and date
+                    usage_item = {
+                        "Date": item["Date"],
+                        "EnergyUsed": item["EnergyUsed"],
+                        "Cost": item["TotalCost"],
+                    }
+
+                    meter_entry["Usage"].append(usage_item)
+
+                # Update first and last date
+                meter_entry["FirstDate"] = first_date
+                meter_entry["LastDate"] = last_date
+
+                # And finally append this usage to the system state
+                self.output_metering["Meters"].append(meter_entry)
+                self.output_metering["Summary"]["NumberOfOutputs"] += 1
+
+                # Update the overall first and last date
+                if not self.output_metering["Summary"]["FirstDate"] or (first_date and first_date < self.output_metering["Summary"]["FirstDate"]):
+                    self.output_metering["Summary"]["FirstDate"] = first_date
+                if not self.output_metering["Summary"]["LastDate"] or (last_date and last_date > self.output_metering["Summary"]["LastDate"]):
+                    self.output_metering["Summary"]["LastDate"] = last_date
+
     def _update_system_state_usage_data(self, csv_data: list[dict]):
         """Save / update the metered output usage data in the system state file (self.output_metering >> OutputMetering section).
 
@@ -922,7 +1001,6 @@ class PowerController:
             csv_data (list[dict]): The aggregated usage data saved to CSV.
         """
         # First build a list of reporting periods that we want to analyse
-        # TO DO: make this configurable if needed later.
         reporting_periods = []
         today = DateHelper.today()
 
@@ -1075,6 +1153,7 @@ class PowerController:
 
         for sequence in config_data:
             error_msg = ""
+            name = "Unknown"
             try:
                 # Get the basics for the ShellySequenceRequest object
                 name = sequence.get("Name")

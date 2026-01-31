@@ -156,71 +156,67 @@ class OutputManager:  # noqa: PLR0904
         Raises:
             RuntimeError: If the configuration is invalid.
         """
+        def _validation_error(msg):
+            raise RuntimeError(msg)
+
         self.output_config = output_config
         self.invalidate_run_plan = True  # Force a regeneration of the run plan if config changes
-        error_msg = None
         try:
             # Name
             self.name = output_config.get("Name")
             if not self.name:
-                error_msg = "Name is not set for an Output configuration."
+                _validation_error("Name is not set for an Output configuration.")
             else:
                 # self.id is url encoded version of name
                 self.id = urllib.parse.quote(self.name.lower().replace(" ", "_"))
 
             # ShellyDeviceOutput
-            if not error_msg:
-                self.device_output_name = output_config.get("DeviceOutput")
-                if not self.device_output_name:
-                    error_msg = f"DeviceOutput is not set for output {self.name}."
+            self.device_output_name = output_config.get("DeviceOutput")
+            if not self.device_output_name:
+                _validation_error(f"DeviceOutput is not set for output {self.name}.")
+            else:
+                self.device_output_id = view.get_output_id(self.device_output_name)
+                if not self.device_output_id:
+                    _validation_error(f"DeviceOutput {self.device_output_name} not found for output {self.name}.")
                 else:
-                    self.device_output_id = view.get_output_id(self.device_output_name)
-                    if not self.device_output_id:
-                        error_msg = f"DeviceOutput {self.device_output_name} not found for output {self.name}."
-                    else:
-                        self.device_id = view.get_output_device_id(self.device_output_id)
-                        self.device_name = view.get_device_name(self.device_id)
+                    self.device_id = view.get_output_device_id(self.device_output_id)
+                    self.device_name = view.get_device_name(self.device_id)
 
             # Mode
-            if not error_msg:
-                self.device_mode = output_config.get("Mode")
-                if not self.device_mode or self.device_mode not in RunPlanMode:
-                    error_msg = f"A valid mode has not been set for output {self.name}."
-                else:
-                    self.system_state = SystemState.AUTO
+            self.device_mode = output_config.get("Mode")
+            if not self.device_mode or self.device_mode not in RunPlanMode:
+                _validation_error(f"A valid mode has not been set for output {self.name}.")
+            else:
+                self.system_state = SystemState.AUTO
 
             # Schedule
-            if not error_msg:
-                self.schedule_name = output_config.get("Schedule")
-                if self.schedule_name:
-                    self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
-                    if not self.schedule:
-                        error_msg = f"Schedule {self.schedule_name} for output {self.name} not found in OperatingSchedules."
-                elif self.device_mode == RunPlanMode.SCHEDULE:
-                    error_msg = f"Schedule is not set for output {self.name}. This is required if Mode is Schedule."
+            self.schedule_name = output_config.get("Schedule")
+            if self.schedule_name:
+                self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
+                if not self.schedule:
+                    _validation_error(f"Schedule {self.schedule_name} for output {self.name} not found in OperatingSchedules.")
+            elif self.device_mode == RunPlanMode.SCHEDULE:
+                _validation_error(f"Schedule is not set for output {self.name}. This is required if Mode is Schedule.")
 
             # ConstraintSchedule
-            if not error_msg:
-                self.constaint_schedule_name = output_config.get("ConstraintSchedule")
-                if self.constaint_schedule_name:
-                    self.constaint_schedule = self.scheduler.get_schedule_by_name(self.constaint_schedule_name)
-                    if not self.constaint_schedule:
-                        error_msg = f"Constraint schedule {self.constaint_schedule_name} for output {self.name} not found in OperatingSchedules."
-                    elif self.device_mode != RunPlanMode.BEST_PRICE:
-                        self.logger.log_message(f"Constraint schedule {self.constaint_schedule_name} will be ignored for for output {self.name} since the device mode is not BestPrice.", "warning")
+            self.constaint_schedule_name = output_config.get("ConstraintSchedule")
+            if self.constaint_schedule_name:
+                self.constaint_schedule = self.scheduler.get_schedule_by_name(self.constaint_schedule_name)
+                if not self.constaint_schedule:
+                    _validation_error(f"Constraint schedule {self.constaint_schedule_name} for output {self.name} not found in OperatingSchedules.")
+                elif self.device_mode != RunPlanMode.BEST_PRICE:
+                    self.logger.log_message(f"Constraint schedule {self.constaint_schedule_name} will be ignored for for output {self.name} since the device mode is not BestPrice.", "warning")
 
             # AmberChannel
-            if not error_msg:
-                self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
-                if self.amber_channel not in AmberChannel:
-                    error_msg = f"Invalid AmberChannel {self.amber_channel} for output {self.name}. Must be one of {', '.join([m.value for m in AmberChannel])}."
+            self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
+            if self.amber_channel not in AmberChannel:
+                _validation_error(f"Invalid AmberChannel {self.amber_channel} for output {self.name}. Must be one of {', '.join([m.value for m in AmberChannel])}.")
 
             # Min / Max / Target hours
             self.min_hours = output_config.get("MinHours", -1)
             self.max_hours = output_config.get("MaxHours", -1)
             self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
             if self.run_plan_target_mode == RunPlanTargetHours.NORMAL:
-                error_msg = None
                 target_hours = self._get_target_hours()
                 if (self.min_hours < 0 or
                     self.max_hours < self.min_hours or
@@ -228,7 +224,7 @@ class OutputManager:  # noqa: PLR0904
                     target_hours < self.min_hours or
                     target_hours > self.max_hours
                     ):
-                    error_msg = f"Invalid MinHours / MaxHours/ TargetHours configuration for output {self.name}."
+                    _validation_error(f"Invalid MinHours / MaxHours/ TargetHours configuration for output {self.name}.")
                 # Note: TargetHours is set during calculate_running_totals()
             # Note: If self.mode == RunHistoryMode.ALL_DAY, then min / max / target are ignored
 
@@ -236,86 +232,78 @@ class OutputManager:  # noqa: PLR0904
             self.min_on_time = output_config.get("MinOnTime", 0)  # minutes
             self.min_off_time = output_config.get("MinOffTime", 0)  # minutes
             if self.min_off_time > self.min_on_time:
-                error_msg = f"MinOffTime {self.min_off_time} must be less than or equal to MinOnTime {self.min_on_time} for output {self.name}."
+                _validation_error(f"MinOffTime {self.min_off_time} must be less than or equal to MinOnTime {self.min_on_time} for output {self.name}.")
 
             # Default revert times in minutes for AppMode ON and OFF
             self.app_mode_max_on_time = self.output_config.get("MaxAppOnTime", 0)
             self.app_mode_max_off_time = self.output_config.get("MaxAppOffTime", 0)
 
             # DatesOff
-            if not error_msg:
-                dates_off_list = output_config.get("DatesOff", [])
-                if len(dates_off_list) > 0:
-                    for date_range in dates_off_list:
-                        start_date = date_range.get("StartDate")
-                        end_date = date_range.get("EndDate")
-                        if not start_date or not end_date:
-                            error_msg = f"Invalid date range in DatesOff for output {self.name}."
-                        else:
-                            self.dates_off.append({"StartDate": start_date, "EndDate": end_date})
+            dates_off_list = output_config.get("DatesOff", [])
+            if len(dates_off_list) > 0:
+                for date_range in dates_off_list:
+                    start_date = date_range.get("StartDate")
+                    end_date = date_range.get("EndDate")
+                    if not start_date or not end_date:
+                        _validation_error(f"Invalid date range in DatesOff for output {self.name}.")
+                    else:
+                        self.dates_off.append({"StartDate": start_date, "EndDate": end_date})
 
             # Prices
-            if not error_msg:
-                self.max_best_price = output_config.get("MaxBestPrice")
-                self.max_priority_price = output_config.get("MaxPriorityPrice")
-                if not error_msg and (not self.max_best_price or not self.max_priority_price):
-                    error_msg = f"MaxBestPrice and MaxPriorityPrice must be properly set for output {self.name}."
+            self.max_best_price = output_config.get("MaxBestPrice")
+            self.max_priority_price = output_config.get("MaxPriorityPrice")
+            if (not self.max_best_price or not self.max_priority_price):
+                _validation_error(f"MaxBestPrice and MaxPriorityPrice must be properly set for output {self.name}.")
 
             # DeviceMeter
-            if not error_msg:
-                self.device_meter_name = output_config.get("DeviceMeter")
-                if self.device_meter_name:
-                    self.device_meter_id = view.get_meter_id(self.device_meter_name)
-                    if not self.device_meter_id:
-                        error_msg = f"DeviceMeter {self.device_meter_name} not found for output {self.name}."
+            self.device_meter_name = output_config.get("DeviceMeter")
+            if self.device_meter_name:
+                self.device_meter_id = view.get_meter_id(self.device_meter_name)
+                if not self.device_meter_id:
+                    _validation_error(f"DeviceMeter {self.device_meter_name} not found for output {self.name}.")
 
             # DeviceInput
-            if not error_msg:
-                self.device_input_name = output_config.get("DeviceInput")
-                if self.device_input_name:
-                    self.device_input_id = view.get_input_id(self.device_input_name)
-                    if not self.device_input_id:
-                        error_msg = f"DeviceInput {self.device_input_name} not found for output {self.name}."
+            self.device_input_name = output_config.get("DeviceInput")
+            if self.device_input_name:
+                self.device_input_id = view.get_input_id(self.device_input_name)
+                if not self.device_input_id:
+                    _validation_error(f"DeviceInput {self.device_input_name} not found for output {self.name}.")
 
             # DeviceInputMode
-            if not error_msg:
-                self.device_input_mode = output_config.get("DeviceInputMode", InputMode.IGNORE) or InputMode.IGNORE
-                if self.device_input_mode not in InputMode:
-                    error_msg = f"Invalid DeviceInputMode {self.device_input_mode} for output {self.name}. Must be one of {', '.join([m.value for m in InputMode])}."
+            self.device_input_mode = output_config.get("DeviceInputMode", InputMode.IGNORE) or InputMode.IGNORE
+            if self.device_input_mode not in InputMode:
+                _validation_error(f"Invalid DeviceInputMode {self.device_input_mode} for output {self.name}. Must be one of {', '.join([m.value for m in InputMode])}.")
 
             # TempProbeConstraints
-            if not error_msg:
-                temp_probe_constraints = output_config.get("TempProbeConstraints", [])
-                for constraint in temp_probe_constraints:
-                    temp_probe_name = constraint.get("TempProbe")
-                    condition = constraint.get("Condition")
-                    temperature = constraint.get("Temperature")
-                    if not temp_probe_name or condition not in {"GreaterThan", "LessThan"} or not isinstance(temperature, (int, float)):
-                        error_msg = f"Invalid TempProbeConstraint in output {self.name}."
+            temp_probe_constraints = output_config.get("TempProbeConstraints", [])
+            for constraint in temp_probe_constraints:
+                temp_probe_name = constraint.get("TempProbe")
+                condition = constraint.get("Condition")
+                temperature = constraint.get("Temperature")
+                if not temp_probe_name or condition not in {"GreaterThan", "LessThan"} or not isinstance(temperature, (int, float)):
+                    _validation_error(f"Invalid TempProbeConstraint in output {self.name}.")
+                else:
+                    temp_probe_id = view.get_temp_probe_id(temp_probe_name)
+                    if not temp_probe_id:
+                        _validation_error(f"TempProbe {temp_probe_name} not found for output {self.name}.")
                     else:
-                        temp_probe_id = view.get_temp_probe_id(temp_probe_name)
-                        if not temp_probe_id:
-                            error_msg = f"TempProbe {temp_probe_name} not found for output {self.name}."
-                        else:
-                            # Add the TempProbeID to the constraint
-                            constraint["ProbeID"] = temp_probe_id
-                            # Store the constraint for later use
-                            self.temp_probe_constraints.append(constraint)
+                        # Add the TempProbeID to the constraint
+                        constraint["ProbeID"] = temp_probe_id
+                        # Store the constraint for later use
+                        self.temp_probe_constraints.append(constraint)
 
             # ParentDeviceOutput
-            if not error_msg:
-                self.parent_output_name = output_config.get("ParentOutput")
-                # Note: We can't lookup the actual parent output here as it may not have been created yet.
+            self.parent_output_name = output_config.get("ParentOutput")
+            # Note: We can't lookup the actual parent output here as it may not have been created yet.
 
             # Reinitialise the run_history object
-            if not error_msg:
-                self.run_history.initialise(output_config)
+            self.run_history.initialise(output_config)
 
-        except (RuntimeError, KeyError, IndexError) as e:
-            raise RuntimeError from e
+        except RuntimeError:
+            raise
+        except (KeyError, IndexError) as e:
+            raise RuntimeError(str(e)) from e
         else:
-            if error_msg:
-                raise RuntimeError(error_msg)
             self.calculate_running_totals(view)   # Finally calculate all running totals
 
     def get_save_object(self, view: ShellyView) -> dict:
@@ -521,6 +509,10 @@ class OutputManager:  # noqa: PLR0904
             logging_level = "warning" if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else "error"
             self.logger.log_message(f"Failed to generate run plan for output {self.name}. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", logging_level)
 
+        elif self.run_plan["Status"] == RunPlanStatus.BELOW_MINIMUM and self.run_plan_target_mode == RunPlanTargetHours.NORMAL:
+            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
+            self.logger.log_message(f"Partially generated run plan for output {self.name}. Not enough low-price slots to meet pririority or target hours. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", "warning")
+
         elif self.run_plan["Status"] == RunPlanStatus.PARTIAL and self.run_plan_target_mode == RunPlanTargetHours.NORMAL:
             self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
             self.logger.log_message(f"Partially generated run plan for output {self.name}. Not enough low-price slots to meet target hours. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", "warning")
@@ -600,7 +592,7 @@ class OutputManager:  # noqa: PLR0904
                 # We have a valid run plan but there's nothing left to do today
                 new_output_state = False
                 reason_off = StateReasonOff.RUN_PLAN_COMPLETE
-            elif self.run_plan["Status"] in {RunPlanStatus.PARTIAL, RunPlanStatus.READY}:
+            elif self.run_plan["Status"] in {RunPlanStatus.PARTIAL, RunPlanStatus.BELOW_MINIMUM, RunPlanStatus.READY}:
                 # We have a complete or partially filled run plan
                 _, run_now = RunPlanner.get_current_slot(self.run_plan)
                 if run_now:

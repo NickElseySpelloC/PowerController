@@ -99,8 +99,8 @@ class ExternalServiceHelper:
             "Content-Type": "application/json",
             "Content-Encoding": "gzip",
         }
+        response = None
         try:
-            response = None
             response = requests.post(api_url, headers=headers, data=compressed_data, timeout=timeout_wait)  # type: ignore[call-arg]
             assert isinstance(response, requests.Response)
             response.raise_for_status()

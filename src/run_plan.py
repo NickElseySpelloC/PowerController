@@ -556,7 +556,7 @@ class RunPlanner:
 
         # Set status
         if total_minutes < required_priority_mins:
-            run_plan["Status"] = RunPlanStatus.FAILED
+            run_plan["Status"] = RunPlanStatus.BELOW_MINIMUM
         elif total_minutes >= required_mins:
             run_plan["Status"] = RunPlanStatus.READY
         else:

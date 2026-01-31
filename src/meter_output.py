@@ -102,10 +102,12 @@ class MeterOutput:
     def set_parent_output(self, parent: Any) -> None:
         self.parent_output = parent
 
-    def initialise(self, output_config: dict[str, Any], view: Any) -> None:  # noqa: PLR0912, PLR0915
+    def initialise(self, output_config: dict[str, Any], view: Any) -> None:
+        def _validation_error(msg):
+            raise RuntimeError(msg)
+
         self.output_config = output_config
 
-        error_msg = None
         try:
             self.name = output_config.get("Name") or "Meter"
             self.id = urllib.parse.quote(self.name.lower().replace(" ", "_"))
@@ -113,69 +115,62 @@ class MeterOutput:
             # Meter selection
             self.device_meter_name = output_config.get("DeviceMeter")
             if not self.device_meter_name:
-                error_msg = f"DeviceMeter is not set for meter output {self.name}."
+                _validation_error(f"DeviceMeter is not set for meter output {self.name}.")
             else:
                 self.device_meter_id = view.get_meter_id(self.device_meter_name)
                 if not self.device_meter_id:
-                    error_msg = f"DeviceMeter {self.device_meter_name} not found for meter output {self.name}."
+                    _validation_error(f"DeviceMeter {self.device_meter_name} not found for meter output {self.name}.")
 
             # Thresholds (defaults chosen to be conservative)
-            if not error_msg:
-                on_th = output_config.get("PowerOnThresholdWatts", 50)
-                off_th = output_config.get("PowerOffThresholdWatts", 30)
-                try:
-                    self.power_on_threshold_watts = float(on_th)
-                    self.power_off_threshold_watts = float(off_th)
-                except (TypeError, ValueError):
-                    error_msg = f"Invalid PowerOnThresholdWatts/PowerOffThresholdWatts for meter output {self.name}."
+            on_th = output_config.get("PowerOnThresholdWatts", 50)
+            off_th = output_config.get("PowerOffThresholdWatts", 30)
+            try:
+                self.power_on_threshold_watts = float(on_th)
+                self.power_off_threshold_watts = float(off_th)
+            except (TypeError, ValueError):
+                _validation_error(f"Invalid PowerOnThresholdWatts/PowerOffThresholdWatts for meter output {self.name}.")
 
-            if not error_msg and self.power_off_threshold_watts > self.power_on_threshold_watts:
-                error_msg = (
+            if self.power_off_threshold_watts > self.power_on_threshold_watts:
+                _validation_error(
                     f"PowerOffThresholdWatts ({self.power_off_threshold_watts}) must be <= "
                     f"PowerOnThresholdWatts ({self.power_on_threshold_watts}) for meter output {self.name}."
                 )
 
             # Pricing mode: reuse existing Mode values (BestPrice=Amber, Schedule=Schedule pricing)
-            if not error_msg:
-                mode = output_config.get("Mode") or RunPlanMode.BEST_PRICE
-                self.device_mode = mode
-                if self.device_mode not in RunPlanMode:
-                    error_msg = f"A valid Mode has not been set for meter output {self.name}."
+            mode = output_config.get("Mode") or RunPlanMode.BEST_PRICE
+            self.device_mode = mode
+            if self.device_mode not in RunPlanMode:
+                _validation_error(f"A valid Mode has not been set for meter output {self.name}.")
 
             # Amber channel
-            if not error_msg:
-                self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
-                if self.amber_channel not in AmberChannel:
-                    error_msg = f"Invalid AmberChannel {self.amber_channel} for meter output {self.name}."
+            self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
+            if self.amber_channel not in AmberChannel:
+                _validation_error(f"Invalid AmberChannel {self.amber_channel} for meter output {self.name}.")
 
             # Schedule (required if using schedule pricing)
-            if not error_msg:
-                self.schedule_name = output_config.get("Schedule")
-                if self.device_mode == RunPlanMode.SCHEDULE:
-                    if not self.schedule_name:
-                        error_msg = f"Schedule is required for meter output {self.name} when Mode is Schedule."
-                    else:
-                        self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
-                        if not self.schedule:
-                            error_msg = f"Schedule {self.schedule_name} for meter output {self.name} not found in OperatingSchedules."
+            self.schedule_name = output_config.get("Schedule")
+            if self.device_mode == RunPlanMode.SCHEDULE:
+                if not self.schedule_name:
+                    _validation_error(f"Schedule is required for meter output {self.name} when Mode is Schedule.")
                 else:
-                    # Optional schedule for fallback pricing
-                    self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name) if self.schedule_name else None
+                    self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name)
+                    if not self.schedule:
+                        _validation_error(f"Schedule {self.schedule_name} for meter output {self.name} not found in OperatingSchedules.")
+            else:
+                # Optional schedule for fallback pricing
+                self.schedule = self.scheduler.get_schedule_by_name(self.schedule_name) if self.schedule_name else None
 
             # ParentOutput (optional; stored for generic linking)
-            if not error_msg:
-                self.parent_output_name = output_config.get("ParentOutput")
+            self.parent_output_name = output_config.get("ParentOutput")
 
             # Reinitialise the run_history object
-            if not error_msg:
-                self.run_history.initialise(self._effective_history_config(output_config))
+            self.run_history.initialise(self._effective_history_config(output_config))
 
-        except (RuntimeError, KeyError, IndexError) as e:
-            raise RuntimeError from e
+        except RuntimeError:
+            raise
+        except (KeyError, IndexError) as e:
+            raise RuntimeError(str(e)) from e
         else:
-            if error_msg:
-                raise RuntimeError(error_msg)
-
             # Finally calculate running totals so the object is immediately usable
             self.calculate_running_totals(view)
 
