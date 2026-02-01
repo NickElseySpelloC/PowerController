@@ -186,7 +186,8 @@ Outputs:
     DeviceInputMode: TurnOn         # If a DeviceInput is specified, this controls how is is used. Ignore: Ignore the state of the inputs. TurnOn: Turn output on if input is off. TurnOff: Turn output off if input is on.
     StopOnExit: True                # If True, attempt to turn off the outputs when the application exits
     MinOnTime: 30                   # Minimum minutes to stay on once turned on
-    MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling)    
+    MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling). Cannot be set if MaxffTime is set.
+    MaxOffTime:                     # Maximum minutes to stay off. Cannot be set if MinOffTime is set.
   - Name: Solar Heating
     Type: shelly
     DeviceOutput: Solar Pump Power

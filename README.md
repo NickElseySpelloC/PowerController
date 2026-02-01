@@ -219,7 +219,8 @@ Outputs:
     DeviceInputMode: TurnOn         # If a DeviceInput is specified, this controls how is is used. Ignore: Ignore the state of the inputs. TurnOn: Turn output on if input is off. TurnOff: Turn output off if input is on.
     StopOnExit: True                # If True, attempt to turn off the outputs when the application exits
     MinOnTime: 30                   # Minimum minutes to stay on once turned on
-    MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling)    
+    MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling). Cannot be set if MaxffTime is set.
+    MaxOffTime:                     # Maximum minutes to stay off. Cannot be set if MinOffTime is set.
   - Name: Solar Heating
     Type: shelly
     DeviceOutput: Solar Pump Power
@@ -514,7 +515,8 @@ Configure each switched output that controls your devices and how they behave. T
 | DeviceInputMode | If a DeviceInput is specified, this controls how is is used. Ignore: Ignore the state of the inputs. TurnOn: Turn output on if input is off. TurnOff: Turn output off if input is on. |
 | StopOnExit | If True, attempt to turn off the outputs when the application exits |
 | MinOnTime | Minimum minutes to stay on once turned on |
-| MinOffTime | Minimum minutes to stay off (prevent rapid cycling) |
+| MinOffTime | Minimum minutes to stay off (prevent rapid cycling). Cannot be set if MaxffTime is set. |
+| MaxOffTime | Maximum minutes to stay off. Cannot be set if MinffTime is set. Recommend using this in conjunction with MinOnTime, otherwise if the run plan requires the output to be off, it turn off again immediatly after turning on due to this trigger.  |
 | ParentOutput | This output is slaved to the designated parent output. In addition to the other criteria defined for this output, it'll only run when the parent is running. | 
 | TurnOnSequence | Name of the output sequence to run when turning on this output. The sequence name must be defined in the OutputSequences section (see below.) |
 | TurnOffSequence | Name of the output sequence to run when turning off this output |

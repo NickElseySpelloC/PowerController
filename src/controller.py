@@ -915,7 +915,7 @@ class PowerController:
         else:
             return merged_data
 
-    def _update_system_state_usage_data_v1_7_0(self, csv_data: list[dict]):
+    def _update_system_state_usage_data(self, csv_data: list[dict]):
         """Save / update the metered output usage data in the system state file (self.output_metering >> OutputMetering section).
 
         Note: Energy usage is in kWh.
@@ -930,7 +930,8 @@ class PowerController:
             "LastDate": None,
             "NumberOfOutputs": 0,
         }
-        self.output_metering["Meters"] = []
+        self.output_metering["Totals"] = self.pricing.get_daily_usage_totals()     # Daily global usage totals
+        self.output_metering["Meters"] = []     # List of metered outputs and the daily usage for each one
 
         # Now get the totals for each output and reporting period from the csv_data
         outputs_to_log = self.config.get("OutputMetering", "OutputsToLog")
@@ -992,7 +993,8 @@ class PowerController:
                 if not self.output_metering["Summary"]["LastDate"] or (last_date and last_date > self.output_metering["Summary"]["LastDate"]):
                     self.output_metering["Summary"]["LastDate"] = last_date
 
-    def _update_system_state_usage_data(self, csv_data: list[dict]):
+    # TO DO: Remove for v1.7.0
+    def _update_system_state_usage_data_v1_6_5(self, csv_data: list[dict]):
         """Save / update the metered output usage data in the system state file (self.output_metering >> OutputMetering section).
 
         Note: Energy usage is in kWh.
@@ -1420,6 +1422,7 @@ class PowerController:
                         "StateFileType": "OutputMetering",
                         "DeviceName": f"{self.app_label} - OutputMetering",
                         "SaveTime": DateHelper.now(),
+                        "Summary": self.output_metering.get("Summary", []),
                         "Totals": self.output_metering.get("Totals", []),
                         "Meters": self.output_metering.get("Meters", []),
                     }

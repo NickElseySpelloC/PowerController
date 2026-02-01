@@ -187,6 +187,7 @@ class PricingManager:
         else:
             return run_plan
 
+    # TO DO: Remove for v1.7.0
     def get_usage_totals(self, reporting_period: UsageReportingPeriod):
         """Gets the total energy usage between the specified dates.
 
@@ -218,6 +219,56 @@ class PricingManager:
                 reporting_period.have_global_data = True
                 reporting_period.global_energy_used += entry.get("Usage", 0.0) or 0.0
                 reporting_period.global_cost += entry.get("Cost", 0.0) or 0.0
+
+    def get_daily_usage_totals(self):
+        """Gets the total energy usage for each day available.
+
+        Note: Energy usage is returned in kWh.
+
+        Returns:
+            daily_totals (list): A list of daily totals, or an empty list if no data is available.
+        """
+        # First scan self.usage_data and make sure we have entries on or before the start_date and on or after the end_date
+        if not self.usage_data:
+            return []
+
+        # Now aggregate the usage data for each date
+        current_date: dt.date | None = None
+        day_entry: dict | None = None
+        daily_totals: list[dict] = []
+
+        for entry in self.usage_data:
+            entry_date = entry.get("Date")
+            if not isinstance(entry_date, dt.date):
+                continue
+
+            if current_date is None:
+                current_date = entry_date
+                day_entry = {
+                    "Date": current_date,
+                    "EnergyUsed": 0.0,
+                    "Cost": 0.0,
+                }
+            elif entry_date != current_date:
+                # Date changed: append the prior day and start a new one.
+                if day_entry is not None:
+                    daily_totals.append(day_entry)
+                current_date = entry_date
+                day_entry = {
+                    "Date": current_date,
+                    "EnergyUsed": 0.0,
+                    "Cost": 0.0,
+                }
+
+            assert day_entry is not None
+            day_entry["EnergyUsed"] += entry.get("Usage", 0.0) or 0.0
+            day_entry["Cost"] += entry.get("Cost", 0.0) or 0.0
+
+        # Append the final day entry
+        if day_entry is not None:
+            daily_totals.append(day_entry)
+
+        return daily_totals
 
     # Private Functions ===========================================================================
     @staticmethod

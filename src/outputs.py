@@ -114,6 +114,7 @@ class OutputManager:  # noqa: PLR0904
         # Minimum runtime configuration
         self.min_on_time = 0  # minutes
         self.min_off_time = 0  # minutes
+        self.max_off_time = 0  # minutes
 
         # Temp probe constraints
         self.temp_probe_constraints: list[dict[str, str | int | float]] = []
@@ -231,8 +232,11 @@ class OutputManager:  # noqa: PLR0904
             # Minimum runtime configuration
             self.min_on_time = output_config.get("MinOnTime", 0)  # minutes
             self.min_off_time = output_config.get("MinOffTime", 0)  # minutes
+            self.max_off_time = output_config.get("MaxOffTime", 0)  # minutes
             if self.min_off_time > self.min_on_time:
                 _validation_error(f"MinOffTime {self.min_off_time} must be less than or equal to MinOnTime {self.min_on_time} for output {self.name}.")
+            if self.min_off_time > 0 and self.max_off_time > 0:
+                _validation_error(f"MaxOffTime and MinOffTime cannot both be set for output {self.name}.")
 
             # Default revert times in minutes for AppMode ON and OFF
             self.app_mode_max_on_time = self.output_config.get("MaxAppOnTime", 0)
@@ -339,6 +343,7 @@ class OutputManager:  # noqa: PLR0904
             "LastTurnedOff": self.last_turned_off,
             "MinOnTime": self.min_on_time,
             "MinOffTime": self.min_off_time,
+            "MaxOffTime": self.max_off_time,
             "DatesOff": self.dates_off,
             "RunPlan": self.run_plan,
             "RunHistory": self.run_history.history,
@@ -593,16 +598,21 @@ class OutputManager:  # noqa: PLR0904
                 new_output_state = False
                 reason_off = StateReasonOff.RUN_PLAN_COMPLETE
             elif self.run_plan["Status"] in {RunPlanStatus.PARTIAL, RunPlanStatus.BELOW_MINIMUM, RunPlanStatus.READY}:
-                # We have a complete or partially filled run plan
-                _, run_now = RunPlanner.get_current_slot(self.run_plan)
-                if run_now:
-                    # Run plan tells us to run now.
+                # See if we need to honor the maxium off time
+                if self._should_respect_maximum_offtime(view):
                     new_output_state = True
-                    reason_on = StateReasonOn.ACTIVE_RUN_PLAN
+                    reason_on = StateReasonOn.MAX_OFF_TIME
                 else:
-                    # Run plan tells us to run later.
-                    new_output_state = False
-                    reason_off = StateReasonOff.INACTIVE_RUN_PLAN
+                    # We have a complete or partially filled run plan
+                    _, run_now = RunPlanner.get_current_slot(self.run_plan)
+                    if run_now:
+                        # Run plan tells us to run now.
+                        new_output_state = True
+                        reason_on = StateReasonOn.ACTIVE_RUN_PLAN
+                    else:
+                        # Run plan tells us to run later.
+                        new_output_state = False
+                        reason_off = StateReasonOff.INACTIVE_RUN_PLAN
 
         # If we get here and we still haven't determined the new system state, there's a problem.
         if not isinstance(new_system_state, SystemState):
@@ -1051,6 +1061,35 @@ class OutputManager:  # noqa: PLR0904
                 self.logger.log_message(
                     f"Output {self.name} must stay off for {remaining:.1f} more minutes "
                     f"(MinOffTime: {self.min_off_time})", "debug"
+                )
+                return True
+
+        return False
+
+    def _should_respect_maximum_offtime(self, view: ShellyView) -> bool:
+        """Check if we should turn an output back on due to maximum off time constraints.
+
+        Args:
+            view (ShellyView): The current view of the Shelly devices.
+
+        Returns:
+            bool: True if we should turn the output back on due to maximum off time constraints, False otherwise.
+        """
+        now = DateHelper.now()
+        is_device_online = view.get_device_online(self.device_id)
+        is_device_output_on = view.get_output_state(self.device_output_id)
+
+        # If device is currently OFF and has exceeded maximum off time, we need to turn it back ON
+        if (
+            not is_device_output_on
+            and self.max_off_time > 0
+            and self.last_turned_off
+            and is_device_online
+        ):
+            time_off = (now - self.last_turned_off).total_seconds() / 60  # minutes
+            if time_off > self.max_off_time:
+                self.logger.log_message(
+                    f"Output {self.name} has been off for more than the maximum off time of {self.max_off_time} minutes. Turning it back on.", "debug"
                 )
                 return True
 
