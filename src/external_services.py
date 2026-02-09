@@ -5,7 +5,7 @@ import json
 import os
 
 import requests
-from sc_utility import DateHelper, JSONEncoder, SCConfigManager, SCLogger
+from sc_utility import DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
 
 HTTP_STATUS_FORBIDDEN = 403
 
@@ -129,3 +129,15 @@ class ExternalServiceHelper:
             # Record the time of the last post even if it failed so that we don't keep retrying on errors
             # self.logger.log_message(f"Posted state for {system_state.get('DeviceName')} to {api_url}.", "debug")
             pass
+
+    @staticmethod
+    def save_object_to_json_file(save_object: object, filename: str) -> None:
+        """Save an object to a file in JSON format.
+
+        Args:
+            save_object (object): The object to be saved. Must be JSON serializable.
+            filename (str): The name of the file to save the object to.
+        """
+        file_path = SCCommon.select_file_location(filename)
+        assert file_path is not None, "File path cannot be None"
+        JSONEncoder.save_to_file(save_object, file_path)

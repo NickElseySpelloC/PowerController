@@ -5,6 +5,7 @@ import operator
 from org_enums import RunPlanMode, RunPlanStatus
 from sc_utility import DateHelper, SCLogger
 
+# from external_services import ExternalServiceHelper
 from local_enumerations import AmberChannel
 
 
@@ -102,6 +103,7 @@ class RunPlanner:
             raise RuntimeError(error_msg)
 
         # Step 1: Select qualifying slots based on price criteria and optionally the constraint slots
+        # ExternalServiceHelper.save_object_to_json_file(sorted_slot_data, "logs/debug_sorted_slots.json")
         selected_slots = self._select_qualifying_slots(
                                     sorted_slot_data=sorted_slot_data,
                                     remaining_required_mins=required_mins,
@@ -118,10 +120,15 @@ class RunPlanner:
             return run_plan
 
         # Step 2: Consolidate slots to honor min_minutes and gap constraints
+        # ExternalServiceHelper.save_object_to_json_file(selected_slots, "logs/debug_selected_slots.json")
         consolidated_slots = self._consolidate_slots(selected_slots, slot_min_minutes, slot_min_gap_minutes)
+        # ExternalServiceHelper.save_object_to_json_file(consolidated_slots, "logs/debug_consolidated_slots.json")
 
         # Step 3: Trim to exact required hours if needed
-        final_slots = self._trim_to_required_hours(consolidated_slots, required_mins)
+        if required_hours == -1:
+            final_slots = consolidated_slots    # Issue 63
+        else:
+            final_slots = self._trim_to_required_hours(consolidated_slots, required_mins)
 
         # Step 4: Calculate final plan metrics
         return self._finalize_run_plan(run_plan, final_slots, required_mins, int(priority_hours * 60))
@@ -557,7 +564,7 @@ class RunPlanner:
         # Set status
         if total_minutes < required_priority_mins:
             run_plan["Status"] = RunPlanStatus.BELOW_MINIMUM
-        elif total_minutes >= required_mins:
+        elif total_minutes >= (required_mins - 5):  # Issue 63
             run_plan["Status"] = RunPlanStatus.READY
         else:
             run_plan["Status"] = RunPlanStatus.PARTIAL
@@ -581,12 +588,11 @@ class RunPlanner:
             int: The total required minutes.
         """
         # If required_hours is -1, we need to fill all remaining time today (hot water mode)
-        if required_hours == -1:
-            current_time = DateHelper.now()
-            remaining_required_mins = 24 * 60 - (current_time.hour * 60 + current_time.minute)
-            # Round down to the nearest 5 minutes
-            if remaining_required_mins % 5 != 0:
-                remaining_required_mins -= 5 - (remaining_required_mins % 5)
+        if required_hours == -1:    # Issue 63
+            local_tz = dt.datetime.now().astimezone().tzinfo
+            current_time = dt.datetime.now().astimezone(local_tz)
+            end_of_day = dt.datetime.combine(current_time.date(), dt.time.max, tzinfo=local_tz)
+            remaining_required_mins = int((end_of_day - current_time).total_seconds() / 60 + 0.5) + 1
         else:
             remaining_required_mins = required_hours * 60
         remaining_required_mins = max(0, remaining_required_mins)
