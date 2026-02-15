@@ -199,6 +199,15 @@ class ConfigSchema:
                                 },
                             },
                         },
+                        "UPSIntegration": {
+                            "type": "dict",
+                            "required": False,
+                            "nullable": True,
+                            "schema": {
+                                "UPS": {"type": "string", "required": True},
+                                "ActionIfUnhealthy": {"type": "string", "required": True, "allowed": ["TurnOn", "TurnOff"]},
+                            },
+                        },
                     },
                 },
             },
@@ -305,7 +314,6 @@ class ConfigSchema:
                     "Frequency": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 3600},
                 },
             },
-
             "TeslaMate": {
                 "type": "dict",
                 "required": False,
@@ -321,8 +329,22 @@ class ConfigSchema:
                     "SaveRawData": {"type": "boolean", "required": False, "nullable": True},
                 },
             },
-
-
+            "UPSIntegration": {
+                "type": "list",
+                "required": False,
+                "nullable": True,
+                "schema": {
+                    "type": "dict",
+                    "schema": {
+                        "Name": {"type": "string", "required": True},
+                        "Script": {"type": "string", "required": True},
+                        "MinRuntimeWhenDischarging": {"type": "number", "required": False, "nullable": True, "min": 0},
+                        "MinChargeWhenDischarging": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100},
+                        "MinRuntimeWhenCharging": {"type": "number", "required": False, "nullable": True, "min": 0},
+                        "MinChargeWhenCharging": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100},
+                    },
+                },
+            },
         }
 
         self.amber_usage_csv_config = [

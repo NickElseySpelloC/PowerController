@@ -105,6 +105,13 @@ ShellyDevices:
       Meters:
         - Name: "Panel EM1.1"
         - Name: "Panel EM1.2"   
+    - Name: Network Rack
+      Model: Shelly2PMG3
+      Hostname: 192.168.86.30
+      Outputs:
+        - Name: "Network Rack O1"
+        - Name: "Network Rack O2"
+
 
 # Define the operating schedules for your devices. These are used to determine when a device is allowed to run when not using the Amber pricing data.
 OperatingSchedules:
@@ -248,6 +255,18 @@ Outputs:
     MinEnergyToLog: 20
     HideFromWebApp: False
     HideFromViewerApp: True
+  - Name: Network Rack
+    DeviceOutput: Network Rack O1
+    Mode: BestPrice
+    Schedule: General
+    AmberChannel: general
+    TargetHours: -1
+    MaxShortfallHours: 0
+    MaxBestPrice: 60.0
+    MaxPriorityPrice: 60.0
+    UPSIntegration: 
+      UPS: APC UPS
+      ActionIfUnhealthy: TurnOn
 
 # Use this to define a sequence of actions to perform on outputs when turning On or off
 OutputSequences:
@@ -284,6 +303,7 @@ OutputSequences:
         Retries: 2
         RetryBackoff: 1.0
 
+
 # Optionally use this section to enable logging of output energy consumption data to CSV and the system state file
 OutputMetering:
   Enable: True    # Set to True to enable logging of output energy consumption data
@@ -302,6 +322,7 @@ OutputMetering:
       DisplayName: "Living & Beds"
     - Output: "EM1.2 Kitchen & Laundry"
       DisplayName: "Kitchen & Laundry"
+
 
 # Optionally enable temperature probe logging. The temperature probes must be defined in the Shelly device configuration above.
 TempProbeLogging:
@@ -330,6 +351,16 @@ TempProbeLogging:
           Probes:
             - Temp Roof
           DaysToShow: 30
+
+# Optionally use this section to configure integration with your UPS to monitor its runtime and battery charge levels. See README for more details.
+UPSIntegration:
+  - Name: APC UPS
+    Script: shell_scripts/apc_ups_runtime.sh
+    MinRuntimeWhenDischarging: 300   # Minimum runtime remaining in seconds to when UPS is discharging to consider the UPS as "healthy". 
+    MinChargeWhenDischarging: 10   # Minimum charge remaining in percent when discharging to consider the UPS as "healthy".
+    MinRuntimeWhenCharging:     # Minimum runtime remaining in seconds to when UPS is charging to consider the UPS as "healthy". 
+    MinChargeWhenCharging: 80   # Minimum charge remaining in percent when charging to consider the UPS as "healthy".
+
 
 # Optionally use this section to specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for scheduled events.
 # You can do this in one of three ways:

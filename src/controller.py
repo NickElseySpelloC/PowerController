@@ -48,6 +48,7 @@ from teslamate import (
     # print_charging_data,
 )
 from teslamate_output import TeslaMateOutput
+from ups_integration import UPSIntegration
 
 
 class LookupMode(StrEnum):
@@ -110,6 +111,9 @@ class PowerController:
             "sessions": [],
             "buckets": [],
         }
+
+        # UPS Integration
+        self.ups_integration = UPSIntegration(config, logger)
 
         # Metered Output usage data
         self.output_metering: dict = {}   # To be updated by self._update_system_state_usage_data()
@@ -377,7 +381,7 @@ class PowerController:
                 # Create a new output manager
                 output_manager = None
                 if output_type == "shelly":
-                    output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, output_state)
+                    output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, self.ups_integration, output_state)
                 if output_type == "teslamate":
                     output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.tesla_charge_data, output_state)
                 if output_type == "meter":
@@ -443,6 +447,9 @@ class PowerController:
         # Temp probe logging
         self.temp_probe_logging = self._configure_temp_probe_logging(saved_state, view)
 
+        # Reinitialise the UPS integration
+        self.ups_integration.initialise()
+
         # Reinitialize the scheduler and pricing manager
         self.scheduler.initialise()
         self.pricing.initialise()
@@ -460,6 +467,9 @@ class PowerController:
 
         # Get a snapshot of all Shelly devices
         view = self._refresh_device_statuses()
+
+        # Get the latest UPS data and update the UPSIntegration object
+        self.ups_integration.read_ups_data()
 
         # Get the location data for all devices and save it to each OutputManager if needed
         self._save_device_location_data()

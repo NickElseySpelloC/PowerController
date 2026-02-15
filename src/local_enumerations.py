@@ -150,7 +150,13 @@ class OutputAction:
     reason: StateReasonOn | StateReasonOff
 
 
-# TO DO: Remove
+class UPSMode(StrEnum):
+    """Possible states for the UPS."""
+    TURN_ON = "on"       # UPS health requires the output to turn on
+    TURN_OFF = "off"     # UPS health requires the output to turn off
+    AUTO = "auto"   # UPS health allows the output to operate automatically
+
+
 # Metered output usage =======================================
 @dataclass
 class UsageReportingPeriod:

@@ -27,19 +27,21 @@ from local_enumerations import (
     ShellySequenceResult,
     ShellyStep,
     StepKind,
+    UPSMode,
 )
 from pricing import PricingManager
 from run_history import RunHistory
 from run_plan import RunPlanner
 from scheduler import Scheduler
 from shelly_view import ShellyView
+from ups_integration import UPSIntegration
 
 
 class OutputManager:  # noqa: PLR0904
     """Manages the state of a single Shelly output device and associated resources."""
 
     # Public Functions ============================================================================
-    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, view: ShellyView, saved_state: dict | None = None):  # noqa: PLR0915
+    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, view: ShellyView, ups_integration: UPSIntegration, saved_state: dict | None = None):  # noqa: PLR0915
         """Manages the state of a single Shelly output device.
 
         Args:
@@ -49,6 +51,7 @@ class OutputManager:  # noqa: PLR0904
             scheduler (Scheduler): The scheduler for managing time-based operations.
             pricing (PricingManager): The pricing manager for handling pricing-related tasks.
             view (ShellyView): The current view of the Shelly devices.
+            ups_integration (UPSIntegration): The UPS integration manager for handling UPS-related tasks.
             saved_state (dict | None): The previously saved state of the output manager, if any.
         """
         self.output_config = output_config
@@ -118,6 +121,9 @@ class OutputManager:  # noqa: PLR0904
 
         # Temp probe constraints
         self.temp_probe_constraints: list[dict[str, str | int | float]] = []
+
+        # UPS integration
+        self.ups_integration = ups_integration
 
         # Track state changes
         self._output_action_request: OutputAction | None = None
@@ -575,6 +581,19 @@ class OutputManager:  # noqa: PLR0904
                     new_output_state = False
                     new_system_state = SystemState.INPUT_OVERRIDE
                     reason_off = StateReasonOff.INPUT_SWITCH_OFF
+
+        # Issue 66: See if the UPS health status has overridden our state. Only allow changes if the device is online
+        if new_output_state is None and is_device_online:
+            ups_mode: UPSMode = self._get_ups_health_status()
+            if ups_mode == UPSMode.TURN_ON:
+                new_output_state = True
+                new_system_state = SystemState.UPS_OVERRIDE
+                reason_on = StateReasonOn.UPS_UNHEALTHY
+            if ups_mode == UPSMode.TURN_OFF:
+                new_output_state = False
+                new_system_state = SystemState.UPS_OVERRIDE
+                reason_off = StateReasonOff.UPS_UNHEALTHY
+            # if ups_mode == UPSMode.AUTO then we just fall through to the other checks as UPS is not currently dictating the state
 
         # No overrides set, now see if no run today
         if new_output_state is None and self._is_today_excluded():
@@ -1266,3 +1285,40 @@ class OutputManager:  # noqa: PLR0904
         )
 
         return status_data
+
+    def _get_ups_health_status(self) -> UPSMode:
+        """Get the current UPS health status.
+
+        Returns:
+            UPSMode: The current UPS health status.
+        """
+        # If the ups_integration module isn't available, we should default to AUTO mode
+        if not self.ups_integration:
+            return UPSMode.AUTO
+
+        # Lookup the UPS configuration (if any) for this output and see if we need to adjust our behavior based on UPS status
+        ups_config = self.output_config.get("UPSIntegration", {})
+        if not ups_config:
+            return UPSMode.AUTO  # If we don't have UPS data, we should default to AUTO mode
+
+        ups_name = ups_config.get("UPS")
+        ups_action = ups_config.get("ActionIfUnhealthy")
+        if not ups_name or not ups_action or ups_action not in {"TurnOff", "TurnOn"}:
+            self.logger.log_message(f"Output {self.name} has an invalid UPSIntegration configuration. UPS and ActionIfUnhealthy are required. Defaulting to AUTO mode.", "error")
+            return UPSMode.AUTO
+
+        try:
+            ups_status = self.ups_integration.is_ups_healthy(ups_name)
+        except RuntimeError as e:
+            self.logger.log_message(f"Error checking UPS status for {self.name}: {e}", "error")
+            return UPSMode.AUTO
+        else:
+            # If the UPS is unhealthy....
+            if not ups_status and ups_action == "TurnOff":
+                self.logger.log_message(f"UPS {ups_name} is unhealthy. Output {self.name} will turn OFF based on UPSIntegration configuration.", "debug")
+                return UPSMode.TURN_OFF
+            if not ups_status and ups_action == "TurnOn":
+                self.logger.log_message(f"UPS {ups_name} is unhealthy. Output {self.name} will turn ON based on UPSIntegration configuration.", "debug")
+                return UPSMode.TURN_ON
+
+        return UPSMode.AUTO   # By default, not actio required based on UPS status

@@ -138,6 +138,13 @@ ShellyDevices:
       Meters:
         - Name: "Panel EM1.1"
         - Name: "Panel EM1.2"   
+    - Name: Network Rack
+      Model: Shelly2PMG3
+      Hostname: 192.168.86.30
+      Outputs:
+        - Name: "Network Rack O1"
+        - Name: "Network Rack O2"
+
 
 # Define the operating schedules for your devices. These are used to determine when a device is allowed to run when not using the Amber pricing data.
 OperatingSchedules:
@@ -281,6 +288,18 @@ Outputs:
     MinEnergyToLog: 20
     HideFromWebApp: False
     HideFromViewerApp: True
+  - Name: Network Rack
+    DeviceOutput: Network Rack O1
+    Mode: BestPrice
+    Schedule: General
+    AmberChannel: general
+    TargetHours: -1
+    MaxShortfallHours: 0
+    MaxBestPrice: 60.0
+    MaxPriorityPrice: 60.0
+    UPSIntegration: 
+      UPS: APC UPS
+      ActionIfUnhealthy: TurnOn
 
 # Use this to define a sequence of actions to perform on outputs when turning On or off
 OutputSequences:
@@ -317,6 +336,7 @@ OutputSequences:
         Retries: 2
         RetryBackoff: 1.0
 
+
 # Optionally use this section to enable logging of output energy consumption data to CSV and the system state file
 OutputMetering:
   Enable: True    # Set to True to enable logging of output energy consumption data
@@ -335,6 +355,7 @@ OutputMetering:
       DisplayName: "Living & Beds"
     - Output: "EM1.2 Kitchen & Laundry"
       DisplayName: "Kitchen & Laundry"
+
 
 # Optionally enable temperature probe logging. The temperature probes must be defined in the Shelly device configuration above.
 TempProbeLogging:
@@ -363,6 +384,16 @@ TempProbeLogging:
           Probes:
             - Temp Roof
           DaysToShow: 30
+
+# Optionally use this section to configure integration with your UPS to monitor its runtime and battery charge levels. See README for more details.
+UPSIntegration:
+  - Name: APC UPS
+    Script: shell_scripts/apc_ups_runtime.sh
+    MinRuntimeWhenDischarging: 300   # Minimum runtime remaining in seconds to when UPS is discharging to consider the UPS as "healthy". 
+    MinChargeWhenDischarging: 10   # Minimum charge remaining in percent when discharging to consider the UPS as "healthy".
+    MinRuntimeWhenCharging:     # Minimum runtime remaining in seconds to when UPS is charging to consider the UPS as "healthy". 
+    MinChargeWhenCharging: 80   # Minimum charge remaining in percent when charging to consider the UPS as "healthy".
+
 
 # Optionally use this section to specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for scheduled events.
 # You can do this in one of three ways:
@@ -424,8 +455,8 @@ TeslaMate:
   DBPassword: <Your password here>  # The password to connect to the TeslaMate database (or use the TESLAMATE_DB_PASSWORD environment variable)
   GeofenceName: Home     # Optionally, only query the charging data within this geofence name. Leave blank to disable.
   SaveRawData: False    # Save the raw imported TeslaMate data the system state file for debugging. Set to False (the default) to reduce file size.
-
 ```
+
 ## Configuration Parameters
 ### Section: General
 
@@ -522,6 +553,7 @@ Configure each switched output that controls your devices and how they behave. T
 | TurnOffSequence | Name of the output sequence to run when turning off this output |
 | MaxAppOnTime | If we turned this output on via the app, revert to auto after this number of minutes. Set to 0 to disable. |
 | MaxAppOffTime | If we turned this output off via the app, revert to auto after this number of minutes. Set to 0 to disable. |
+| UPSIntegration | This section must contain two entries:<br>**UPS**: The name of the UPS, as defined in the UPSINtegrations section (see below).<br> **ActionIfUnhealthy**: One of: TurnOn or TurnOff |
 | PowerOnThresholdWatts | Only applies to meter style outouts. The minimum power draw before this output will be considered "On" |
 | PowerOffThresholdWatts | Only applies to meter style outouts. The maximum power draw before this output will be considered "Off" |
 | MinEnergyToLog | Only applies to meter style outouts.  If a device run is logged with less than this number of Watts, the entry will be discarded |
@@ -562,6 +594,7 @@ Some of the Output settings are only applicable to some fo the output Types:
 | TurnOffSequence  ✓ |   |   |
 | MaxAppOnTime | ✓ |   |   |
 | MaxAppOffTime | ✓ |   |   |
+| UPSIntegration | ✓ |   |   |
 | PowerOnThresholdWatts |  | ✓  |   |
 | PowerOffThresholdWatts |  | ✓  |   |
 | MinEnergyToLog |  | ✓  |   |
@@ -592,6 +625,35 @@ Each step entry in the sequence can include the following parameters:
 | Retries | How many retry attempts to make on this step before giving up. |
 | RetryBackoff  | How many seconds to wait between retry attempts. |
 
+
+### Section: UPSIntegration
+
+Optionally defined one or more UPS units. In the context of the PowerController app a UPS is considered "healthy" or "unhealthy". An unhealthy UPS -
+ - Is discharging and it's current battery charge and/or remaining runtime is below a set threshold (e.g. charge below 10%)
+ - Is charging and it's current battery charge and/or remaining runtime is below a set threshold (e.g. charge below 90%)
+
+Use this in conjunction with the UPSIntegration: entry in the Outputs section to dictate how an unhealthy UPS will override the state of the output.
+
+| Parameter | Description | 
+|:--|:--|
+| Name | A name for this UPS. You will reference this name in the Outputs: UPSIntegration: UPS: entry.  |
+| Script | The shell script to run to get this current state of the UPS. The script must return the information in JSON format to stdout.  |
+| MinRuntimeWhenDischarging | Minimum runtime remaining in seconds to when UPS is discharging to consider the UPS as "healthy". |
+| MinChargeWhenDischarging | Minimum charge remaining in percent when discharging to consider the UPS as "healthy". |
+| MinRuntimeWhenCharging |  Minimum runtime remaining in seconds to when UPS is charging to consider the UPS as "healthy". |
+| MinChargeWhenCharging | Minimum charge remaining in percent when charging to consider the UPS as "healthy". |
+
+The UPS script should return a JSON object with the following format:
+```json
+{
+    "timestamp": "2024-06-01T12:00:00Z",
+    "battery_state": "charging",
+    "battery_charge_percent": 85,
+    "battery_runtime_seconds": 600
+}
+```
+
+See the _shell_scripts/apc_ups_runtime.sh_ script as an example script for a retail APC UPS.
 
 ### Section: OutputMetering
 
