@@ -98,12 +98,12 @@ write_ups_status() {
         local ups_status=$(upsc apc@localhost ups.status 2>/dev/null)
         if [[ "$ups_status" == "OL" ]]; then
             state="charged"
-        elif [[ "$ups_status" == *"CHRG"* ]]; then
+        elif [[ "$ups_status" == "OL CHRG"* ]]; then
             state="charging"
-        elif [[ "$ups_status" == *"DISCHRG"* ]]; then
+        elif [[ "$ups_status" == "OB DISCHRG"* ]]; then
             state="discharging"
         fi
-        
+
         # Replace empty values with null for valid JSON
         [[ -z "$charge" ]] && charge="null"
         [[ -z "$runtime" ]] && runtime="null"
