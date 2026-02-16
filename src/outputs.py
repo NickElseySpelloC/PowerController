@@ -1282,6 +1282,7 @@ class OutputManager:  # noqa: PLR0904
             target_hours=self._get_target_hours(),
             current_price=self._get_current_price(),
             output_type="shelly",
+            expect_offline=view.get_device_expect_offline(self.device_id)
         )
 
         return status_data

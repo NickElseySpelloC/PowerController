@@ -440,7 +440,7 @@ class RunHistory:
             # End the current run and start a new one with the new meter reading
             self.break_run(StateReasonOff.METER_RESET, status_data)
 
-        elif status_data.meter_reading > 0 and last_meter_read == 0.0:
+        elif status_data.meter_reading > 0 and last_meter_read == 0.0 and status_data.expect_offline is False:   # Issue 65
             self.logger.log_message(f"Meter reading for {self.output_name} is {status_data.meter_reading:.2f} but the prior read was zero. This is not expected.", "error")
 
         elif status_data.meter_reading > 0.0 and last_meter_read > 0.0 and status_data.meter_reading > last_meter_read:
@@ -450,6 +450,7 @@ class RunHistory:
             current_run["TotalCost"] += self.calc_cost(energy_used, status_data.current_price)
             current_run["AveragePrice"] = self.calc_price(current_run["EnergyUsed"], current_run["TotalCost"])
 
+        if status_data.meter_reading and status_data.meter_reading > 0:   # Issue 65
             # Make a note of the most recent read so that we don't re-do this code
             current_run["PriorMeterRead"] = status_data.meter_reading
 
