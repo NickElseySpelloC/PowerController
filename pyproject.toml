@@ -22,6 +22,17 @@ dependencies = [
     "python-dotenv>=1.0.1",
 ]
 
+[project.optional-dependencies]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-include-markdown-plugin>=6.2.2",
+    "mkdocs-material>=9.6.14",
+    "mkdocstrings>=0.26.1",
+    "mkdocstrings-python>=1.11.1",
+    "pdoc>=14.7.0",
+]
+
+
 [tool.uv.sources]
 org-enums = { git = "https://github.com/NickElseySpelloC/org_enums", tag = "v1.0.6" }
 

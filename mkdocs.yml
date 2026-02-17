@@ -1,0 +1,55 @@
+site_name: PowerController Utility
+site_url: https://github.com/NickElseySpelloC/PowerController
+
+theme:
+  name: material
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - tables
+  - attr_list
+  - md_in_html
+
+plugins:
+  - search
+  - include-markdown
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_style: google  # or numpy, sphinx
+            show_source: false
+            heading_level: 2
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation steps: installation/index.md
+    - Prerequisite Software: installation/prerequisites.md
+    - Shelly Setup: installation/shelly_setup.md
+    - App Installation: installation/install_app.md
+  - Configuration Guide: 
+    - Configuration Overview: configuration/index.md
+    - Example File: configuration/example_config.md
+    - Sections:
+      - General: configuration/sections/general.md
+      - Files: configuration/sections/files.md
+      - Email: configuration/sections/email.md
+      - Website: configuration/sections/website.md
+      - AmberAPI: configuration/sections/amber_api.md
+      - ShellyDevices: configuration/sections/shelly_devices.md
+      - Outputs: configuration/sections/outputs.md
+      - OperatingSchedules: configuration/sections/operating_schedules.md
+      - OutputSequences: configuration/sections/output_sequences.md
+      - ViewerWebsite: configuration/sections/viewer_website.md
+      - OutputMetering: configuration/sections/output_metering.md
+      - TempProbeLogging: configuration/sections/temp_probe_logging.md
+      - UPSIntegration: configuration/sections/ups_integration.md
+      - Location: configuration/sections/location.md
+      - TeslaMate: configuration/sections/teslamate.md
+      - HeartbeatMonitor: configuration/sections/heartbeat_monitor.md
+  - Production Deployment: prod_deployment.md

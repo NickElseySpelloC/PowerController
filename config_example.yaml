@@ -1,19 +1,31 @@
 # General settings for the Power Controller application
 General:
-  # A label for this installation - used in the email subject and web viewer app
-  Label: MyPower
-  # Number of seconds to sleep between each check of the run plan and possible changes to outputs. Recommended 30 seconds or more.
-  PollingInterval: 120
+  Label: MyPower          # A label for this installation - used in the email subject and web viewer app
+  PollingInterval: 30     # Number of seconds to sleep between each check of the run plan and possible changes to outputs. Recommended 30 seconds.
   # Some critical errors can trigger email notifications - for example the AmberAPI not responding. This is the time in minutes for an issue to 
   # persist before we send an email notification. Leave blank to disable.
   ReportCriticalErrorsDelay: 30
-  # Print some basic information to the console during startup and operation
-  PrintToConsole: True
-  # A default price to use if the Amber API is not available and there is no schedule price defined
-  DefaultPrice: 32.0
-  # Output consumption data file - leave blank to disable
-  ConsumptionDataFile: output_consumption_data.csv
+  DefaultPrice: 32.0      # A default price to use if the Amber API is not available and there is no schedule price defined  
+  ConsumptionDataFile: output_consumption_data.csv    # Output consumption data file - leave blank to disable
   ConsumptionDataMaxDays: 30    # Maximum number of days to keep in the consumption data file. Set to -1 to disable truncation.
+
+
+# Settings for various log and state files
+Files:
+  SavedStateFile: system_state.json    # The name of the saved state file. This is used to store the state of the device between runs.
+  LogfileName: logfile.log             # The name of the log file
+  LogfileMaxLines: 10000               # The maximum number of lines to keep in the log file
+  LogfileVerbosity: detailed           # How much information do we write to the log file. One of: none; error; warning; summary; detailed; debug; all
+  ConsoleVerbosity: detailed           # How much information do we write to the console. One of: error; warning; summary; detailed; debug; all
+  
+
+# Enter your settings here if you want to be emailed when there's a critical error. Note that the SMTP username and password have been set in the .env file for security, but you can also set them here if you prefer.
+Email:
+  EnableEmail: True                         # Set to True to enable email notifications 
+  SendEmailsTo: <Your email address here>   # The email address to send notifications to
+  SMTPServer: <Your SMTP server here>       # The SMTP server to use to send the email
+  SMTPPort: 587                             # The SMTP server port
+  SubjectPrefix: "[My PowerController]: "   # A prefix to add to the email subject line
 
 
 # Settings for the built-in web server that provides a web interface to view and control the power controller
@@ -21,48 +33,30 @@ Website:
   HostingIP: 0.0.0.0          # The IP address to host the web server on. Use 0.0.0.0 to listen on all interfaces
   Port: 8080                  # The port to host the web server on
   PageAutoRefresh: 30         # How often to refresh the web page (in seconds). Set to 0 to disable auto-refresh.
-  DebugMode: True             # Enable or disable debug mode for the web server (should be False in production)
   AccessKey: <Your website API key here>   # An access key to secure the web interface. Alternatively, set the WEBAPP_ACCESS_KEY environment variable. Leave blank to disable access control.
 
 
 # Settings for the Amber API integration
 AmberAPI:
-  # Operating mode for the Amber API: Live (attempt to download prices), Offline (pretend Amber API is offline, use cached prices). Disabled (fall back to schedule)
-  Mode: Live
+  Mode: Live    # Operating mode for the Amber API: Live (attempt to download prices), Offline (pretend Amber API is offline, use cached prices). Disabled (fall back to schedule)
   APIURL: https://api.amber.com.au/v1   # The base URL for the Amber API
   APIKey: <Your API key here>    # The API key for your account, get one at app.amber.com.au/developers. Alternatively, set the AMBER_API_KEY environment variable.
-  Timeout: 15               # How long to wait in second for a response from the Amber API
-  MaxConcurrentErrors: 4    # Send an email notification if we get this number of concurrent errors from Amber
   RefreshInterval: 15       # How often to refresh the pricing data from Amber (in minutes) 
-  # Save usage data to a CSV file for offline use. Leave blank to disable
-  UsageDataFile: amber_usage_data.csv
-  UsageMaxDays: 30       # Maximum number of days to keep. Set to -1 to disable truncation.
-  PricesCacheFile: latest_prices.json   # The name of the file to cache Amber pricing data
 
 
-# Use this section to configure your Shelly devices used to control the lights. See this page for more information: https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/
+# Use this section to configure your Shelly devices
 ShellyDevices:
-  AllowDebugLogging: False      # Set to True to enable debug logging for Shelly devices
   ResponseTimeout: 3            # How long to wait in seconds for a response from a Shelly device
   RetryCount: 1                 # Number of times to retry a request to a Shelly device if it fails
   RetryDelay: 2                 # Number of seconds to wait between retries
   MaxConcurrentErrors: 4        # Send an email notification if we get this number of concurrent errors
-  PingAllowed: True             # Set to True if it's possible to ping your Shelly device to check if they are online (if they are on the same subnet as the controller)
-  WebhooksEnabled: True         # Enable or disable the webhook listener
-  WebhookHost: 0.0.0.0          # IP to listen for webhooks on. This should be the IP address of the machine running the app. Defaults to 0.0.0.0
-  WebhookPort: 8787             # Port to listen for webhooks on. Defaults to 8787.
-  WebhookPath: /shelly/webhook  # The URI path that webhooks will post to.
   Devices:                      # List of Shelly devices to control
     - Name: Shelly Pool 1        # A name for this device
-      Model: Shelly2PMG3        # The model of Shelly device - see https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list
+      Model: Shelly2PMG3        # The model of Shelly device
       Hostname: 192.168.1.20   # The IP address or hostname of the Shelly device
-      Simulate: False           # Set to True to simulate the device (for testing)
-      DeviceAlertTemp: 75.0    # Temperature in Celsius that will trigger an alert email if the device exceeds this temperature
       Inputs:                   # List of inputs on the Shelly device to monitor
         - Name: "Filter Pump Override"
-          Webhooks: True
         - Name: "Solar Pump Override"
-          Webhooks: True
       Outputs:                  # List of outputs on the Shelly device to control your devices
         - Name: "Filter Pump Power"
         - Name: "Solar Pump Power"
@@ -73,15 +67,9 @@ ShellyDevices:
       Model: Shelly2PMG3        
       Hostname: 192.168.1.21   
       Simulate: False           
-      Inputs:                   
-        - Name: "Shelly Pool 2 I1"
-        - Name: "Shelly Pool 2 I2"
       Outputs:                  
         - Name: "Solar Valve Actuator"
         - Name: "Shelly Pool 2 O2"
-      Meters:                  
-        - Name: "Shelly Pool 2 M1"
-        - Name: "Shelly Pool 2 M2"
       TempProbes: 
         - Name: "Temp Pool Water"
           RequiresOutput: "Filter Pump Power"  # Only read this probe when the specified output is ON
@@ -111,6 +99,107 @@ ShellyDevices:
       Outputs:
         - Name: "Network Rack O1"
         - Name: "Network Rack O2"
+
+
+# Configure each switched output that controls your devices and how they behave
+Outputs:  
+  - Name: Pool Pump                 # A name for this output - used in the web interface  
+    Type: shelly                    # The type of output - shelly (default), teslamate or meter
+    DeviceOutput: Filter Pump Power  # The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section
+    Mode: BestPrice                 # Operating mode: BestPrice (run for target hours at best price), Schedule (run according to schedule only)
+    Schedule: Pool Pump             # The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section
+    ConstraintSchedule: Pool Heating  # An optional constraint schedule that limits when the output can run, even in BestPrice mode
+    AmberChannel: general           # The Amber pricing channel to use for this device, typically general or controlledLoad
+    DaysOfHistory: 7                # How many days of history to keep for this device
+    MinHours: 2                     # Minimum number of hours to run each day
+    MaxHours: 10                    # Maximum number of hours to run each day
+    TargetHours: 7                  # Target number of hours to run each day. Set to -1 to run for all hours that fall within best price or the schedule
+    MonthlyTargetHours:             # Override the TargetHours for a specific month of the year 
+      January: 8
+      February: 8
+      June: 6
+      July: 6
+      August: 6
+      December: 8     
+    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days. Ignored if TargetHours is -1. Set to 0 to disable.
+    MaxBestPrice: 23.0              # The maximum price to run at when in BestPrice mode. 
+    MaxPriorityPrice: 35.0          # The maximum price to run when we haven't run for the minimum number of hours yet.
+    DeviceMeter: Filter Pump Energy  # The Shelly device meter to use to track energy usage - must match a Name in the ShellyDevices: Devices: Meters section
+    MaxDailyEnergyUse: 6000         # Maximum energy use expected in Wh per day. An email warning will be sent if this is exceeded.
+    DeviceInput: Filter Pump Override   # Optional: The Shelly device input to used override the state of the output - must match a Name in the ShellyDevices: Devices: Inputs section
+    DeviceInputMode: TurnOn         # If a DeviceInput is specified, this controls how is is used. Ignore: Ignore the state of the inputs. TurnOn: Turn output on if input is off. TurnOff: Turn output off if input is on.
+    MinOnTime: 30                   # Minimum minutes to stay on once turned on
+    MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling). Cannot be set if MaxffTime is set.
+  - Name: Solar Heating
+    Type: shelly
+    DeviceOutput: Solar Pump Power
+    Mode: Schedule
+    Schedule: Pool Heating
+    AmberChannel: general
+    TargetHours: -1
+    MaxBestPrice: 23.0
+    MaxPriorityPrice: 35.0
+    DeviceMeter: Solar Pump Energy
+    ParentOutput: Pool Pump               # Optional: The name of a parent output that must be ON for this output to run
+    TurnOnSequence: Turn On Solar Pump    # Optional: Name of the output sequence to run when turning on this output
+    TurnOffSequence: Turn Off Solar Pump  # Optional: Name of the output sequence to run when turning off this output
+    MaxAppOnTime: 60               # If we turned this output on via the app, revert to auto after this number of minutes. Set to 0 to disable.
+    MaxAppOffTime: 60              # If we turned this output off via the app, revert to auto after this number of minutes. Set to 0 to disable.
+    TempProbeConstraints:       # Optional list of temperature probe constraints that must be met for the output to run
+      - TempProbe: Temp Roof
+        Condition: GreaterThan
+        Temperature: 32.0
+      - TempProbe: Temp Pool Water
+        Condition: LessThan
+        Temperature: 30.0    
+  - Name: Hot Water Heater
+    Type: shelly
+    DeviceOutput: Hot Water O1
+    Mode: BestPrice
+    Schedule: Hot Water
+    AmberChannel: controlledLoad
+    TargetHours: -1
+    MaxBestPrice: 23.0
+    MaxPriorityPrice: 30.0
+    DeviceMeter: Hot Water M1
+    HideFromWebApp: True      # If True, this output will not be shown in the built-in web app
+    HideFromViewerApp: True  # If True, this output will not be shown in the PowerControllerViewer app
+  - Name: Tesla
+    Type: teslamate
+    CarID: 1                   # The ID of the car in TeslaMate to control (this is usually 1 if you only have one car)
+    DaysOfHistory: 14            # How many days of history to keep for this device in the system state file
+    AmberChannel: general       # The Amber pricing channel to use for pricing this device, typically general or controlledLoad
+    Schedule: General           # The operating schedule to use for pricing this device when not using Amber pricing - must match a Name in the OperatingSchedules section
+  - Name: "EM1.1 Living & Beds"
+    Type: meter
+    DeviceMeter: Panel EM1.1
+    Mode: BestPrice
+    Schedule: General
+    PowerOnThresholdWatts: 40
+    PowerOffThresholdWatts: 10
+    MinEnergyToLog: 20
+    HideFromViewerApp: True
+  - Name: "EM1.2 Kitchen & Laundry"
+    Type: meter
+    DeviceMeter: Panel EM1.2
+    Mode: BestPrice
+    Schedule: General
+    PowerOnThresholdWatts: 40
+    PowerOffThresholdWatts: 10
+    MinEnergyToLog: 20
+    HideFromViewerApp: True
+  - Name: Network Rack
+    DeviceOutput: Network Rack O1
+    Mode: BestPrice
+    Schedule: General
+    AmberChannel: general
+    TargetHours: -1
+    MaxShortfallHours: 0
+    MaxBestPrice: 60.0
+    MaxPriorityPrice: 60.0
+    UPSIntegration: 
+      UPS: APC UPS
+      ActionIfUnhealthy: TurnOn
 
 
 # Define the operating schedules for your devices. These are used to determine when a device is allowed to run when not using the Amber pricing data.
@@ -161,113 +250,6 @@ OperatingSchedules:
         Price: 20
 
 
-# Configure each switched output that controls your devices and how they behave
-Outputs:  
-  - Name: Pool Pump                 # A name for this output - used in the web interface  
-    Type: shelly                    # The type of output - shelly (default), teslamate or meter
-    DeviceOutput: Filter Pump Power  # The Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section
-    Mode: BestPrice                 # Operating mode: BestPrice (run for target hours at best price), Schedule (run according to schedule only)
-    Schedule: Pool Pump             # The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section
-    ConstraintSchedule: Pool Heating  # An optional constraint schedule that limits when the output can run, even in BestPrice mode
-    AmberChannel: general           # The Amber pricing channel to use for this device, typically general or controlledLoad
-    DaysOfHistory: 7                # How many days of history to keep for this device
-    MinHours: 2                     # Minimum number of hours to run each day
-    MaxHours: 10                    # Maximum number of hours to run each day
-    TargetHours: 7                  # Target number of hours to run each day. Set to -1 to run for all hours that fall within best price or the schedule
-    MonthlyTargetHours:             # Override the TargetHours for a specific month of the year 
-      January: 8
-      February: 8
-      June: 6
-      July: 6
-      August: 6
-      December: 8     
-    MaxShortfallHours: 4            # Maximum number of shortfall hours we can carry forward from previous days. Ignored if TargetHours is -1. Set to 0 to disable.
-    MaxBestPrice: 23.0              # The maximum price to run at when in BestPrice mode. 
-    MaxPriorityPrice: 35.0          # The maximum price to run when we haven't run for the minimum number of hours yet.
-    DatesOff:                       # Optional list of date ranges when the output should not run
-      - StartDate: 2024-07-01
-        EndDate: 2024-09-30
-    DeviceMeter: Filter Pump Energy  # The Shelly device meter to use to track energy usage - must match a Name in the ShellyDevices: Devices: Meters section
-    MaxDailyEnergyUse: 6000         # Maximum energy use expected in Wh per day. An email warning will be sent if this is exceeded.
-    DeviceInput: Filter Pump Override   # Optional: The Shelly device input to used override the state of the output - must match a Name in the ShellyDevices: Devices: Inputs section
-    DeviceInputMode: TurnOn         # If a DeviceInput is specified, this controls how is is used. Ignore: Ignore the state of the inputs. TurnOn: Turn output on if input is off. TurnOff: Turn output off if input is on.
-    StopOnExit: True                # If True, attempt to turn off the outputs when the application exits
-    MinOnTime: 30                   # Minimum minutes to stay on once turned on
-    MinOffTime: 10                  # Minimum minutes to stay off (prevent rapid cycling). Cannot be set if MaxffTime is set.
-    MaxOffTime:                     # Maximum minutes to stay off. Cannot be set if MinOffTime is set.
-  - Name: Solar Heating
-    Type: shelly
-    DeviceOutput: Solar Pump Power
-    Mode: Schedule
-    Schedule: Pool Heating
-    AmberChannel: general
-    TargetHours: -1
-    MaxBestPrice: 23.0
-    MaxPriorityPrice: 35.0
-    DeviceMeter: Solar Pump Energy
-    ParentOutput: Pool Pump               # Optional: The name of a parent output that must be ON for this output to run
-    TurnOnSequence: Turn On Solar Pump    # Optional: Name of the output sequence to run when turning on this output
-    TurnOffSequence: Turn Off Solar Pump  # Optional: Name of the output sequence to run when turning off this output
-    MaxAppOnTime: 60               # If we turned this output on via the app, revert to auto after this number of minutes. Set to 0 to disable.
-    MaxAppOffTime: 60              # If we turned this output off via the app, revert to auto after this number of minutes. Set to 0 to disable.
-    TempProbeConstraints:       # Optional list of temperature probe constraints that must be met for the output to run
-      - TempProbe: Temp Roof
-        Condition: GreaterThan
-        Temperature: 32.0
-      - TempProbe: Temp Pool Water
-        Condition: LessThan
-        Temperature: 30.0    
-  - Name: Hot Water Heater
-    Type: shelly
-    DeviceOutput: Hot Water O1
-    Mode: BestPrice
-    Schedule: Hot Water
-    AmberChannel: controlledLoad
-    TargetHours: -1
-    MaxBestPrice: 23.0
-    MaxPriorityPrice: 30.0
-    DeviceMeter: Hot Water M1
-    HideFromWebApp: True      # If True, this output will not be shown in the built-in web app
-    HideFromViewerApp: True  # If True, this output will not be shown in the PowerControllerViewer app
-  - Name: Tesla
-    Type: teslamate
-    CarID: 1                   # The ID of the car in TeslaMate to control (this is usually 1 if you only have one car)
-    DaysOfHistory: 14            # How many days of history to keep for this device in the system state file
-    AmberChannel: general       # The Amber pricing channel to use for pricing this device, typically general or controlledLoad
-    Schedule: General           # The operating schedule to use for pricing this device when not using Amber pricing - must match a Name in the OperatingSchedules section
-  - Name: "EM1.1 Living & Beds"
-    Type: meter
-    DeviceMeter: Panel EM1.1
-    Mode: BestPrice
-    Schedule: General
-    PowerOnThresholdWatts: 40
-    PowerOffThresholdWatts: 10
-    MinEnergyToLog: 20
-    HideFromWebApp: False
-    HideFromViewerApp: True
-  - Name: "EM1.2 Kitchen & Laundry"
-    Type: meter
-    DeviceMeter: Panel EM1.2
-    Mode: BestPrice
-    Schedule: General
-    PowerOnThresholdWatts: 40
-    PowerOffThresholdWatts: 10
-    MinEnergyToLog: 20
-    HideFromWebApp: False
-    HideFromViewerApp: True
-  - Name: Network Rack
-    DeviceOutput: Network Rack O1
-    Mode: BestPrice
-    Schedule: General
-    AmberChannel: general
-    TargetHours: -1
-    MaxShortfallHours: 0
-    MaxBestPrice: 60.0
-    MaxPriorityPrice: 60.0
-    UPSIntegration: 
-      UPS: APC UPS
-      ActionIfUnhealthy: TurnOn
-
 # Use this to define a sequence of actions to perform on outputs when turning On or off
 OutputSequences:
   - Name: "Turn On Solar Pump"
@@ -304,11 +286,19 @@ OutputSequences:
         RetryBackoff: 1.0
 
 
+# Use this section to configure integration with the PowerControllerViewer app - see https://github.com/NickElseySpelloC/PowerControllerViewer
+ViewerWebsite:
+  Enable: False                   # Set to True to enable integration with the PowerControllerViewer app
+  BaseURL: http://localhost:8000  # The base URL of the PowerControllerViewer app
+  AccessKey: <Your website API key here>  # The access key for the PowerControllerViewer app. Alternatively, set the VIEWER_ACCESS_KEY environment variable.
+  APITimeout: 5                   # How long to wait in seconds for a response from the PowerControllerViewer app
+  Frequency: 10                   # How often to post the state to the web viewer app (in seconds)
+
+
 # Optionally use this section to enable logging of output energy consumption data to CSV and the system state file
 OutputMetering:
   Enable: True    # Set to True to enable logging of output energy consumption data
   DataFile: logs/output_consumption_data.csv     # Record to CSV data file. Required
-  DataFileMaxDays: -1  # Maximum number of days to keep in the CSV data file. Set to -1 for unlimited.
   OutputsToLog:   # A list of outputs to log. These must have a meter associated with them (Outputs: [Item]: DeviceMeter field)
     - Output: Pool Pump
       DisplayName: Pool
@@ -339,7 +329,7 @@ TempProbeLogging:
     SavedStateFileMaxDays: 7  # Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable.
     HistoryDataFile: temp_probe_history.csv  # Leave blank to disable logging to a CSV file.
     HistoryDataFileMaxDays: 90  # Maximum number of days to keep in the history data file.  0 to disable.
-    Charting:   # This contains settings for generating temperature charts for the web viewer app (future) and the PowerControllerViewer website.
+    Charting:   # This contains settings for generating temperature charts for the PowerControllerViewer website.
       Enable: True
       Charts:
         - Name: "Pool Temps"
@@ -352,6 +342,7 @@ TempProbeLogging:
             - Temp Roof
           DaysToShow: 30
 
+
 # Optionally use this section to configure integration with your UPS to monitor its runtime and battery charge levels. See README for more details.
 UPSIntegration:
   - Name: APC UPS
@@ -363,62 +354,16 @@ UPSIntegration:
 
 
 # Optionally use this section to specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for scheduled events.
-# You can do this in one of three ways:
-# 1. Use a Shelly device's location (using IP lookup)- just specify the device name in the UseShellyDevice field
-# 2. Use a Google Maps URL to extract the location - specify the GoogleMapsURL field and the Timezone field.
-# 3. Manually specify the latitude and longitude - specify the Timezone, Latitude and Longitude fields.
 Location:
-  # UseShellyDevice: "Shelly Pool 1"
   Timezone: Europe/London     # See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-  GoogleMapsURL:              # A Google Maps URL containing the latitude and longitude of your location, e.g. https://www.google.com/maps/place/London,+UK/@51.5012694,-0.1425182,18.41z
-  Latitude:                   # The latitude of your location, e.g. - 51.50185169072752
-  Longitude:                  # The longitude of your location. e.g. -0.1406533148232459
 
-
-# Settings for various log and state files
-Files:
-  SavedStateFile: system_state.json    # The name of the saved state file. This is used to store the state of the device between runs.
-  LogfileName: logfile.log             # The name of the log file
-  LogfileMaxLines: 10000               # The maximum number of lines to keep in the log file
-  LogfileVerbosity: debug              # How much information do we write to the log file. One of: none; error; warning; summary; detailed; debug; all
-  ConsoleVerbosity: detailed           # How much information do we write to the console. One of: error; warning; summary; detailed; debug; all
-  
-
-# Enter your settings here if you want to be emailed when there's a critical error 
-Email:
-  EnableEmail: True                         # Set to True to enable email notifications 
-  SendEmailsTo: <Your email address here>   # The email address to send notifications to
-  SMTPServer: <Your SMTP server here>       # The SMTP server to use to send the email
-  SMTPPort: 587                             # The SMTP server port
-  SMTPUsername: <Your SMTP username here>   # The SMTP username. Alternatively, set the SMTP_USERNAME environment variable.
-  SMTPPassword: <Your SMTP password here>   # The SMTP password or app password. Alternatively, set the SMTP_PASSWORD environment variable.
-  SubjectPrefix: "[My PowerController]: "   # A prefix to add to the email subject line
-
-
-# Use this section to configure integration with the PowerControllerViewer app - see https://github.com/NickElseySpelloC/PowerControllerViewer
-ViewerWebsite:
-  Enable: False                   # Set to True to enable integration with the PowerControllerViewer app
-  BaseURL: http://localhost:8000  # The base URL of the PowerControllerViewer app
-  AccessKey: <Your website API key here>  # The access key for the PowerControllerViewer app. Alternatively, set the VIEWER_ACCESS_KEY environment variable.
-  APITimeout: 5                   # How long to wait in seconds for a response from the PowerControllerViewer app
-  Frequency: 10                   # How often to post the state to the web viewer app (in seconds)
-
-
-# Use this section to configure integration with the BetterStack Heartbeat monitoring service - see https://betterstack.com/heartbeat/
-HeartbeatMonitor:
-  Enable: False              # Set to True to enable integration with the Heartbeat monitoring service
-  WebsiteURL: https://uptime.betterstack.com/api/v1/heartbeat/myheartbeatid    # The URL of the website to monitor for availability
-  HeartbeatTimeout: 5        # How long to wait for a response from the website before considering it down in seconds
-  Frequency: 10              # How often to post the state to the heartbeat monitor (in seconds)
 
 # Optionally use this sectionto configure integration with the TeslaMate database to import Tesla charging session data
 TeslaMate:
-  Enable: False           # Set to True to enable integration with the TeslaMate database
+  Enable: True           # Set to True to enable integration with the TeslaMate database
   RefreshInterval: 10     # How often to refresh the TeslaMate data (in minutes)
   Host: 127.0.0.1         # The host address of the TeslaMate database (or use the TESLAMATE_DB_HOST environment variable)
   Port: 5432              # The port number of the TeslaMate database (or use the TESLAMATE_DB_PORT environment variable)
   DatabaseName: teslamate # The name of the TeslaMate database (or use the TESLAMATE_DB_NAME environment variable)
   DBUsername: teslamate   # The username to connect to the TeslaMate database (or use the TESLAMATE_DB_USER environment variable)
   DBPassword: <Your password here>  # The password to connect to the TeslaMate database (or use the TESLAMATE_DB_PASSWORD environment variable)
-  GeofenceName: Home     # Optionally, only query the charging data within this geofence name. Leave blank to disable.
-  SaveRawData: False    # Save the raw imported TeslaMate data the system state file for debugging. Set to False (the default) to reduce file size.
