@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-outputmetering-section" class="md-skip">
           Skip to content
         </a>
       
@@ -1022,6 +1022,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1077,11 +1104,36 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-outputmetering-section">Configuration file - OutputMetering section</h1>
+<p>Enable logging of output energy consumption data to a CSV file and the system state file. You can list any output here that has an energy meter.</p>
+<p>If the <a href="../viewer_website/">web viewer app</a> is enabled then usage summaries are shown for each output for a variety of usage periods including custom.</p>
+<p>Note: The section is optionaly, but if you use it, the required keys below are shown in <strong>bold</strong>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Enable</td>
+<td style="text-align: left;">Set to False to disable all output meter logging.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>DataFile</strong></td>
+<td style="text-align: left;">The CSV file to log to.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DataFileMaxDays</td>
+<td style="text-align: left;">Maximum number of days to keep in the CSV data file. Set to -1 for unlimited.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>OutputsToLog</strong></td>
+<td style="text-align: left;">A list of outputs to include in the logs. Each entry can include:<br><strong>Output</strong>: The name of the output. Must match a Outputs: [item]: Name entry.<br><strong>DisplayName</strong>: Optionally use this alternative name in the CSV file and in the web view app.<br><strong>HideFromViewerApp</strong>: If True, log this output int he CSV file but don't show it in the viewer app.</td>
+</tr>
+</tbody>
+</table>
 
 
 

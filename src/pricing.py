@@ -57,6 +57,11 @@ class PricingManager:
     def initialise(self):
         """(re) initialise the pricing manager."""
         # Re-read the configuration settings
+        if self.config.get("AmberAPI") is None:
+            self.logger.log_message("Amber API configuration section is missing, disabling Amber pricing.", "debug")
+            self.mode = AmberAPIMode.DISABLED
+            return
+
         self.mode = self.config.get("AmberAPI", "Mode", default=AmberAPIMode.LIVE)
         self.timeout = self.config.get("AmberAPI", "Timeout", default=10)
         self.refresh_interval = self.config.get("AmberAPI", "RefreshInterval", default=5) or 5

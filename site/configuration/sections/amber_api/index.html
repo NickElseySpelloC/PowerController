@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-amberapi-section" class="md-skip">
           Skip to content
         </a>
       
@@ -1022,6 +1022,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1077,11 +1104,54 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-amberapi-section">Configuration file - AmberAPI section</h1>
+<p>Integration with the Amber Electric API to download real time energy prices for your home. To setup this section, you need to have an energy provider account with Amber Electric. Login to https://app.amber.com.au/developers/ and generate a new token to get your API key.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">APIKey</td>
+<td style="text-align: left;">Your Amber API key for used authentication (see above). Alternatively, you can set this via the set the AMBER_API_KEY environment variable.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Mode</td>
+<td style="text-align: left;">Operating mode for the Amber integration:<br><strong>Live</strong>: Attempt to download prices<br><strong>Offline</strong>: Pretend Amber API is offline, use cached prices. Useful for testing. <br><strong>Disabled</strong>: Use the relevant operating schedule for prices.</td>
+</tr>
+<tr>
+<td style="text-align: left;">APIURL</td>
+<td style="text-align: left;">Base URL for API requests. This the servers URL on the Amber developer's page, currently: https://api.amber.com.au/v1</td>
+</tr>
+<tr>
+<td style="text-align: left;">Timeout</td>
+<td style="text-align: left;">Number of seconds to wait for Amber to respond to an API call.</td>
+</tr>
+<tr>
+<td style="text-align: left;">MaxConcurrentErrors</td>
+<td style="text-align: left;">Send an email notification if we get this number of concurrent errors from Amber.</td>
+</tr>
+<tr>
+<td style="text-align: left;">RefreshInterval</td>
+<td style="text-align: left;">How often to refresh the pricing data from Amber (in minutes).</td>
+</tr>
+<tr>
+<td style="text-align: left;">UsageDataFile</td>
+<td style="text-align: left;">Set to the name of a CSV file to log hourly energy usage and costs as reported by Amber.</td>
+</tr>
+<tr>
+<td style="text-align: left;">UsageMaxDays</td>
+<td style="text-align: left;">Maximum number of days to keep in the usage data file.</td>
+</tr>
+<tr>
+<td style="text-align: left;">PricesCacheFile</td>
+<td style="text-align: left;">The name of the file to cache Amber pricing data.</td>
+</tr>
+</tbody>
+</table>
 
 
 

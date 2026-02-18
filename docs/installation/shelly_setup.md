@@ -26,6 +26,10 @@ PowerController requires at least one [Shelly](https://www.shelly.com) device to
     },
 ```
 
+## Digital Temperature Probes
+
+{% include "../../../sc_utility/docs/guide/shelly_temp_probes.md" %}
+
 ## Unsupported device
 
 If you've bought a Shelly smart switch or energy meter and are having problems getting it to work, you can try modifying the [shelly_models.json](https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list/) file included with the sc_utility library to add or update your devie. Alternatively, please contact [Nick Elsey](https://www.spelloconsulting.com/contact-nick-elsey) for support.

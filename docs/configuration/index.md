@@ -18,7 +18,7 @@ The config file supports the following sections. Some of mandatory and some are 
 |:--|:--|:--|
 | [General](sections/general.md) | General settings for the Power Controller application | Yes |
 | Files | Location of log and system state files | Yes |
-| Email | use this section here if you want to be emailed when there's a critical error or excessive energy use | No |
+| Email | If you want to be emailed when there's a critical error or excessive energy use | No |
 | Website | Settings for the built-in web server that provides a web interface to view and control the outputs | No |
 | AmberAPI | Integration with the Amber Electric API to download real time energy prices for your home | No |
 | ShellyDevices | Describe the Shelly devices you want to control | Yes |

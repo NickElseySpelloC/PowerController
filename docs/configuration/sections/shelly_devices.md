@@ -1,9 +1,9 @@
-# Configuration file - xx section
+# Configuration file - ShellyDevices section
 
-desciption
+In this section you can configure one or more Shelly Smart switches, one of which will be used to control or meter your electrical device. Here's an example of a section of yaml file configuration for 3 Shelly devices:
 
-<div class="config-table" markdown>
+{% include "../../../../sc_utility/docs/guide/shelly_config_ref.md" %}
 
-table
+## More information
 
-</div>
+See the [Shelly Getting Started guide](https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/) for details on how to configure this section.

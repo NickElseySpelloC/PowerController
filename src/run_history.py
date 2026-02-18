@@ -397,10 +397,10 @@ class RunHistory:
         """
         new_run = {
             "SystemState": None,       # SystemState enum value when the run started
-            "ReasonStarted": None,    # StateReasonOn enum value why the output was turned on
-            "ReasonStopped": None,    # StateReasonOff enum value why the output was turned
             "StartTime": start_time,    # Datetime object, not just time
+            "ReasonStarted": None,    # StateReasonOn enum value why the output was turned on
             "EndTime": None,            # Datetime object, not just time
+            "ReasonStopped": None,    # StateReasonOff enum value why the output was turned
             "ActualHours": 0.0,
             "MeterReadAtStart": status_data.meter_reading,
             "PriorMeterRead": status_data.meter_reading,     # This should only be changed by _calculate_values_for_open_run()

@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-outputsequences-section" class="md-skip">
           Skip to content
         </a>
       
@@ -1022,6 +1022,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1077,11 +1104,74 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-outputsequences-section">Configuration file - OutputSequences section</h1>
+<p>Define the sequence of events that must happen to turn an Output On or Off. In our example config file, turning on our pool solar heating booster pump requires that we first turn on an actuator valve, wait for a minute and then turn on the solar booster pump. </p>
+<p>Note: The section is optionaly, but if you use it, the required keys below are shown in <strong>bold</strong>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Name</strong></td>
+<td style="text-align: left;">A name for this sequence.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Description</td>
+<td style="text-align: left;">A description for this sequence.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Timeout</td>
+<td style="text-align: left;">How long to wait for all the steps in the sequence to complete.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Steps</strong></td>
+<td style="text-align: left;">A list of steps for this sequence - see below.</td>
+</tr>
+</tbody>
+</table>
+<p>Each step entry in the sequence can include the following parameters:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Type</strong></td>
+<td style="text-align: left;">What type of step is this. One of:<br><strong>CHANGE_OUTPUT</strong> - Change an output to On or Off.<br><strong>SLEEP</strong> - Sleep for X seconds before the next step.<br><strong>GET_LOCATION</strong> - Get the geo-location data from the specified Shelly device. <br><strong>REFRESH_STATUS</strong> - Refresh the status of all Shelly devices.</td>
+</tr>
+<tr>
+<td style="text-align: left;">OutputIdentity</td>
+<td style="text-align: left;">If the step type is <strong>CHANGE_OUTPUT</strong>, set the name of the output here. This must be an output named in the ShellyDevices: Devices: [Device]: Outputs section.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DeviceIdentity</td>
+<td style="text-align: left;">If the step type is Define a sequence of actions to perform on outputs when turning On or off, set the name of the Shelly device here. This must be a device named in the ShellyDevices: Devices section.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Seconds</td>
+<td style="text-align: left;">If the step type is Define a sequence of actions to perform on outputs when turning On or off, use this to specify the sleep time.</td>
+</tr>
+<tr>
+<td style="text-align: left;">State</td>
+<td style="text-align: left;">If the step type is Define a sequence of actions to perform on outputs when turning On or off, set this to True to turn the output on, False to turn it off.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Retries</td>
+<td style="text-align: left;">How many retry attempts to make on this step before giving up.</td>
+</tr>
+<tr>
+<td style="text-align: left;">RetryBackoff</td>
+<td style="text-align: left;">How many seconds to wait between retry attempts.</td>
+</tr>
+</tbody>
+</table>
 
 
 

@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-shellydevices-section" class="md-skip">
           Skip to content
         </a>
       
@@ -698,6 +698,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ShellyDevices
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -714,6 +732,36 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#more-information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        More information
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1022,6 +1070,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1062,6 +1137,25 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#more-information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        More information
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1077,11 +1171,187 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-shellydevices-section">Configuration file - ShellyDevices section</h1>
+<p>In this section you can configure one or more Shelly Smart switches, one of which will be used to control or meter your electrical device. Here's an example of a section of yaml file configuration for 3 Shelly devices:</p>
+<pre><code class="language-yaml">ShellyDevices:
+  AllowDebugLogging: True
+  ResponseTimeout: 5
+  RetryCount: 1
+  RetryDelay: 2
+  PingAllowed: True
+  SimulationFileFolder: simulation_files
+  # Enable or disable the webhook listener
+  WebhooksEnabled: True
+  # IP to listen for webhooks on. This should be the IP address of the machine running the app. Defaults to 0.0.0.0
+  WebhookHost: 192.168.86.32
+  # Port to listen for webhooks on. Defaults to 8787.
+  WebhookPort: 8787
+  # The URI path that webhooks will post to.
+  WebhookPath: /shelly/webhook  
+  # The webhooks to install by default
+  DefaultWebhooks:
+    Inputs:
+      - input.toggle_on
+      - input.toggle_off
+      - input.button_push
+    Outputs:
+      - switch.on
+      - switch.off
+  Devices:
+    - Name: Downstairs Lights
+      Model: Shelly2PMG3
+      Hostname: 192.168.1.23
+      ID: 100
+      Inputs:
+        - ID: 101
+          Name: &quot;Living Room Switch&quot;
+          Webhooks: True
+        - ID: 102
+          Name: &quot;Kitchen Switch&quot;
+          Webhooks: True
+      Outputs:
+        - ID: 111
+          Name: &quot;Living Room Relay&quot;
+        - ID: 112
+          Name: &quot;Kitchen Relay&quot;
+      TempProbes:
+        - Name: &quot;Outside Temp&quot;
+        - Name: &quot;Inside Temp&quot;
+    - Name: Outside Lights
+      Model: Shelly2PMG3
+      Hostname: 192.168.1.25
+      ID: 200
+      Inputs:
+        - ID: 201
+          Name: &quot;Patio Switch&quot;
+        - ID: 202
+          Name: &quot;Car Port Switch&quot;
+      Outputs:
+        - ID: 211
+          Name: &quot;Patio Relay&quot;
+        - ID: 212
+          Name: &quot;Car Port Relay&quot;
+    - Name: Testing
+      Model: ShellyPlus1PM
+      Simulate: True
+      Outputs:
+        - Name: &quot;Test Switch&quot;
+      Meters:
+        - Name: &quot;Test Meter&quot;
+
+</code></pre>
+<p>The entries are used as follows:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">ResponseTimeout</td>
+<td style="text-align: left;">How long to wait (in seconds) before timeing out when making an API call or ping.</td>
+</tr>
+<tr>
+<td style="text-align: left;">RetryCount</td>
+<td style="text-align: left;">How many retries to make if an API call times out.</td>
+</tr>
+<tr>
+<td style="text-align: left;">RetryDelay</td>
+<td style="text-align: left;">How long to wait (in seconds) between retry attempts.</td>
+</tr>
+<tr>
+<td style="text-align: left;">PingAllowed</td>
+<td style="text-align: left;">Set to False if ICMP isn't suppported by the route to your devices.</td>
+</tr>
+<tr>
+<td style="text-align: left;">SimulationFileFolder</td>
+<td style="text-align: left;">The folder to save JSON simulation files in.</td>
+</tr>
+<tr>
+<td style="text-align: left;">WebhooksEnabled</td>
+<td style="text-align: left;">Enable or disable the webhook listener</td>
+</tr>
+<tr>
+<td style="text-align: left;">WebhookHost</td>
+<td style="text-align: left;">IP to listen for webhooks on. This should be the IP address of the machine running the app. Defaults to 0.0.0.0.</td>
+</tr>
+<tr>
+<td style="text-align: left;">WebhookPort</td>
+<td style="text-align: left;">Port to listen for webhooks on. Defaults to 8787.</td>
+</tr>
+<tr>
+<td style="text-align: left;">WebhookPath</td>
+<td style="text-align: left;">The URI path that webhooks will post to.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DefaultWebhooks</td>
+<td style="text-align: left;">The webhooks to install by default. See the example above for format. Look at the SupportedWebhooks key of an initialised Shelly device to see which webhook events your device supports. Use the  get_device() call to get a device object.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Devices</td>
+<td style="text-align: left;">A list of dicts, each on defining a Shelly device. - see below</td>
+</tr>
+</tbody>
+</table>
+<p>The Devices key in the configuration block supports the following keys :</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Parameter</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Name</td>
+<td style="text-align: left;">Your name for this device</td>
+</tr>
+<tr>
+<td style="text-align: left;">Model</td>
+<td style="text-align: left;">The model Shelly ID for this device. See the <strong>Shelly Models List</strong> for more.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Hostname</td>
+<td style="text-align: left;">The network IP address or hostname for this device.</td>
+</tr>
+<tr>
+<td style="text-align: left;">ID</td>
+<td style="text-align: left;">Your numeric ID for this device.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Simulate</td>
+<td style="text-align: left;">Set this to True if you don't have access to the device but still want to test your code. When True, this device will be in 'simulation' mode. Rather than make API calls to the device, the state will be written to and read from a local json file (with the same name as your Name entry). You can modify some of the values in this file to test your code.</td>
+</tr>
+<tr>
+<td style="text-align: left;">ExpectOffline</td>
+<td style="text-align: left;">If set to True, we can expect this device to be offline at times. No warnings will be issued when this happens</td>
+</tr>
+<tr>
+<td style="text-align: left;">Inputs</td>
+<td style="text-align: left;">A list of dicts defining the inputs (if any) for this device. This section is optional but if defined, the number of entries must match the number of inputs supported by this model. For each input, define a Name and/or an ID. <br><br>Optionally, add a <strong>Webhooks</strong>: True entry here to install the default webhooks on this input.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Outputs</td>
+<td style="text-align: left;">A list of dicts defining the outputs (if any) for this device. This section is optional but if defined, the number of entries must match the number of outputs supported by this model. For each output, define a Name and/or an ID. <br><br>Optionally, add a <strong>Webhooks</strong>: True entry here to install the default webhooks on this input.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Meters</td>
+<td style="text-align: left;">A list of dicts defining the meters (if any) for this device. Note that depending on the devices, the actual meters might be part of the output or seperate energy meters (EM1 API calls). Either way, in this class meters are reported seperately from outputs. This section is optional but if defined, the number of entries must match the number of meters supported by this model. For each meter, define a Name and/or an ID.<br><br>  Optionally, use the <strong>MockRate</strong> key to set a Watts / second metering rate for this meter when the device is in Simulation mode.</td>
+</tr>
+<tr>
+<td style="text-align: left;">TempProbes</td>
+<td style="text-align: left;">A list of dicts defining the temperature probes connected to a Shelly Add-on that's plugged into this device. For each one you must define a Name key that matches the name given to the probe in the app (see below).<br><br>  Optionally, use the <strong>RequiresOutput</strong> key to specify the name of an output device that constrains this temp probe. If set, the temperature reading will only be updated when this output is on.</td>
+</tr>
+</tbody>
+</table>
+<p>Notes:</p>
+<ul>
+<li>Either a Device Name or a Device ID must be supplied.</li>
+</ul>
+<h2 id="more-information">More information</h2>
+<p>See the <a href="https://nickelseyspelloc.github.io/sc_utility/guide/shelly_control/">Shelly Getting Started guide</a> for details on how to configure this section.</p>
 
 
 

@@ -14,7 +14,7 @@
         <link rel="prev" href="../teslamate/">
       
       
-        <link rel="next" href="../../../prod_deployment/">
+        <link rel="next" href="../../../running/">
       
       
         
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-heartbeatmonitor-section" class="md-skip">
           Skip to content
         </a>
       
@@ -1022,6 +1022,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1077,11 +1104,34 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-heartbeatmonitor-section">Configuration file - HeartbeatMonitor section</h1>
+<p>Integration with a <a href="https://betterstack.com/uptime">Better Uptime</a> heartbeat monitor to monitor uptime of the application.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Enable</td>
+<td style="text-align: left;">Set to True to enable integration with the Heartbeat monitoring service.</td>
+</tr>
+<tr>
+<td style="text-align: left;">WebsiteURL</td>
+<td style="text-align: left;">Each time the app runs successfully, you can have it hit this URL to record a heartbeat. This is optional. If the app exist with a fatal error, it will append /fail to this URL.</td>
+</tr>
+<tr>
+<td style="text-align: left;">HeartbeatTimeout</td>
+<td style="text-align: left;">How long to wait for a response from the website before considering it down in seconds.</td>
+</tr>
+<tr>
+<td style="text-align: left;">Frequency</td>
+<td style="text-align: left;">How often to post the state to the heartbeat monitor (in seconds).</td>
+</tr>
+</tbody>
+</table>
 
 
 

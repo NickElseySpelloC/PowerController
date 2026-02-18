@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-website-section" class="md-skip">
           Skip to content
         </a>
       
@@ -1022,6 +1022,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1077,11 +1104,38 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-website-section">Configuration file - Website section</h1>
+<p>Settings for the built-in web server that provides a web interface to view and control the outputs.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">HostingIP</td>
+<td style="text-align: left;">The IP address to host the web server on. Use 0.0.0.0 to listen on all interfaces (the default).</td>
+</tr>
+<tr>
+<td style="text-align: left;">Port</td>
+<td style="text-align: left;">The port to host the web server on.</td>
+</tr>
+<tr>
+<td style="text-align: left;">PageAutoRefresh</td>
+<td style="text-align: left;">How often to refresh the web page (in seconds). Set to 0 to disable auto-refresh.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DebugMode</td>
+<td style="text-align: left;">Enable or disable debug mode for the web server (should be False in production).</td>
+</tr>
+<tr>
+<td style="text-align: left;">AccessKey</td>
+<td style="text-align: left;">An access key to secure the web interface. Alternatively, set the WEBAPP_ACCESS_KEY environment variable. Leave blank to disable access control.</td>
+</tr>
+</tbody>
+</table>
 
 
 

@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-files-section" class="md-skip">
           Skip to content
         </a>
       
@@ -1022,6 +1022,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1077,11 +1104,39 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-files-section">Configuration file - Files section</h1>
+<p>Location of log and system state files.</p>
+<p>Note: Required keys are shown in <strong>bold</strong>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>SavedStateFile</strong></td>
+<td style="text-align: left;">JSON file name to store the Power Controller's device current state and history.</td>
+</tr>
+<tr>
+<td style="text-align: left;">LogfileName</td>
+<td style="text-align: left;">A text log file that records progress messages and warnings.</td>
+</tr>
+<tr>
+<td style="text-align: left;">LogfileMaxLines</td>
+<td style="text-align: left;">Maximum number of lines to keep in the log file. If zero, file will never be truncated.</td>
+</tr>
+<tr>
+<td style="text-align: left;">LogfileVerbosity</td>
+<td style="text-align: left;">The level of detail captured in the log file. One of: none; error; warning; summary; detailed; debug; all.</td>
+</tr>
+<tr>
+<td style="text-align: left;">ConsoleVerbosity</td>
+<td style="text-align: left;">Controls the amount of information written to the console. One of: error; warning; summary; detailed; debug; all. Errors are written to stderr all other messages are written to stdout.</td>
+</tr>
+</tbody>
+</table>
 
 
 

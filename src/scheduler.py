@@ -334,7 +334,7 @@ class Scheduler:
 
         # If we were unable to get the location from the Shelly device, see if we can extract it from the Google Maps url (if supplied)
         if tz is None:
-            tz = loc_conf["Timezone"]
+            tz = loc_conf.get("Timezone")
             # Extract coordinates
             if "GoogleMapsURL" in loc_conf and loc_conf["GoogleMapsURL"] is not None:
                 url = loc_conf["GoogleMapsURL"]
@@ -343,11 +343,12 @@ class Scheduler:
                     lat = float(match.group(1))
                     lon = float(match.group(2))
             else:   # Last resort, try the config values
-                lat = loc_conf["Latitude"]
-                lon = loc_conf["Longitude"]
+                lat = loc_conf.get("Latitude")
+                lon = loc_conf.get("Longitude")
 
         if lat is None or lon is None:
             self.logger.log_message("Latitude and longitude could not be determined, using defaults for 0°00'00\"N 0°00'00.0\"E.", "warning")
+            tz = tz or "UTC"
             lat = 0.0
             lon = 0.0
 

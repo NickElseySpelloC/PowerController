@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-xx-section" class="md-skip">
+        <a href="#configuration-file-email-section" class="md-skip">
           Skip to content
         </a>
       
@@ -1022,6 +1022,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../running/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../prod_deployment/" class="md-nav__link">
         
   
@@ -1077,11 +1104,42 @@
 
 
 
-<h1 id="configuration-file-xx-section">Configuration file - xx section</h1>
-<p>desciption</p>
-<div class="config-table">
-<p>table</p>
-</div>
+<h1 id="configuration-file-email-section">Configuration file - Email section</h1>
+<p>Use this section here you want to be emailed when there's a critical error or excessive energy use.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">EnableEmail</td>
+<td style="text-align: left;">Set to <em>True</em> if you want to allow the PowerController to send emails. If True, the remaining settings in this section must be configured correctly.</td>
+</tr>
+<tr>
+<td style="text-align: left;">SMTPServer</td>
+<td style="text-align: left;">The SMTP host name that supports TLS encryption. If using a Google account, set to smtp.gmail.com</td>
+</tr>
+<tr>
+<td style="text-align: left;">SMTPPort</td>
+<td style="text-align: left;">The port number to use to connect to the SMTP server. If using a Google account, set to 587</td>
+</tr>
+<tr>
+<td style="text-align: left;">SMTPUsername</td>
+<td style="text-align: left;">Your username used to login to the SMTP server. Alternatively, set the SMTP_USERNAME environment variable. If using a Google account, set to your Google email address.</td>
+</tr>
+<tr>
+<td style="text-align: left;">SMTPPassword</td>
+<td style="text-align: left;">The password used to login to the SMTP server. Alternatively, set the SMTP_PASSWORD environment variable. If using a Google account, create an app password for the PowerController first.</td>
+</tr>
+<tr>
+<td style="text-align: left;">SubjectPrefix</td>
+<td style="text-align: left;">If set, the PowerController will add this text to the start of any email subject line for emails it sends.</td>
+</tr>
+</tbody>
+</table>
 
 
 
