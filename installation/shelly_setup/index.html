@@ -8,26 +8,28 @@
       
       
       
-        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/prod_deployment/">
+        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/installation/shelly_setup/">
       
       
-        <link rel="prev" href="../running/">
+        <link rel="prev" href="../prerequisites/">
       
+      
+        <link rel="next" href="../install_app/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
-        <title>Production Deployment - PowerController Utility</title>
+        <title>Shelly Setup - PowerController Utility</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
       
 
@@ -46,11 +48,11 @@
       
     
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -68,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#production-deployment" class="md-skip">
+        <a href="#setup-your-shelly-devices" class="md-skip">
           Skip to content
         </a>
       
@@ -84,7 +86,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="PowerController Utility" class="md-header__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
+    <a href="../.." title="PowerController Utility" class="md-header__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -104,7 +106,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Production Deployment
+              Shelly Setup
             
           </span>
         </div>
@@ -182,7 +184,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="PowerController Utility" class="md-nav__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
+    <a href="../.." title="PowerController Utility" class="md-nav__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -200,7 +202,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -224,18 +226,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -256,7 +260,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -274,7 +278,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -302,7 +306,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/prerequisites/" class="md-nav__link">
+      <a href="../prerequisites/" class="md-nav__link">
         
   
   
@@ -327,10 +331,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../installation/shelly_setup/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shelly Setup
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -346,6 +377,48 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#digital-temperature-probes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Digital Temperature Probes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unsupported-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsupported device
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -358,7 +431,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/install_app/" class="md-nav__link">
+      <a href="../install_app/" class="md-nav__link">
         
   
   
@@ -440,7 +513,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../configuration/" class="md-nav__link">
         
   
   
@@ -468,7 +541,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/example_config/" class="md-nav__link">
+      <a href="../../configuration/example_config/" class="md-nav__link">
         
   
   
@@ -543,7 +616,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/general/" class="md-nav__link">
+      <a href="../../configuration/sections/general/" class="md-nav__link">
         
   
   
@@ -571,7 +644,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/files/" class="md-nav__link">
+      <a href="../../configuration/sections/files/" class="md-nav__link">
         
   
   
@@ -599,7 +672,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/email/" class="md-nav__link">
+      <a href="../../configuration/sections/email/" class="md-nav__link">
         
   
   
@@ -627,7 +700,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/website/" class="md-nav__link">
+      <a href="../../configuration/sections/website/" class="md-nav__link">
         
   
   
@@ -655,7 +728,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/amber_api/" class="md-nav__link">
+      <a href="../../configuration/sections/amber_api/" class="md-nav__link">
         
   
   
@@ -683,7 +756,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/shelly_devices/" class="md-nav__link">
+      <a href="../../configuration/sections/shelly_devices/" class="md-nav__link">
         
   
   
@@ -711,7 +784,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/outputs/" class="md-nav__link">
+      <a href="../../configuration/sections/outputs/" class="md-nav__link">
         
   
   
@@ -739,7 +812,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/operating_schedules/" class="md-nav__link">
+      <a href="../../configuration/sections/operating_schedules/" class="md-nav__link">
         
   
   
@@ -767,7 +840,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/output_sequences/" class="md-nav__link">
+      <a href="../../configuration/sections/output_sequences/" class="md-nav__link">
         
   
   
@@ -795,7 +868,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/viewer_website/" class="md-nav__link">
+      <a href="../../configuration/sections/viewer_website/" class="md-nav__link">
         
   
   
@@ -823,7 +896,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/output_metering/" class="md-nav__link">
+      <a href="../../configuration/sections/output_metering/" class="md-nav__link">
         
   
   
@@ -851,7 +924,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/temp_probe_logging/" class="md-nav__link">
+      <a href="../../configuration/sections/temp_probe_logging/" class="md-nav__link">
         
   
   
@@ -879,7 +952,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/ups_integration/" class="md-nav__link">
+      <a href="../../configuration/sections/ups_integration/" class="md-nav__link">
         
   
   
@@ -907,7 +980,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/location/" class="md-nav__link">
+      <a href="../../configuration/sections/location/" class="md-nav__link">
         
   
   
@@ -935,7 +1008,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/teslamate/" class="md-nav__link">
+      <a href="../../configuration/sections/teslamate/" class="md-nav__link">
         
   
   
@@ -963,7 +1036,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/heartbeat_monitor/" class="md-nav__link">
+      <a href="../../configuration/sections/heartbeat_monitor/" class="md-nav__link">
         
   
   
@@ -1006,7 +1079,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../running/" class="md-nav__link">
+      <a href="../../running/" class="md-nav__link">
         
   
   
@@ -1030,19 +1103,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../prod_deployment/" class="md-nav__link">
         
   
   
@@ -1058,7 +1122,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1083,6 +1146,36 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#digital-temperature-probes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Digital Temperature Probes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unsupported-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsupported device
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1098,8 +1191,72 @@
 
 
 
-<h1 id="production-deployment">Production Deployment</h1>
-<p>checklist </p>
+<h1 id="setup-your-shelly-devices">Setup your Shelly devices</h1>
+<p>PowerController requires at least one <a href="https://www.shelly.com">Shelly</a> device to operate. You can run the application in simulation mode for testing, but to actually control and/or meter an electrical device, you'll need at least one Shelly device installed and configured. Shelly make a wide range of home automation products. PowerController supports the majority of Shelly's smart switches and energy meters that support WiFi or Ethernet connectivity.</p>
+<ol>
+<li>Install your device(s) according to Shelly's installation instructions. <ul>
+<li>Get help from a licensed electrician if you're uncomfortable doing this work yourself. </li>
+<li>You must connect the device to your network via WiFi or Ethernet (PowerController doesn't support Bluetooth, Z-Wave or Zigbee only devices at this time)</li>
+</ul>
+</li>
+<li>Use the Shelly app to make sure the device is working as intended. </li>
+<li>Please <em>do not</em> create any Actions for the device (these might conflict with the app's control of the device).</li>
+<li>In the app, go to Settings &gt; Device Information and make a note of the following:<ul>
+<li>Device IP address (e.g. 192.168.86.21)</li>
+<li>Device Type (e.g. Shelly Plus 2 PM)</li>
+</ul>
+</li>
+<li>Lookup the device type in <a href="https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list/">models library</a> and make a note of the model identifier (e.g. ShellyPlus2PM). Here's the entry for our example:</li>
+</ol>
+<pre><code class="language-json">    {
+      &quot;model&quot;: &quot;ShellyPlus2PM&quot;,
+      &quot;name&quot;: &quot;Shelly Plus 2PM&quot;,
+      &quot;url&quot;: &quot;https://shelly-api-docs.shelly.cloud/gen2/Devices/Gen2/ShellyPlus2PM&quot;,
+      &quot;generation&quot;: 2,
+      &quot;protocol&quot;: &quot;RPC&quot;,
+      &quot;inputs&quot;: 2,
+      &quot;outputs&quot;: 2,
+      &quot;meters&quot;: 2,
+      &quot;meters_seperate&quot;: false,
+      &quot;temperature_monitoring&quot;: true
+    },
+</code></pre>
+<h2 id="digital-temperature-probes">Digital Temperature Probes</h2>
+<p>If you have a <a href="https://shelly-api-docs.shelly.cloud/gen2/Addons/ShellySensorAddon">Shelly Add-on</a> installed on your Shelly switch, then you can connect up to 5 ds18b20 probes to the add-on. You must setup the probe(s) as follows before adding the probe's name to the ShellyDevices:Device:TempProbes section of your config file:</p>
+<p>Once you have connected the Shelly Add-on to your Shelly smart switch and connected your DS18B20 temperature probes to the add on, you need to configure the probes in the mobile app:</p>
+<ol>
+<li>Go to the Shelly device you have installed the Add-on to and configure the add-on<ul>
+<li>Click Add-on peripherals section</li>
+<li>Change to Sensor Addon and then reboot if prompted</li>
+</ul>
+</li>
+<li>After reboot, go back to same tab and click Add Add-on Peripheral<ul>
+<li>Select Temperature (DS18B20)</li>
+<li>Select a probe listed from the automatic scan and click Add Peripheral</li>
+<li>Reboot when prompted</li>
+</ul>
+</li>
+<li>After reboot, go back to same tab and click the settings gear icon next to the newly added probe<ul>
+<li>Give the probe a name (important) - for example "Roof Temp"</li>
+<li>Optionally enable the 'extract peripheral as device' option (if you want it to appear as a seperate device on your dashboard</li>
+</ul>
+</li>
+<li>Repeat steps 2 and 3 for any other connected probes</li>
+</ol>
+<p>Now add these probe(s) to ShellyDevices:Device:TempProbes section of your config file, being sure to use exactly the same names as you used in the Shelly app.</p>
+<pre><code class="language-yaml">ShellyDevices:
+  ...
+  Devices:
+    - Name: Downstairs Lights
+      Model: Shelly2PMG3
+      Hostname: 192.168.1.23
+      ...
+      TempProbes:
+        - Name: &quot;Roof Temp&quot;
+</code></pre>
+<h2 id="unsupported-device">Unsupported device</h2>
+<p>If you've bought a Shelly smart switch or energy meter and are having problems getting it to work, you can try modifying the <a href="https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list/">shelly_models.json</a> file included with the sc_utility library to add or update your devie. Alternatively, please contact <a href="https://www.spelloconsulting.com/contact-nick-elsey">Nick Elsey</a> for support.</p>
+<h1 id="next-step-install-powercontroller">Next Step &gt;&gt; <a href="../install_app/">Install PowerController</a></h1>
 
 
 
@@ -1149,10 +1306,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

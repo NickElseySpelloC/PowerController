@@ -8,10 +8,8 @@
       
       
       
-        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/prod_deployment/">
+        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/features/">
       
-      
-        <link rel="prev" href="../running/">
       
       
       
@@ -23,7 +21,7 @@
     
     
       
-        <title>Production Deployment - PowerController Utility</title>
+        <title>Features - PowerController Utility</title>
       
     
     
@@ -67,11 +65,6 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
-        
-        <a href="#production-deployment" class="md-skip">
-          Skip to content
-        </a>
-      
     </div>
     <div data-md-component="announce">
       
@@ -104,7 +97,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Production Deployment
+              Features
             
           </span>
         </div>
@@ -1030,19 +1023,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../prod_deployment/" class="md-nav__link">
         
   
   
@@ -1058,7 +1042,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1080,8 +1063,6 @@
   
   
   
-    
-  
   
 </nav>
                   </div>
@@ -1098,8 +1079,28 @@
 
 
 
-<h1 id="production-deployment">Production Deployment</h1>
-<p>checklist </p>
+  <h1>Features</h1>
+
+<ul>
+<li>Multiple output devices supported. </li>
+<li>Integrate with <a href="https://mates.amber.com.au/NXX7QGMC?utm_source=amber&amp;utm_medium=app&amp;utm_campaign=AE537_Multi_Traffic_Generic&amp;utm_term=&amp;utm_content=referral_share_link">Amber Electric</a> so that you can run a device (e.g. a pool pump) at the lowest possible rates.</li>
+<li>Supports switched outputs and meter only outputs.</li>
+<li>Integration with multiple Tesla vehicles to report on charging costs.</li>
+<li>Integrates with the majority of <a href="https://www.shelly.com">Shelly</a> smart switches and energy meters to control and monitor you electrical devices.</li>
+<li>Dynamic Scheduling: Adjusts device operation based on real-time electricity prices.</li>
+<li>Normal scheduling: Turn devices on / off based on a time of day / day of week schedule, including support for dusk / dawn triggers. Schedule can be used for fall back if Amber pricing unavailable. Multiple schedules available.</li>
+<li>Override the output state using the webapp or an input line on a Shelly device.</li>
+<li>Support for complex output change sequences (e.g. turn on switch 1, wait for 20 seconds, turn on switch 2).</li>
+<li>Web app to view the current state of each device and manually override if needed. </li>
+<li>Integrate with a UPS and control and output based on the UPS's "health".</li>
+<li>Historical Tracking: Maintains past days of device runtime to optimize future scheduling.</li>
+<li>Integrates with the <a href="https://github.com/NickElseySpelloC/PowerControllerViewer">PowerControllerViewer app</a> so that you can view and chart status and history of all your output devices and meters.</li>
+<li>Integrate with multiple temperature probes. Switch an output based on temperature thresholds. </li>
+<li>Set minimum, preferred and maximum operating times per day. Actual operating times are controlled by electicity prices and/or a predefined schedule. </li>
+<li>Vary preferred operating times each month (e.g. run your pool pump for longer in the summer).</li>
+<li>Email notification for critical errors and excess eneegy usage.</li>
+<li>Integration with the BetterStack uptime for heatbeat monitoring.</li>
+</ul>
 
 
 

@@ -8,11 +8,13 @@
       
       
       
-        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/prod_deployment/">
+        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/installation/">
       
       
-        <link rel="prev" href="../running/">
+        <link rel="prev" href="..">
       
+      
+        <link rel="next" href="prerequisites/">
       
       
         
@@ -23,7 +25,7 @@
     
     
       
-        <title>Production Deployment - PowerController Utility</title>
+        <title>Installation steps - PowerController Utility</title>
       
     
     
@@ -68,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#production-deployment" class="md-skip">
+        <a href="#getting-started-and-installation" class="md-skip">
           Skip to content
         </a>
       
@@ -104,7 +106,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Production Deployment
+              Installation steps
             
           </span>
         </div>
@@ -224,18 +226,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -256,7 +260,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -271,10 +275,19 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -290,6 +303,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -302,7 +316,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/prerequisites/" class="md-nav__link">
+      <a href="prerequisites/" class="md-nav__link">
         
   
   
@@ -330,7 +344,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/shelly_setup/" class="md-nav__link">
+      <a href="shelly_setup/" class="md-nav__link">
         
   
   
@@ -358,7 +372,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/install_app/" class="md-nav__link">
+      <a href="install_app/" class="md-nav__link">
         
   
   
@@ -1030,19 +1044,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../prod_deployment/" class="md-nav__link">
         
   
   
@@ -1058,7 +1063,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1098,8 +1102,16 @@
 
 
 
-<h1 id="production-deployment">Production Deployment</h1>
-<p>checklist </p>
+<h1 id="getting-started-and-installation">Getting Started and Installation</h1>
+<p>PowerController is primarily designed to be run on either a Linux system, A RaspberryPi or an Apple Mac (Intel or Apple Silicon). Earlier versions have been tested on Windows 11 and since this is a Python application, this should still work, but the installation steps below will need to be adjusted.</p>
+<p>Installation comes in several phases: </p>
+<ol>
+<li>Install the Prerequisites (Python, git, UV)</li>
+<li>Prepare your Shelly devices</li>
+<li>Install the PowerController application</li>
+<li>Configure the PowerController application</li>
+</ol>
+<h1 id="next-step-install-the-prerequisites">Next Step &gt;&gt; <a href="prerequisites/">Install the Prerequisites</a></h1>
 
 
 

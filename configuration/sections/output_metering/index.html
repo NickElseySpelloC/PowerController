@@ -8,26 +8,28 @@
       
       
       
-        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/prod_deployment/">
+        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/configuration/sections/output_metering/">
       
       
-        <link rel="prev" href="../running/">
+        <link rel="prev" href="../viewer_website/">
       
+      
+        <link rel="next" href="../temp_probe_logging/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
-        <title>Production Deployment - PowerController Utility</title>
+        <title>OutputMetering - PowerController Utility</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
       
       
 
@@ -46,11 +48,11 @@
       
     
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../stylesheets/extra.css">
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -68,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#production-deployment" class="md-skip">
+        <a href="#configuration-file-outputmetering-section" class="md-skip">
           Skip to content
         </a>
       
@@ -84,7 +86,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="PowerController Utility" class="md-header__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
+    <a href="../../.." title="PowerController Utility" class="md-header__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -104,7 +106,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Production Deployment
+              OutputMetering
             
           </span>
         </div>
@@ -182,7 +184,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="PowerController Utility" class="md-nav__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
+    <a href="../../.." title="PowerController Utility" class="md-nav__button md-logo" aria-label="PowerController Utility" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -200,7 +202,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../../.." class="md-nav__link">
         
   
   
@@ -274,7 +276,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+      <a href="../../../installation/" class="md-nav__link">
         
   
   
@@ -302,7 +304,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/prerequisites/" class="md-nav__link">
+      <a href="../../../installation/prerequisites/" class="md-nav__link">
         
   
   
@@ -330,7 +332,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/shelly_setup/" class="md-nav__link">
+      <a href="../../../installation/shelly_setup/" class="md-nav__link">
         
   
   
@@ -358,7 +360,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/install_app/" class="md-nav__link">
+      <a href="../../../installation/install_app/" class="md-nav__link">
         
   
   
@@ -390,18 +392,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -422,7 +426,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -440,7 +444,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../" class="md-nav__link">
         
   
   
@@ -468,7 +472,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/example_config/" class="md-nav__link">
+      <a href="../../example_config/" class="md-nav__link">
         
   
   
@@ -493,18 +497,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
         
           
           <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
@@ -525,7 +531,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -543,7 +549,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/general/" class="md-nav__link">
+      <a href="../general/" class="md-nav__link">
         
   
   
@@ -571,7 +577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/files/" class="md-nav__link">
+      <a href="../files/" class="md-nav__link">
         
   
   
@@ -599,7 +605,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/email/" class="md-nav__link">
+      <a href="../email/" class="md-nav__link">
         
   
   
@@ -627,7 +633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/website/" class="md-nav__link">
+      <a href="../website/" class="md-nav__link">
         
   
   
@@ -655,7 +661,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/amber_api/" class="md-nav__link">
+      <a href="../amber_api/" class="md-nav__link">
         
   
   
@@ -683,7 +689,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/shelly_devices/" class="md-nav__link">
+      <a href="../shelly_devices/" class="md-nav__link">
         
   
   
@@ -711,7 +717,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/outputs/" class="md-nav__link">
+      <a href="../outputs/" class="md-nav__link">
         
   
   
@@ -739,7 +745,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/operating_schedules/" class="md-nav__link">
+      <a href="../operating_schedules/" class="md-nav__link">
         
   
   
@@ -767,7 +773,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/output_sequences/" class="md-nav__link">
+      <a href="../output_sequences/" class="md-nav__link">
         
   
   
@@ -795,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/viewer_website/" class="md-nav__link">
+      <a href="../viewer_website/" class="md-nav__link">
         
   
   
@@ -820,10 +826,19 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../configuration/sections/output_metering/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -839,6 +854,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -851,7 +867,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/temp_probe_logging/" class="md-nav__link">
+      <a href="../temp_probe_logging/" class="md-nav__link">
         
   
   
@@ -879,7 +895,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/ups_integration/" class="md-nav__link">
+      <a href="../ups_integration/" class="md-nav__link">
         
   
   
@@ -907,7 +923,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/location/" class="md-nav__link">
+      <a href="../location/" class="md-nav__link">
         
   
   
@@ -935,7 +951,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/teslamate/" class="md-nav__link">
+      <a href="../teslamate/" class="md-nav__link">
         
   
   
@@ -963,7 +979,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sections/heartbeat_monitor/" class="md-nav__link">
+      <a href="../heartbeat_monitor/" class="md-nav__link">
         
   
   
@@ -1006,7 +1022,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../running/" class="md-nav__link">
+      <a href="../../../running/" class="md-nav__link">
         
   
   
@@ -1030,19 +1046,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../../prod_deployment/" class="md-nav__link">
         
   
   
@@ -1058,7 +1065,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1098,8 +1104,36 @@
 
 
 
-<h1 id="production-deployment">Production Deployment</h1>
-<p>checklist </p>
+<h1 id="configuration-file-outputmetering-section">Configuration file - OutputMetering section</h1>
+<p>Enable logging of output energy consumption data to a CSV file and the system state file. You can list any output here that has an energy meter.</p>
+<p>If the <a href="../viewer_website/">web viewer app</a> is enabled then usage summaries are shown for each output for a variety of usage periods including custom.</p>
+<p>Note: The section is optionaly, but if you use it, the required keys below are shown in <strong>bold</strong>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Enable</td>
+<td style="text-align: left;">Set to False to disable all output meter logging.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>DataFile</strong></td>
+<td style="text-align: left;">The CSV file to log to.</td>
+</tr>
+<tr>
+<td style="text-align: left;">DataFileMaxDays</td>
+<td style="text-align: left;">Maximum number of days to keep in the CSV data file. Set to -1 for unlimited.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>OutputsToLog</strong></td>
+<td style="text-align: left;">A list of outputs to include in the logs. Each entry can include:<br><strong>Output</strong>: The name of the output. Must match a Outputs: [item]: Name entry.<br><strong>DisplayName</strong>: Optionally use this alternative name in the CSV file and in the web view app.<br><strong>HideFromViewerApp</strong>: If True, log this output int he CSV file but don't show it in the viewer app.</td>
+</tr>
+</tbody>
+</table>
 
 
 
@@ -1149,10 +1183,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

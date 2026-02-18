@@ -1,0 +1,20 @@
+/* Make the main content column wider */
+
+
+:root {
+  --md-content-width: 100%;
+}
+
+.md-grid {
+  max-width: 100%;
+}
+
+/* Slightly smaller font for code blocks */
+.md-typeset pre code {
+  font-size: 11px;   /* default is ~0.9–1rem */
+  line-height: 1.4;
+}
+
+.md-typeset .config-table td:first-child {
+  font-weight: 600;
+}
