@@ -110,8 +110,8 @@ write_ups_status() {
         [[ -z "$state" ]] && state=""
     fi
     
-    # Get current timestamp in ISO 8601 format
-    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    # Get current local timestamp
+    local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
     
     # Generate JSON
     local json_output=$(cat <<EOF

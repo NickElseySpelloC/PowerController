@@ -27,11 +27,11 @@ class UPSIntegration:
         self.polling_interval: int = 60  # Default to 60 seconds if not specified in config
         self.time_last_polled: dt.datetime | None = None
         self.data_file: dict = {
-            "enabled": bool,
-            "file_name": str | None,
-            "write_interval": int,
-            "last_write_time": dt.datetime | None,
-            "keep_max_hours": int,
+            "enabled": False,
+            "file_name": None,
+            "write_interval": 0,
+            "last_write_time": None,
+            "keep_max_hours": 0,
         }
 
         self.ups_list: list[dict[str, Any]] = []
@@ -230,7 +230,10 @@ class UPSIntegration:
             data = json.loads(result.stdout)
 
             # Update UPS entry with data from script
-            ups["timestamp"] = data.get("timestamp")
+            timestamp = DateHelper.parse_date(data.get("timestamp"), "%Y-%m-%d %H:%M:%S")
+            assert isinstance(timestamp, dt.datetime), "Script output missing 'timestamp' field or invalid format"
+            timestamp.replace(tzinfo=None)
+            ups["timestamp"] = timestamp
             ups["battery_state"] = data.get("battery_state")
             ups["battery_charge_percent"] = data.get("battery_charge_percent")
             ups["battery_runtime_seconds"] = data.get("battery_runtime_seconds")
@@ -323,11 +326,6 @@ class UPSIntegration:
         csv_reader = CSVReader(self.data_file["file_name"], schemas.ups_data_file_csv_config)
 
         # Read the existing CSV data to append to it.
-        csv_data = csv_reader.read_csv()
-        if csv_data:    # If we have existing data, merge it with the new data
-            csv_data = csv_reader.trim_csv_data(csv_data, self.data_file["keep_max_days"])
-            csv_reader.merge_data_sets(csv_data, ups_data)
-        else:   # If we don't have existing data, just use the new data
-            csv_reader.write_csv(ups_data)
+        csv_reader.update_csv_file(ups_data, max_days=self.data_file["keep_max_days"])
 
-        self.logger.log_message(f"Wrote UPS data to CSV file '{self.data_file['file_name']}'", "debug")
+        # self.logger.log_message(f"Wrote UPS data to CSV file '{self.data_file['file_name']}'", "debug")
