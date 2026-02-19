@@ -1,11 +1,14 @@
 """UPS Integration module for monitoring UPS status via shell scripts."""
 
+import datetime as dt
 import json
 import subprocess  # noqa: S404
 from pathlib import Path
 from typing import Any
 
-from sc_utility import SCCommon, SCConfigManager, SCLogger
+from sc_utility import CSVReader, DateHelper, SCCommon, SCConfigManager, SCLogger
+
+from config_schemas import ConfigSchema
 
 
 class UPSIntegration:
@@ -20,6 +23,17 @@ class UPSIntegration:
         """
         self.config = config
         self.logger = logger
+        self.enabled: bool = False
+        self.polling_interval: int = 60  # Default to 60 seconds if not specified in config
+        self.time_last_polled: dt.datetime | None = None
+        self.data_file: dict = {
+            "enabled": bool,
+            "file_name": str | None,
+            "write_interval": int,
+            "last_write_time": dt.datetime | None,
+            "keep_max_hours": int,
+        }
+
         self.ups_list: list[dict[str, Any]] = []
 
         # Initialize from config
@@ -30,24 +44,25 @@ class UPSIntegration:
 
         Creates a list of UPS dict objects with configuration and current status.
         """
-        ups_configs = self.config.get("UPSIntegration", default=[])
-        if not ups_configs:
+        ups_config = self.config.get("UPSIntegration", default=[])
+        if not ups_config or not ups_config.get("Enable", True):
             self.ups_list = []
             return
 
-        if not isinstance(ups_configs, list):
-            self.logger.log_message("UPSIntegration configuration must be a list", "error")
-            self.ups_list = []
-            return
+        # Get the information from the config, with defaults if not specified
+        self.polling_interval = ups_config.get("PollingInterval", 60) or 60
+        self.data_file["file_name"] = ups_config.get("DataFile", None)
+        self.data_file["write_interval"] = ups_config.get("DataFileWriteInterval", 60) or 60
+        self.data_file["keep_max_days"] = ups_config.get("DataFileMaxDays", 3) or 3
+        if self.data_file["file_name"]:
+            self.data_file["enabled"] = True
+        self.enabled = True
 
+        # Now read the UPS device configurations
         self.ups_list = []
-        for ups_config in ups_configs:
-            if not isinstance(ups_config, dict):
-                self.logger.log_message("Invalid UPS configuration entry (must be dict)", "error")
-                continue
-
-            name = ups_config.get("Name")
-            script = ups_config.get("Script")
+        for ups_device in ups_config.get("UPSDevices", []):
+            name = ups_device.get("Name")
+            script = ups_device.get("Script")
 
             if not name or not script:
                 self.logger.log_message("UPS configuration missing Name or Script", "error")
@@ -56,10 +71,10 @@ class UPSIntegration:
             ups_entry = {
                 "name": name,
                 "script": script,
-                "min_runtime_when_charging": ups_config.get("MinRuntimeWhenCharging", 0),
-                "min_charge_when_charging": ups_config.get("MinChargeWhenCharging", 0),
-                "min_runtime_when_discharging": ups_config.get("MinRuntimeWhenDischarging", 0),
-                "min_charge_when_discharging": ups_config.get("MinChargeWhenDischarging", 0),
+                "min_runtime_when_charging": ups_device.get("MinRuntimeWhenCharging", 0),
+                "min_charge_when_charging": ups_device.get("MinChargeWhenCharging", 0),
+                "min_runtime_when_discharging": ups_device.get("MinRuntimeWhenDischarging", 0),
+                "min_charge_when_discharging": ups_device.get("MinChargeWhenDischarging", 0),
                 "timestamp": None,
                 "battery_charge_percent": None,
                 "battery_runtime_seconds": None,
@@ -70,30 +85,23 @@ class UPSIntegration:
 
         self.logger.log_message(f"Initialized {len(self.ups_list)} UPS configuration(s)", "debug")
 
-    def read_ups_data(self, ups_name: str | None = None) -> None:
+    def read_ups_data(self) -> None:
         """Read UPS data by invoking the configured shell scripts.
 
-        For each configured UPS (or just the specified one), invoke the shell script
-        and parse the JSON output. Update the UPS status and health flag.
-
-        Args:
-            ups_name (str | None): Optional UPS name to process. If None, process all UPS devices.
-
-        Raises:
-            RuntimeError: If the specified UPS name is not found in the configuration.
+        For each configured UPS, invoke the shell script and parse the JSON output. Update the UPS status and health flag.
         """
-        # Filter to specific UPS if requested
-        if ups_name:
-            ups_to_process = [ups for ups in self.ups_list if ups["name"] == ups_name]
-            if not ups_to_process:
-                msg = f"UPS '{ups_name}' not found in configuration"
-                raise RuntimeError(msg)
-        else:
-            ups_to_process = self.ups_list
+        if not self.enabled:
+            return
 
+        # See if it's time to poll again based on the polling interval
+        current_time = DateHelper.now()
+        if self.time_last_polled and (current_time - self.time_last_polled).total_seconds() < self.polling_interval:
+            return
+
+        self.time_last_polled = current_time
         project_root = SCCommon.get_project_root()
 
-        for ups in ups_to_process:
+        for ups in self.ups_list:
             try:
                 self._execute_ups_script(ups, project_root)
             except subprocess.TimeoutExpired:
@@ -103,6 +111,86 @@ class UPSIntegration:
                 self.logger.log_message(f"UPS script failed for '{ups['name']}': exit code {e.returncode}. Error: {stderr}", "error")
             except OSError as e:
                 self.logger.log_message(f"Error executing UPS script for '{ups['name']}': {e}", "error")
+
+        # Append the current readings to the CSV file if enabled and it's time to write
+        self._write_ups_data_to_csv()
+
+    def get_ups_results(self, ups_name: str | None = None) -> dict[str, Any]:
+        """Get the results for one or all UPS devices.
+
+        Returns a dictionary with UPS status information, keyed by UPS name.
+        Each entry includes timestamp, charge, runtime, and health status.
+        Returns empty dict is UPS integration is not enabled or if no UPS devices are configured.
+
+        Args:
+            ups_name (str | None): Optional UPS name to retrieve. If None, return all UPS results.
+
+        Returns:
+            dict[str, Any]: Dictionary of UPS results keyed by UPS name. Each entry contains:
+                - timestamp: Last reading timestamp (ISO format string)
+                - battery_charge_percent: Battery charge percentage
+                - battery_runtime_seconds: Battery runtime in seconds
+                - is_healthy: Health status boolean
+
+        Raises:
+            RuntimeError: If the specified UPS name is not found in the configuration.
+        """
+        if not self.enabled:
+            return {}
+
+        if ups_name:
+            # Return just the specified UPS
+            ups_entry = next((ups for ups in self.ups_list if ups["name"] == ups_name), None)
+            if not ups_entry:
+                msg = f"UPS '{ups_name}' not found in configuration"
+                raise RuntimeError(msg)
+            return {
+                ups_name: {
+                    "timestamp": ups_entry["timestamp"],
+                    "battery_charge_percent": ups_entry["battery_charge_percent"],
+                    "battery_runtime_seconds": ups_entry["battery_runtime_seconds"],
+                    "battery_state": ups_entry["battery_state"],
+                    "is_healthy": ups_entry["is_healthy"],
+                }
+            }
+
+        # Return all UPS results
+        results = {}
+        for ups in self.ups_list:
+            results[ups["name"]] = {
+                "timestamp": ups["timestamp"],
+                "battery_charge_percent": ups["battery_charge_percent"],
+                "battery_runtime_seconds": ups["battery_runtime_seconds"],
+                "battery_state": ups["battery_state"],
+                "is_healthy": ups["is_healthy"],
+            }
+        return results
+
+    def is_ups_healthy(self, ups_name: str) -> bool:
+        """Check if a specific UPS is healthy.
+
+        Args:
+            ups_name (str): The name of the UPS to check.
+
+        Returns:
+            bool: True if the UPS is healthy, False otherwise. Returns True if no reading has been made yet.
+
+        Raises:
+            RuntimeError: If the specified UPS name is not found in the configuration.
+        """
+        if not self.enabled:
+            return True
+
+        ups_entry = next((ups for ups in self.ups_list if ups["name"] == ups_name), None)
+        if not ups_entry:
+            msg = f"UPS '{ups_name}' not found in configuration"
+            raise RuntimeError(msg)
+
+        # If no reading has been made yet, default to healthy
+        if ups_entry["timestamp"] is None:
+            return True
+
+        return ups_entry["is_healthy"]
 
     def _execute_ups_script(self, ups: dict[str, Any], project_root: Path) -> None:
         """Execute UPS script and update UPS status.
@@ -205,72 +293,41 @@ class UPSIntegration:
 
             ups["is_healthy"] = is_healthy
 
-    def get_ups_results(self, ups_name: str | None = None) -> dict[str, Any]:
-        """Get the results for one or all UPS devices.
+    def _write_ups_data_to_csv(self) -> None:
+        """Write UPS data to CSV file if enabled and it's time to write."""
+        # If CSV writing is enabled, check if it's time to write to the CSV file based on the write interval
+        if not self.data_file["enabled"]:
+            return
 
-        Returns a dictionary with UPS status information, keyed by UPS name.
-        Each entry includes timestamp, charge, runtime, and health status.
+        # See if it's time to poll again based on the polling interval
+        current_time = DateHelper.now()
 
-        Args:
-            ups_name (str | None): Optional UPS name to retrieve. If None, return all UPS results.
+        if self.data_file["last_write_time"] and (current_time - self.data_file["last_write_time"]).total_seconds() < self.data_file["write_interval"]:
+            return
+        self.data_file["last_write_time"] = current_time
 
-        Returns:
-            dict[str, Any]: Dictionary of UPS results keyed by UPS name. Each entry contains:
-                - timestamp: Last reading timestamp (ISO format string)
-                - battery_charge_percent: Battery charge percentage
-                - battery_runtime_seconds: Battery runtime in seconds
-                - is_healthy: Health status boolean
-
-        Raises:
-            RuntimeError: If the specified UPS name is not found in the configuration.
-        """
-        if ups_name:
-            # Return just the specified UPS
-            ups_entry = next((ups for ups in self.ups_list if ups["name"] == ups_name), None)
-            if not ups_entry:
-                msg = f"UPS '{ups_name}' not found in configuration"
-                raise RuntimeError(msg)
-            return {
-                ups_name: {
-                    "timestamp": ups_entry["timestamp"],
-                    "battery_charge_percent": ups_entry["battery_charge_percent"],
-                    "battery_runtime_seconds": ups_entry["battery_runtime_seconds"],
-                    "battery_state": ups_entry["battery_state"],
-                    "is_healthy": ups_entry["is_healthy"],
-                }
-            }
-
-        # Return all UPS results
-        results = {}
+        # Build the UPS data to write
+        ups_data = []
         for ups in self.ups_list:
-            results[ups["name"]] = {
-                "timestamp": ups["timestamp"],
-                "battery_charge_percent": ups["battery_charge_percent"],
-                "battery_runtime_seconds": ups["battery_runtime_seconds"],
-                "battery_state": ups["battery_state"],
-                "is_healthy": ups["is_healthy"],
-            }
-        return results
+            ups_data.append({
+                "Timestamp": ups["timestamp"],
+                "UPSName": ups["name"],
+                "BatteryChargePercent": ups["battery_charge_percent"],
+                "BatteryRuntimeSeconds": ups["battery_runtime_seconds"],
+                "BatteryState": ups["battery_state"],
+                "IsHealthy": ups["is_healthy"],
+            })
 
-    def is_ups_healthy(self, ups_name: str) -> bool:
-        """Check if a specific UPS is healthy.
+        # Create a CSVReasder object and read the current content of the CSV file to append to it.
+        schemas = ConfigSchema()
+        csv_reader = CSVReader(self.data_file["file_name"], schemas.ups_data_file_csv_config)
 
-        Args:
-            ups_name (str): The name of the UPS to check.
+        # Read the existing CSV data to append to it.
+        csv_data = csv_reader.read_csv()
+        if csv_data:    # If we have existing data, merge it with the new data
+            csv_data = csv_reader.trim_csv_data(csv_data, self.data_file["keep_max_days"])
+            csv_reader.merge_data_sets(csv_data, ups_data)
+        else:   # If we don't have existing data, just use the new data
+            csv_reader.write_csv(ups_data)
 
-        Returns:
-            bool: True if the UPS is healthy, False otherwise. Returns True if no reading has been made yet.
-
-        Raises:
-            RuntimeError: If the specified UPS name is not found in the configuration.
-        """
-        ups_entry = next((ups for ups in self.ups_list if ups["name"] == ups_name), None)
-        if not ups_entry:
-            msg = f"UPS '{ups_name}' not found in configuration"
-            raise RuntimeError(msg)
-
-        # If no reading has been made yet, default to healthy
-        if ups_entry["timestamp"] is None:
-            return True
-
-        return ups_entry["is_healthy"]
+        self.logger.log_message(f"Wrote UPS data to CSV file '{self.data_file['file_name']}'", "debug")

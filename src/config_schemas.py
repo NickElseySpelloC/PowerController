@@ -21,12 +21,14 @@ class ConfigSchema:
         self.validation = {
             "Files": {
                 "type": "dict",
+                "required": True,
                 "schema": {
                     "SavedStateFile": {"type": "string", "required": True},
                 },
             },
             "ShellyDevices": {
                 "type": "dict",
+                "required": True,
                 "schema": {
                     "MaxConcurrentErrors": {"type": "number", "required": False, "nullable": True, "min": 0},
                     "Devices": {
@@ -40,7 +42,7 @@ class ConfigSchema:
             },
             "General": {
                 "type": "dict",
-                "required": False,
+                "required": True,
                 "schema": {
                     "Label": {"type": "string", "required": False, "nullable": True},
                     "PollingInterval": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 600},
@@ -330,18 +332,27 @@ class ConfigSchema:
                 },
             },
             "UPSIntegration": {
-                "type": "list",
+                "type": "dict",
                 "required": False,
                 "nullable": True,
                 "schema": {
-                    "type": "dict",
-                    "schema": {
-                        "Name": {"type": "string", "required": True},
-                        "Script": {"type": "string", "required": True},
-                        "MinRuntimeWhenDischarging": {"type": "number", "required": False, "nullable": True, "min": 0},
-                        "MinChargeWhenDischarging": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100},
-                        "MinRuntimeWhenCharging": {"type": "number", "required": False, "nullable": True, "min": 0},
-                        "MinChargeWhenCharging": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100},
+                    "Enable": {"type": "boolean", "required": False, "nullable": True},
+                    "PollingInterval": {"type": "number", "required": True, "nullable": True, "min": 10, "max": 3600},
+                    "DataFile": {"type": "string", "required": False, "nullable": True},
+                    "DataFileWriteInterval": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 3600},
+                    "DataFileMaxHours": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 720},
+                    "UPSDevices": {
+                        "type": "list",
+                        "required": True,
+                        "nullable": True,
+                        "schema": {
+                            "Name": {"type": "string", "required": True},
+                            "Script": {"type": "string", "required": True},
+                            "MinRuntimeWhenDischarging": {"type": "number", "required": False, "nullable": True, "min": 0},
+                            "MinChargeWhenDischarging": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100},
+                            "MinRuntimeWhenCharging": {"type": "number", "required": False, "nullable": True, "min": 0},
+                            "MinChargeWhenCharging": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 100},
+                        },
                     },
                 },
             },
@@ -443,5 +454,37 @@ class ConfigSchema:
             {
                 "name": "AveragePrice",
                 "type": "float",
+            },
+        ]
+
+        self.ups_data_file_csv_config = [
+            {
+                "name": "Timestamp",
+                "type": "datetime",
+                "format": "%Y-%m-%d %H:%M:%S",
+                "match": True,
+                "sort": 1,
+            },
+            {
+                "name": "UPSName",
+                "type": "str",
+                "match": True,
+                "sort": 2,
+            },
+            {
+                "name": "BatteryChargePercent",
+                "type": "float",
+            },
+            {
+                "name": "BatteryRuntimeSeconds",
+                "type": "float",
+            },
+            {
+                "name": "BatteryState",
+                "type": "str",
+            },
+            {
+                "name": "IsHealthy",
+                "type": "bool",
             },
         ]
