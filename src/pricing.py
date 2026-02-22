@@ -24,7 +24,6 @@ from local_enumerations import (
     AmberAPIMode,
     AmberChannel,
     PriceFetchMode,
-    UsageReportingPeriod,
 )
 from run_plan import RunPlanner
 
@@ -191,39 +190,6 @@ class PricingManager:
             return None
         else:
             return run_plan
-
-    # TO DO: Remove for v1.7.0
-    def get_usage_totals(self, reporting_period: UsageReportingPeriod):
-        """Gets the total energy usage between the specified dates.
-
-        The passed reporting_period object is updated with the totals. If no data is available, the object isn't updated.
-
-        Note: Energy usage is returned in kWh.
-
-        Args:
-            reporting_period (UsageReportingPeriod): The reporting period to get usage totals for.
-        """
-        # By default return no data
-        reporting_period.have_global_data = False
-
-        # First scan self.usage_data and make sure we have entries on or before the start_date and on or after the end_date
-        if not self.usage_data:
-            return
-        dates_in_data = {entry.get("Date") for entry in self.usage_data if isinstance(entry.get("Date"), dt.date)}  # pyright: ignore[reportOptionalOperand]
-        if not dates_in_data:
-            return
-        if min(dates_in_data) > reporting_period.start_date or max(dates_in_data) < reporting_period.end_date:
-            return
-
-        # Now aggregate the usage data for the specified date range
-        for entry in self.usage_data:
-            entry_date = entry.get("Date")
-            if not isinstance(entry_date, dt.date):
-                continue
-            if reporting_period.start_date <= entry_date <= reporting_period.end_date:
-                reporting_period.have_global_data = True
-                reporting_period.global_energy_used += entry.get("Usage", 0.0) or 0.0
-                reporting_period.global_cost += entry.get("Cost", 0.0) or 0.0
 
     def get_daily_usage_totals(self):
         """Gets the total energy usage for each day available.

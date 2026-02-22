@@ -1,6 +1,5 @@
 """Holds all the local enumerations used in the project."""
 
-import datetime as dt
 import time
 import uuid
 from collections.abc import Callable
@@ -156,19 +155,3 @@ class UPSMode(StrEnum):
     TURN_ON = "on"       # UPS health requires the output to turn on
     TURN_OFF = "off"     # UPS health requires the output to turn off
     AUTO = "auto"   # UPS health allows the output to operate automatically
-
-
-# Metered output usage =======================================
-@dataclass
-class UsageReportingPeriod:
-    """Define a reporting period for metered output usage."""
-    name: str
-    start_date: dt.date
-    end_date: dt.date
-    have_global_data: bool = False
-    global_energy_used: float = 0.0
-    global_cost: float = 0.0
-    output_energy_used: float = 0.0
-    output_cost: float = 0.0
-    other_energy_used: float = 0.0
-    other_cost: float = 0.0

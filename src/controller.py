@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import datetime as dt
+import json
 import queue
 import time
 from collections.abc import Callable
@@ -33,7 +34,6 @@ from local_enumerations import (
     ShellySequenceResult,
     ShellyStep,
     StepKind,
-    UsageReportingPeriod,
 )
 from meter_output import MeterOutput
 from outputs import OutputManager
@@ -49,6 +49,11 @@ from teslamate import (
 )
 from teslamate_output import TeslaMateOutput
 from ups_integration import UPSIntegration
+
+try:
+    from freezegun import freeze_time
+except ImportError:  # pragma: no cover
+    freeze_time = None  # type: ignore[assignment]
 
 
 class LookupMode(StrEnum):
@@ -128,6 +133,10 @@ class PowerController:
         # This is set by main.py once the ASGI webapp is initialised.
         self._webapp_notify: Callable[[], None] | None = None
         self._last_webapp_notify: dt.datetime | None = None
+
+        # Freeze time functionality
+        self.freeze_time_done: bool = False
+        self._freeze_time_freezer: Any | None = None
 
         self._initialise(skip_shelly_initialization=True)
         self.update_device_locations = True
@@ -221,15 +230,22 @@ class PowerController:
         self.logger.log_message("Power controller starting main control loop.", "detailed")
 
         while not stop_event.is_set():
-            self.print_to_console(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
+            freeze_cfg = None if self.freeze_time_done else self._read_freeze_time_file_config()
+            self._maybe_start_ticking_freeze(freeze_cfg)
 
-            # Run self tests if in testing mode
-            self.run_self_tests()
+            # NOTE: If time is fully frozen (tick=False), do not freeze around blocking waits;
+            # some underlying timeout logic relies on monotonic time.
+            with self._freeze_time_for_iteration_if_needed(freeze_cfg):
+                self.print_to_console(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
 
-            force_refresh = self._run_scheduler_tick()
-            # Push updates periodically and immediately after commands.
-            self._maybe_notify_webapp(force=force_refresh)
-            self.wake_event.clear()
+                # Run self tests if in testing mode
+                self.run_self_tests()
+
+                force_refresh = self._run_scheduler_tick()
+                # Push updates periodically and immediately after commands.
+                self._maybe_notify_webapp(force=force_refresh)
+                self.wake_event.clear()
+
             self.wake_event.wait(timeout=self.poll_interval)
 
         self.shutdown()
@@ -237,6 +253,10 @@ class PowerController:
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
         with self._io_lock:
+            if self._freeze_time_freezer is not None:
+                with contextlib.suppress(Exception):
+                    self._freeze_time_freezer.stop()
+                self._freeze_time_freezer = None
             self.logger.log_message("Starting PowerController shutdown...", "debug")
             view = self._get_latest_status_view()
             for output in self.outputs:
@@ -1003,121 +1023,6 @@ class PowerController:
                 if not self.output_metering["Summary"]["LastDate"] or (last_date and last_date > self.output_metering["Summary"]["LastDate"]):
                     self.output_metering["Summary"]["LastDate"] = last_date
 
-    # TO DO: Remove for v1.7.0
-    def _update_system_state_usage_data_v1_6_5(self, csv_data: list[dict]):
-        """Save / update the metered output usage data in the system state file (self.output_metering >> OutputMetering section).
-
-        Note: Energy usage is in kWh.
-
-        Args:
-            csv_data (list[dict]): The aggregated usage data saved to CSV.
-        """
-        # First build a list of reporting periods that we want to analyse
-        reporting_periods = []
-        today = DateHelper.today()
-
-        reporting_periods.append(UsageReportingPeriod("30 Days", today - dt.timedelta(days=30), today - dt.timedelta(days=1)))  # noqa: FURB113
-        reporting_periods.append(UsageReportingPeriod("7 Days", today - dt.timedelta(days=7), today - dt.timedelta(days=1)))
-        reporting_periods.append(UsageReportingPeriod("Yesterday", today - dt.timedelta(days=1), today - dt.timedelta(days=1)))
-        reporting_periods.append(UsageReportingPeriod("Today", today, today))
-
-        # Reset the output metering data
-        self.output_metering = {}
-        self.output_metering["Totals"] = []
-        self.output_metering["Meters"] = []
-
-        # Get the global totals for each reporting period and save to self.output_metering
-        for period in reporting_periods:
-            self.pricing.get_usage_totals(period)
-
-        # Now get the totals for each output and reporting period from the csv_data
-        outputs_to_log = self.config.get("OutputMetering", "OutputsToLog")
-        if outputs_to_log:
-            for log_output in outputs_to_log:
-                if log_output.get("HideFromViewerApp"):
-                    continue    # Don't save this output in the system state file and therefore hide from viewer app
-
-                # Lookup this output in our objects
-                output_name = log_output.get("Output")
-                display_name = log_output.get("DisplayName") or output_name
-                output = next((o for o in self.outputs if o.name == output_name), None)
-                if not output:
-                    self.logger.log_message(f"OutputMetering: Output {output_name} not found among configured outputs; skipping.", "error")
-                    continue
-
-                # Add the header section
-                meter_entry = {
-                    "Output": output_name,
-                    "DisplayName": display_name,
-                    "Usage": [],
-                }
-
-                # Loop through each reporting period and get the totals for this output
-                for period in reporting_periods:
-                    # Setup the default object for this output and period
-                    output_total = {
-                        "Period": period.name,
-                        "StartDate": period.start_date,
-                        "EndDate": period.end_date,
-                        "HaveData": False,
-                        "EnergyUsed": 0.0,
-                        "EnergyUsedPcnt": None,
-                        "Cost": 0.0,
-                        "CostPcnt": None,
-                    }
-
-                    # Validate that csv_data has an entry on or before the start date
-                    has_start_date = any(
-                        item.get("OutputName") == display_name and item.get("Date") <= period.start_date
-                        for item in csv_data
-                    )
-
-                    if not has_start_date:
-                        meter_entry["Usage"].append(output_total)
-                        continue  # Skip this period for this output
-                    output_total["HaveData"] = True
-
-                    # Now calculate the totals for this output and period from the CSV data
-                    for item in csv_data:
-                        if period.start_date <= item["Date"] <= period.end_date and item["OutputName"] == display_name:
-                            output_total["HaveData"] = True
-                            output_total["EnergyUsed"] += item["EnergyUsed"]
-                            output_total["Cost"] += item["TotalCost"]
-
-                    # Add usage for this output to the global output totals for this period
-                    period.output_energy_used += output_total["EnergyUsed"]
-                    period.output_cost += output_total["Cost"]
-
-                    # Now calculate the percentages if we have global usage data
-                    if period.have_global_data:
-                        if period.global_energy_used > 0:
-                            output_total["EnergyUsedPcnt"] = output_total["EnergyUsed"] / period.global_energy_used
-                        if period.global_cost > 0:
-                            output_total["CostPcnt"] = output_total["Cost"] / period.global_cost
-
-                    meter_entry["Usage"].append(output_total)
-
-                # And finally append this usage to the system state
-                self.output_metering["Meters"].append(meter_entry)
-
-        # Finally write out the totals section
-        for period in reporting_periods:
-            period.other_energy_used = period.global_energy_used - period.output_energy_used
-            period.other_cost = period.global_cost - period.output_cost
-
-            self.output_metering["Totals"].append({
-                "Period": period.name,
-                "StartDate": period.start_date,
-                "EndDate": period.end_date,
-                "HaveData": period.have_global_data,
-                "GlobalEnergyUsed": period.global_energy_used,
-                "GlobalCost": period.global_cost,
-                "OutputEnergyUsed": period.output_energy_used,
-                "OutputCost": period.output_cost,
-                "OtherEnergyUsed": period.other_energy_used,
-                "OtherCost": period.other_cost,
-            })
-
     def _check_fatal_error_recovery(self):
         """Check for fatal errors in the system and handle them."""
         # If the prior run fails, send email that this run worked OK
@@ -1483,7 +1388,7 @@ class PowerController:
         try:
             charging_data = get_charging_data_as_dict(self.config, start_date=import_start_date, convert_to_local=True)
             if charging_data:
-                self.logger.log_message(f"Imported {len(charging_data["sessions"])} charging sessions from TeslaMate starting from {import_start_date}.", "debug")
+                self.logger.log_message(f"Imported {len(charging_data['sessions'])} charging sessions from TeslaMate starting from {import_start_date}.", "debug")
 
                 # Merge sessions
                 existing_sessions = self.tesla_charge_data.get("sessions") or []
@@ -1510,3 +1415,104 @@ class PowerController:
         else:
             self.logger.log_message("Successfully imported TeslaMate charging data.", "debug")
             self.tesla_last_import_query = DateHelper.now()
+
+    @contextlib.contextmanager
+    def _freeze_time_for_iteration_if_needed(self, cfg: tuple[dt.datetime, bool] | None):
+        """Freeze time for the current controller iteration (non-ticking mode)."""
+        # If we've already started a ticking freeze, it applies globally.
+        if self.freeze_time_done:
+            yield
+            return
+
+        if not cfg:
+            yield
+            return
+
+        frozen_time, do_tick = cfg
+        if do_tick:
+            # Handled by _maybe_start_ticking_freeze().
+            yield
+            return
+
+        if freeze_time is None:
+            yield
+            return
+
+        with freeze_time(frozen_time, tick=False):
+            yield
+
+    def _read_freeze_time_file_config(self) -> tuple[dt.datetime, bool] | None:
+        """Read and parse logs/freeze_time.json.
+
+        Expected JSON format:
+            {"freeze_time": "2026-02-21T12:34:56", "do_tick": false}
+
+        Returns:
+            tuple[datetime, bool] | None: (freeze_time, do_tick) if configured and valid, otherwise None.
+        """
+        freeze_file = SCCommon.get_project_root() / "logs" / "freeze_time.json"
+        if not freeze_file.exists():
+            return None
+
+        try:
+            raw = freeze_file.read_text(encoding="utf-8")
+            data = json.loads(raw)
+        except (OSError, ValueError, TypeError) as e:
+            self.logger.log_message(f"Error reading freeze time file {freeze_file}: {e}", "error")
+            return None
+
+        if not isinstance(data, dict):
+            self.logger.log_message(f"Freeze time file {freeze_file} must contain a JSON object.", "error")
+            return None
+
+        freeze_time_raw = data.get("freeze_time")
+        if not freeze_time_raw or not isinstance(freeze_time_raw, str):
+            return None
+
+        do_tick_raw = data.get("do_tick", False)
+        if isinstance(do_tick_raw, bool):
+            do_tick = do_tick_raw
+        else:
+            do_tick = str(do_tick_raw).strip().lower() in {"1", "true", "yes", "y"}
+
+        try:
+            # Expect time in local format
+            freeze_time_str = freeze_time_raw.strip()
+            local_tz = dt.datetime.now().astimezone().tzinfo
+
+            frozen_time = dt.datetime.strptime(freeze_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=local_tz)
+            assert isinstance(frozen_time, dt.datetime), "Parsed freeze_time is not a datetime object."
+        except ValueError as e:
+            self.logger.log_message(
+                f"Invalid freeze_time value in {freeze_file}: '{freeze_time_raw}'. Expected ISO datetime. Error: {e}",
+                "error",
+            )
+            return None
+
+        return frozen_time, do_tick
+
+    def _maybe_start_ticking_freeze(self, cfg: tuple[dt.datetime, bool] | None) -> None:
+        """Start a ticking freeze once (applies to the whole controller loop)."""
+        if self.freeze_time_done:
+            return
+        if not cfg:
+            return
+
+        frozen_time, do_tick = cfg
+        if not do_tick:
+            return
+
+        if freeze_time is None:
+            self.logger.log_message("freezegun is not installed; cannot apply freeze_time.", "error")
+            return
+
+        try:
+            freezer = freeze_time(frozen_time, tick=True)
+            freezer.start()
+        except (RuntimeError, TypeError, ValueError) as e:
+            self.logger.log_message(f"Failed to start ticking freeze_time: {e}", "error")
+            return
+
+        self._freeze_time_freezer = freezer
+        self.freeze_time_done = True
+        self.logger.log_message(f"Applied ticking freeze_time at {frozen_time.isoformat()} (once).", "debug")
