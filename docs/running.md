@@ -74,6 +74,10 @@ If `do_tick` is `true`, the controller starts a *ticking* freeze that applies to
 }
 ```
 
+"2026-02-21T12:34:56" - will get local timezone added
+"2026-02-21T12:34:56+11:00" - will preserve the +11:00 timezone
+
+
 To stop freezing time, delete `logs/freeze_time.json` and restart the app.
 
 

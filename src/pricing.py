@@ -92,13 +92,18 @@ class PricingManager:
         else:
             self._refresh_price_data()
 
-    def refresh_price_data_if_time(self) -> bool:
+    def refresh_price_data_if_time(self, is_new_day: bool) -> bool:
         """Refresh the pricing data if the refresh interval has passed.
+
+        Args:
+            is_new_day (bool): Indicates if it's a new day.
 
         Returns:
             result(bool): True if the refresh was successful or AmberPricing disabled, False if there was an error.
         """
-        if DateHelper.now() >= self.next_refresh or DateHelper.now().date() > self.next_refresh.date():
+        time_now = DateHelper.now()
+        if time_now >= self.next_refresh or is_new_day:
+            self.logger.log_message(f"Starting refresh of Amber pricing - {'New day' if is_new_day else 'refresh interval has elapsed'}", "debug")
             self._refresh_price_data()
             self._save_usage_data()
             return True

@@ -179,7 +179,7 @@ class MeterOutput:
     def tell_device_status_updated(_view: Any) -> None:
         return
 
-    def calculate_running_totals(self, view: Any) -> None:
+    def calculate_running_totals(self, view: Any, is_new_day: bool = False) -> None:  # noqa: ARG002
         power_draw = (view.get_meter_power(self.device_meter_id) or 0.0) if self.device_meter_id else 0.0
 
         # Apply hysteresis

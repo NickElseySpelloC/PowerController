@@ -456,9 +456,17 @@ class OutputManager:  # noqa: PLR0904
 
         self._last_device_online_status = new_online_status
 
-    def calculate_running_totals(self, view: ShellyView):
-        """Update running totals in run_history object."""
+    def calculate_running_totals(self, view: ShellyView, is_new_day: bool = False):
+        """Update running totals in run_history object.
+
+        Args:
+            view (ShellyView): The current ShellyView snapshot.
+            is_new_day (bool): Indicates if it's a new day.
+        """
         data_block = self._get_status_data(view)
+
+        if is_new_day:
+            self.invalidate_run_plan = True  # If it's a new day, we need a new run plan
 
         if self.run_history.tick(data_block):
             self.invalidate_run_plan = True  # If we've rolled over to a new day, we need a new run plan
@@ -998,8 +1006,12 @@ class OutputManager:  # noqa: PLR0904
 
         self.logger.log_message(message, "debug")
 
-    def run_self_tests(self):
-        """Run self tests on the output manager."""
+    def run_self_tests(self, is_new_day: bool):
+        """Run self tests on the output manager.
+
+        Args:
+            is_new_day (bool): Indicates if it's a new day.
+        """
         pass  # Currently no self tests defined
 
     # Private Functions ===========================================================================

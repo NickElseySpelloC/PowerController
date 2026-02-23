@@ -242,7 +242,7 @@ class TeslaMateOutput:
         """No-op for TeslaMate outputs."""
         return
 
-    def calculate_running_totals(self, view: Any) -> None:
+    def calculate_running_totals(self, view: Any, is_new_day: bool = False) -> None:  # noqa: ARG002
         """Rebuild daily run history from TeslaChargeData."""
         _ = view
         self._rebuild_history_from_charge_data()

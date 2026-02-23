@@ -100,6 +100,7 @@ class PowerController:
         # Setup the environment
         self.outputs = []   # List of output state managers, each one a OutputStateManager object.
         self.poll_interval = 10.0
+        self.last_tick_time = DateHelper.now()
         self._shelly_sequence_requests: dict[str, ShellySequenceRequest] = {}
 
         # Temp probe logging
@@ -135,10 +136,11 @@ class PowerController:
         self._last_webapp_notify: dt.datetime | None = None
 
         # Freeze time functionality
-        self.freeze_time_done: bool = False
         self._freeze_time_freezer: Any | None = None
+        self._last_frozen_time: dt.datetime | None = None
+        self._last_freeze_ticking: bool = False
 
-        self._initialise(skip_shelly_initialization=True)
+        self._initialise(startup_mode=True)
         self.update_device_locations = True
 
     def set_webapp_notifier(self, notify: Callable[[], None] | None) -> None:
@@ -230,21 +232,29 @@ class PowerController:
         self.logger.log_message("Power controller starting main control loop.", "detailed")
 
         while not stop_event.is_set():
-            freeze_cfg = None if self.freeze_time_done else self._read_freeze_time_file_config()
+            freeze_cfg = self._read_freeze_time_file_config()
             self._maybe_start_ticking_freeze(freeze_cfg)
 
             # NOTE: If time is fully frozen (tick=False), do not freeze around blocking waits;
             # some underlying timeout logic relies on monotonic time.
             with self._freeze_time_for_iteration_if_needed(freeze_cfg):
-                self.print_to_console(f"Main tick at {DateHelper.now().strftime('%H:%M:%S')}")
+                time_now = DateHelper.now()
+                is_new_day = self.last_tick_time.date() != time_now.date()
+                console_msg = f"Main tick at {time_now.strftime('%H:%M:%S')}"
+                if is_new_day:
+                    console_msg += " - New day!"
+                self.print_to_console(console_msg)
 
                 # Run self tests if in testing mode
-                self.run_self_tests()
+                self.run_self_tests(is_new_day)
 
-                force_refresh = self._run_scheduler_tick()
+                force_refresh = self._run_scheduler_tick(is_new_day)
                 # Push updates periodically and immediately after commands.
                 self._maybe_notify_webapp(force=force_refresh)
                 self.wake_event.clear()
+
+                # Update the last tick time after the tick is complete
+                self.last_tick_time = time_now
 
             self.wake_event.wait(timeout=self.poll_interval)
 
@@ -276,8 +286,11 @@ class PowerController:
         if self.config.get("General", "PrintToConsole", default=False):
             print(message)
 
-    def run_self_tests(self) -> bool:
+    def run_self_tests(self, is_new_day: bool) -> bool:
         """Run self tests on all outputs then exit.
+
+        Args:
+            is_new_day (bool): Indicates if it's a new day.
 
         Returns:
             bool: True if we should exit after the tests, False otherwise.
@@ -290,7 +303,7 @@ class PowerController:
             run_self_tests_fn = getattr(output, "run_self_tests", None)
             if not callable(run_self_tests_fn):
                 continue
-            output.run_self_tests()
+            output.run_self_tests(is_new_day)
 
         return True
 
@@ -334,8 +347,12 @@ class PowerController:
         self.logger.log_message(f"Submitted pool sequence job_id={job_id}", "debug")
 
     # Private Functions ===========================================================================
-    def _initialise(self, skip_shelly_initialization: bool | None = False):  # noqa: PLR0912, PLR0915
-        """(re) initialise the power controller."""
+    def _initialise(self, startup_mode: bool | None = False):  # noqa: PLR0912, PLR0915
+        """(re) initialise the power controller.
+
+        Args:
+            startup_mode (bool): If True, we're doing the initial startup initialisation. If False, we're doing a reinitialisation due to a config change.
+        """
         # See if we have a system state file to load
         saved_state = self._load_system_state()
         if saved_state:
@@ -348,7 +365,7 @@ class PowerController:
         self.app_label = self.config.get("General", "Label", default="PowerController")
 
         # Reinitialise if needed
-        if not skip_shelly_initialization:
+        if not startup_mode:
             # Reinitialise the Shelly controller and get the latest status
             self.shelly_worker.reinitialise_settings()
         # Get the latest ShellyStatus view
@@ -471,11 +488,15 @@ class PowerController:
         self.ups_integration.initialise()
 
         # Reinitialize the scheduler and pricing manager
-        self.scheduler.initialise()
-        self.pricing.initialise()
+        if not startup_mode:
+            self.scheduler.initialise()
+            self.pricing.initialise()
 
-    def _run_scheduler_tick(self) -> bool:
+    def _run_scheduler_tick(self, is_new_day: bool) -> bool:
         """Do all the control processing of the main loop.
+
+        Args:
+            is_new_day (bool): Indicates if it's a new day.
 
         Returns:
             bool: True if one or more commands were processed or there has been a state change.
@@ -483,7 +504,7 @@ class PowerController:
         commands_processed = self._clear_commands()          # Get all commands from the queue and apply them
 
         # Refresh the Amber price data if it's time to do so
-        self.pricing.refresh_price_data_if_time()
+        self.pricing.refresh_price_data_if_time(is_new_day)
 
         # Get a snapshot of all Shelly devices
         view = self._refresh_device_statuses()
@@ -504,7 +525,7 @@ class PowerController:
         self._import_teslamate_charging_data_if_needed()
 
         # Calculate the running totals for each output
-        self._calculate_running_totals(view)
+        self._calculate_running_totals(view, is_new_day=is_new_day)
 
         # Regenerate the run_plan for each output if needed
         self._review_run_plans(view)
@@ -718,10 +739,15 @@ class PowerController:
         # And create a new ShellyView instance to reference this data
         return ShellyView(snapshot)
 
-    def _calculate_running_totals(self, view: ShellyView):
-        """Calculate the running totals for each output."""
+    def _calculate_running_totals(self, view: ShellyView, is_new_day: bool = False):
+        """Calculate the running totals for each output.
+
+        Args:
+            view (ShellyView): The current ShellyView snapshot.
+            is_new_day (bool): Indicates if it's a new day.
+        """
         for output in self.outputs:
-            output.calculate_running_totals(view)
+            output.calculate_running_totals(view, is_new_day=is_new_day)
 
     def _review_run_plans(self, view: ShellyView):
         """Generate / refresh the run plan for each output."""
@@ -1419,8 +1445,8 @@ class PowerController:
     @contextlib.contextmanager
     def _freeze_time_for_iteration_if_needed(self, cfg: tuple[dt.datetime, bool] | None):
         """Freeze time for the current controller iteration (non-ticking mode)."""
-        # If we've already started a ticking freeze, it applies globally.
-        if self.freeze_time_done:
+        # If we have a ticking freeze active, it applies globally.
+        if self._last_freeze_ticking and self._freeze_time_freezer is not None:
             yield
             return
 
@@ -1438,6 +1464,7 @@ class PowerController:
             yield
             return
 
+        # Non-ticking mode: apply freeze for this iteration only
         with freeze_time(frozen_time, tick=False):
             yield
 
@@ -1476,11 +1503,15 @@ class PowerController:
             do_tick = str(do_tick_raw).strip().lower() in {"1", "true", "yes", "y"}
 
         try:
-            # Expect time in local format
-            freeze_time_str = freeze_time_raw.strip()
-            local_tz = dt.datetime.now().astimezone().tzinfo
+            # Support ISO format with optional timezone (e.g., "2026-02-21T12:34:56" or "2026-02-21T12:34:56+11:00")
+            freeze_time_str = freeze_time_raw.strip().replace("Z", "+00:00")
+            frozen_time = dt.datetime.fromisoformat(freeze_time_str)
 
-            frozen_time = dt.datetime.strptime(freeze_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=local_tz)
+            # If the parsed datetime is naive (no timezone), add local timezone
+            if frozen_time.tzinfo is None:
+                local_tz = dt.datetime.now().astimezone().tzinfo
+                frozen_time = frozen_time.replace(tzinfo=local_tz)
+
             assert isinstance(frozen_time, dt.datetime), "Parsed freeze_time is not a datetime object."
         except ValueError as e:
             self.logger.log_message(
@@ -1492,19 +1523,44 @@ class PowerController:
         return frozen_time, do_tick
 
     def _maybe_start_ticking_freeze(self, cfg: tuple[dt.datetime, bool] | None) -> None:
-        """Start a ticking freeze once (applies to the whole controller loop)."""
-        if self.freeze_time_done:
-            return
+        """Start or restart a ticking freeze if the freeze_time value has changed."""
         if not cfg:
+            # No freeze config - stop any existing freeze
+            if self._freeze_time_freezer is not None:
+                with contextlib.suppress(Exception):
+                    self._freeze_time_freezer.stop()
+                self._freeze_time_freezer = None
+                self._last_frozen_time = None
+                self._last_freeze_ticking = False
+                self.logger.log_message("Stopped freeze_time (config removed).", "debug")
             return
 
         frozen_time, do_tick = cfg
         if not do_tick:
+            # Non-ticking mode - stop any existing ticking freeze
+            if self._freeze_time_freezer is not None:
+                with contextlib.suppress(Exception):
+                    self._freeze_time_freezer.stop()
+                self._freeze_time_freezer = None
+                self._last_frozen_time = None
+                self._last_freeze_ticking = False
+            return
+
+        # Check if we need to refreeze (time changed or mode changed)
+        if (self._last_frozen_time == frozen_time and self._last_freeze_ticking):
+            # Already frozen at this time in ticking mode
             return
 
         if freeze_time is None:
             self.logger.log_message("freezegun is not installed; cannot apply freeze_time.", "error")
             return
+
+        # Stop any existing freeze before starting a new one
+        if self._freeze_time_freezer is not None:
+            with contextlib.suppress(Exception):
+                self._freeze_time_freezer.stop()
+            self._freeze_time_freezer = None
+            self.logger.log_message(f"Stopped previous freeze_time to refreeze at {frozen_time.isoformat()}.", "debug")
 
         try:
             freezer = freeze_time(frozen_time, tick=True)
@@ -1514,5 +1570,6 @@ class PowerController:
             return
 
         self._freeze_time_freezer = freezer
-        self.freeze_time_done = True
-        self.logger.log_message(f"Applied ticking freeze_time at {frozen_time.isoformat()} (once).", "debug")
+        self._last_frozen_time = frozen_time
+        self._last_freeze_ticking = True
+        self.logger.log_message(f"Applied ticking freeze_time at {frozen_time.isoformat()}.", "debug")

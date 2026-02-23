@@ -15,7 +15,7 @@ from thread_manager import RestartPolicy, ThreadManager
 from webapp import create_asgi_app, serve_asgi_blocking
 
 
-def main():
+def main():  # noqa: PLR0915
     """Main entry point for the PowerController app."""
     wake_event = Event()    # Wakes the main controller loop from a timed sleep
     stop_event = Event()    # Use to signal the main controller loop that the app is exiting
@@ -58,6 +58,9 @@ def main():
         logger.log_message("PowerController application starting.", "summary")
 
     # Now create instances of the main worked classes
+    shelly_worker = None
+    controller = None
+    asgi_app = None
     try:
         # Create an instance of the ShellyWorker class
         shelly_worker = ShellyWorker(config, logger, wake_event)
@@ -69,6 +72,7 @@ def main():
         controller.set_webapp_notifier(web_notifier.notify)
     except (RuntimeError, TypeError) as e:
         logger.log_fatal_error(f"Fatal error at startup: {e}")
+        return
 
     # Now start the thread manager and create our worker threads
     tm = ThreadManager(logger, global_stop=stop_event)
