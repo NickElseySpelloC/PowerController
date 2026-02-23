@@ -607,7 +607,7 @@ class RunHistory:
         return prior_meter_read + (status_data.meter_reading - prior_meter_read) * fraction
 
     def _handle_open_run_day_rollover(self, last_day: dict, status_data: OutputStatusData) -> None:
-        """Close an open run at day end, and (for meters) start a new run at day start."""
+        """Close an open run at day end, and start a new run at day start if the device is still on."""
         if not last_day.get("DeviceRuns"):
             return
         if last_day["DeviceRuns"][-1].get("EndTime") is not None:
@@ -615,14 +615,22 @@ class RunHistory:
 
         local_tz = dt.datetime.now().astimezone().tzinfo
         end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59), tzinfo=local_tz)
-
-        if status_data.output_type != "meter":
-            self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
-            return
-
         last_run = last_day["DeviceRuns"][-1]
         current_time = DateHelper.now()
         start_of_day = dt.datetime.combine(DateHelper.today(), dt.time(0, 0, 0), tzinfo=local_tz)
+
+        if status_data.output_type != "meter":
+            self.stop_run(StateReasonOff.DAY_END, status_data, end_time)
+            # Issue 71: If the device is still on, start a new run for the new day
+            if status_data.is_on:
+                self.start_run(
+                    last_run.get("SystemState") or SystemState.AUTO,
+                    StateReasonOn.DAY_START,
+                    status_data,
+                    start_time=start_of_day,
+                )
+            return
+
         meter_at_midnight = self._estimate_meter_read_at_midnight(last_run, status_data, start_of_day, current_time)
 
         stop_status = OutputStatusData(

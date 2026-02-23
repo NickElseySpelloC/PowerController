@@ -699,9 +699,13 @@ class OutputManager:  # noqa: PLR0904
                                                         view=view,
                                                         output_sequences=output_sequences,
                                                         on_complete=on_complete)
-
+            if new_output_state != is_device_output_on:
+                self.print_to_console(f"Output {self.name} requesting action {action.type.value} because {action.reason.value}.")
+            else:
+                self.logger.log_message(f"No action required for output {self.name}. Current state is {'ON' if is_device_output_on else 'OFF'}", "all")
             return action
 
+        self.logger.log_message(f"No action required for output {self.name}. Current state is {'ON' if is_device_output_on else 'OFF'}", "all")
         return None
 
     def set_parent_output(self, parent_output):
