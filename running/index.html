@@ -1017,6 +1017,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the App
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1033,6 +1051,64 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#freezing-time-debug-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Freezing time (debug / testing)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Freezing time (debug / testing)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-re-freeze-every-loop-no-ticking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: re-freeze every loop (no ticking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-freeze-once-for-the-whole-run-loop-ticking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: freeze once for the whole run loop (ticking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1085,6 +1161,53 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#freezing-time-debug-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Freezing time (debug / testing)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Freezing time (debug / testing)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-re-freeze-every-loop-no-ticking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: re-freeze every loop (no ticking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-freeze-once-for-the-whole-run-loop-ticking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: freeze once for the whole run loop (ticking)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1134,6 +1257,32 @@ Successfully generated run plan for output Network Rack. Next check at 18:33.
 Output Network Rack ON - Run plan dictates that the output should be on. Started at 18:02:08 Energy Used: 0.00Wh Average Price: $0.00c/kWh Total Cost: $0.0000
 Logfile trimmed.
 </code></pre>
+<h2 id="freezing-time-debug-testing">Freezing time (debug / testing)</h2>
+<p>PowerController supports optionally freezing time for debugging or repeatable testing.</p>
+<p>On each controller loop iteration, it checks for a file at:</p>
+<p><code>logs/freeze_time.json</code></p>
+<p>If the file exists, it reads two fields:</p>
+<ul>
+<li><code>freeze_time</code> (string): an ISO-8601 datetime, e.g. <code>2026-02-21T12:34:56</code> (a trailing <code>Z</code> is also supported)</li>
+<li><code>do_tick</code> (bool): controls whether time advances</li>
+</ul>
+<h3 id="example-re-freeze-every-loop-no-ticking">Example: re-freeze every loop (no ticking)</h3>
+<p>If <code>do_tick</code> is <code>false</code>, the controller will re-read the file and apply the freeze <em>every loop</em>:</p>
+<pre><code class="language-json">{
+    &quot;freeze_time&quot;: &quot;2026-02-21T12:34:56&quot;,
+    &quot;do_tick&quot;: false
+}
+</code></pre>
+<h3 id="example-freeze-once-for-the-whole-run-loop-ticking">Example: freeze once for the whole run loop (ticking)</h3>
+<p>If <code>do_tick</code> is <code>true</code>, the controller starts a <em>ticking</em> freeze that applies to the whole <code>PowerController.run()</code> loop and it only does this once:</p>
+<pre><code class="language-json">{
+    &quot;freeze_time&quot;: &quot;2026-02-21T12:34:56&quot;,
+    &quot;do_tick&quot;: true
+}
+</code></pre>
+<p>"2026-02-21T12:34:56" - will get local timezone added
+"2026-02-21T12:34:56+11:00" - will preserve the +11:00 timezone</p>
+<p>To stop freezing time, delete <code>logs/freeze_time.json</code> and restart the app.</p>
 <p>Talk about 
 - using launch script
 - rebiewing log files
