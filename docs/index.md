@@ -10,7 +10,7 @@
 
 The pages below will walk you through the process of installing and configuring the PowerController application.
 
- - [Instalation and Getting Started](installation/index.md)
+ - [Installation and Getting Started](installation/index.md)
  - [Configuration Guide](configuration/index.md)
  - [Running the App](running.md)
  - [Production Deployment](prod_deployment.md)
