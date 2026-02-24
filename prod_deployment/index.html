@@ -14,6 +14,8 @@
         <link rel="prev" href="../running/">
       
       
+        <link rel="next" href="../upgrading/">
+      
       
         
       
@@ -1042,6 +1044,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production Deployment
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1059,6 +1079,96 @@
 
       </a>
       
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-create-a-service-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a service file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-enable-and-start-the-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Enable and start the service
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-view-the-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. View the logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-view-the-website" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. View the website
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upgrading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upgrading an existing installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1083,6 +1193,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-create-a-service-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a service file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-enable-and-start-the-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Enable and start the service
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-view-the-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. View the logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-view-the-website" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. View the website
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1099,7 +1261,65 @@
 
 
 <h1 id="production-deployment">Production Deployment</h1>
-<p>checklist </p>
+<p>Now that you have the app installed and <a href="../running/">tested from the command line</a> it's time to set this up properly to run in a production environment. In this setup we will configure the PowerController app (and its web interface if configured) to run via system daemon.</p>
+<p>Note: These instructions shoudl work for Linux (Ubuntu tested), CentOS (RaspberryPi) and macOS environments. Windows installations will be documented at a later date.</p>
+<h2 id="1-create-a-service-file">1. Create a service file</h2>
+<p>Edit a new systemd service file: </p>
+<pre><code class="language-bash">sudo nano  at /etc/systemd/system/PowerController.service
+</code></pre>
+<p>Edit the content below as appropriate for your environment. </p>
+<pre><code>[Unit]
+Description=PowerController app
+After=network.target
+
+[Service]
+ExecStart=/home/nick/scripts/PowerController/launch.sh
+WorkingDirectory=/home/nick/scripts/PowerController
+StandardOutput=journal
+StandardError=journal
+User=nick
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/nick/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Logging and restart behavior
+Restart=on-failure        # Only restart on non-zero exit code
+RestartSec=10             # Wait 10 seconds before restarting
+
+# Limit restart attempts (3 times in 60 seconds)
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<p>Key options to review:</p>
+<ul>
+<li><strong>ExecStart</strong>: Change the path to suit your installation.</li>
+<li><strong>WorkingDirectory</strong>: Change the path to suit your installation.</li>
+<li><strong>User</strong>: Change the username to suit your installation.</li>
+<li><strong>Environment</strong>: Change the path to suit your installation.</li>
+<li><strong>Restart=on-failure</strong>: restart if the script exits with a non-zero code.</li>
+<li><strong>RestartSec=5</strong>: wait 5 seconds before restarting.</li>
+<li><strong>StandardOutput=journal</strong>: logs go to journalctl.</li>
+</ul>
+<h2 id="2-enable-and-start-the-service">2. Enable and start the service</h2>
+<p>Run each of the commands in turn to enable and start the service. </p>
+<pre><code class="language-bash">sudo systemctl daemon-reexec       # re-executes systemd in case of changes
+sudo systemctl daemon-reload       # reload service files
+sudo systemctl enable PowerController   # enable on boot
+sudo systemctl start PowerController    # start now
+</code></pre>
+<h2 id="3-view-the-logs">3. View the logs</h2>
+<p>First view the application log to make sure it's running OK:</p>
+<pre><code class="language-bash">cd /home/nick/scripts/PowerController
+tail -f logfile.log
+</code></pre>
+<p>If there are any problems, check the system logs</p>
+<pre><code class="language-bash">sudo systemctl status PowerController.service
+sudo journalctl -u PowerController -f
+</code></pre>
+<h2 id="4-view-the-website">4. View the website</h2>
+<p>If you have the web app enabled, check that you can access, ideally from another device on your local network. If you can't, make sure there are no firewall rules on the machine running that app that block access. </p>
 
 
 
