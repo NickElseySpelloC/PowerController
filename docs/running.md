@@ -2,89 +2,94 @@
 
 By this stage you should have:
 
-✅ Installed the [prerequisites](installation/prerequisites.md)
-✅ Installed and setup your [Shelly device(s)](installation/shelly_setup.md)
-✅ Installed the [PowerController application](installation/install_app.md)
+✅ Installed the [prerequisites](installation/prerequisites.md)<br>
+✅ Installed and setup your [Shelly device(s)](installation/shelly_setup.md)<br>
+✅ Installed the [PowerController application](installation/install_app.md)<br>
 ✅ Configured the [PowerController application](configuration/index.md)
 
-Eventually, we'll get the app setup for a "production" environment, but initially we recommend running the application manually to check for configuration issues. Open a new terminal window and do the following:
+Eventually, we'll get the app setup for a "production" environment, but initially we recommend running the application manually to check for configuration issues. 
 
+## Launching the app using the launch script
+
+Open a new terminal window and do the following:
 
 ```bash
 ./launch.sh 
-Resolved 87 packages in 19ms
-Audited 61 packages in 8ms
+[launcher] Loading environment from /Users/nick/scripts/PowerController/.env ...
+Resolved 90 packages in 2ms
+Audited 62 packages in 1ms
 [launcher] Starting app with uv run src/main.py ...
 
 
 PowerController application starting.
-Amber API configuration section is missing, disabling Amber pricing.
+Downloaded latest Amber usage data.
 Pricing manager initialised.
-Loaded system state from /Users/nick/scripts/testapp/system_state.json
+Loaded system state from /Users/nick/scripts/PowerController/system_state.json
 Initializing power controller from saved state.
 Output Network Rack initialised.
-Amber API configuration section is missing, disabling Amber pricing.
 [shelly] thread starting.
-[controller] thread starting.
-[webapp] thread starting.
+[controller] thread starting.[webapp] thread starting.
+
 Shelly worker started
+Web server listening on http://0.0.0.0:8080
 Power controller starting main control loop.
-Web server listening on http://127.0.0.1:8080
 ShellyWorker getting location info for device Network Rack
 Completed Shelly device Network Rack information retrieval.
 Generating new run plan for output Network Rack
-Calculating schedule General run plan for -1 hours (0 priority) with max prices 50.0 / 51.0.
-Successfully generated run plan for output Network Rack. Next check at 18:33.
-Output Network Rack ON - Run plan dictates that the output should be on. Started at 18:02:08 Energy Used: 0.00Wh Average Price: $0.00c/kWh Total Cost: $0.0000
+Calculating best price run plan for -1 hours (0 priority) on channel general with max prices 50.0 / 50.0.
+Successfully generated run plan for output Network Rack. Next check at 10:36.
+Output Network Rack ON - Run plan dictates that the output should be on. Started at 10:00:07 Energy Used: 0.00Wh Average Price: $0.00c/kWh Total Cost: $0.0000
 Logfile trimmed.
+Generating new run plan for output Network Rack
+Calculating best price run plan for -1 hours (0 priority) on channel general with max prices 50.0 / 50.0.
+Successfully generated run plan for output Network Rack. Next check at 10:36.
 ```
 
-## Freezing time (debug / testing)
+Please note:
 
-PowerController supports optionally freezing time for debugging or repeatable testing.
+* The application expects to find the configuration file (config.yaml) in the project root folder. 
+* If an environment file (.env) is found in the project root folder (_/Users/nick/scripts/testapp/.env_ in the example above), it'll load this. This can be used to set APi keys and passwords.
+* The launcher script uses uv to ensure that the latest python packages required by the app are installed. 
+* Use Ctrl-C to terminate the application.
 
-On each controller loop iteration, it checks for a file at:
+## Troubleshooting 
 
-`logs/freeze_time.json`
+If there is a fatal error, the application will exit and the error message will be written to the console. If it's a configuration validation error, it'll only be written to the console. If it's a runtime error, the error will also be recorded in the logfile. For example, here's a configuration file validation error:
 
-If the file exists, it reads two fields:
-
-- `freeze_time` (string): an ISO-8601 datetime, e.g. `2026-02-21T12:34:56` (a trailing `Z` is also supported)
-- `do_tick` (bool): controls whether time advances
-
-### Example: re-freeze every loop (no ticking)
-
-If `do_tick` is `false`, the controller will re-read the file and apply the freeze *every loop*:
-
-```json
-{
-	"freeze_time": "2026-02-21T12:34:56",
-	"do_tick": false
-}
+```bash
+Configuration file error: Validation error for config file /Users/nick/scripts/PowerController/PowerController/config.yaml: 
+AmberAPI: RefreshInterval - max value is 30
 ```
 
-### Example: freeze once for the whole run loop (ticking)
+The logfile can be found in the project root folder by default, but it's location can be modified using the Files: LogfileName: configuration option.
 
-If `do_tick` is `true`, the controller starts a *ticking* freeze that applies to the whole `PowerController.run()` loop and it only does this once:
+## Files created by the app
 
-```json
-{
-	"freeze_time": "2026-02-21T12:34:56",
-	"do_tick": true
-}
-```
+The following files can be generated by the application, depending on how your configuration file is setup. All files are saved in the poject root folder by default, but this can be modified using the configuration file.
 
-"2026-02-21T12:34:56" - will get local timezone added
-"2026-02-21T12:34:56+11:00" - will preserve the +11:00 timezone
+<div class="config-table" markdown>
 
+| Filename | Purpose | Default | Configuration option |
+|:--|:--|:--|:--|
+| logfile.log | The primary logging file | Yes | Files: LogfileName: |
+| system_state.json | Keeps tracks of the system state. Do not edit this file. | Yes | Files: SavedStateFile: |
+| output_consumption_data.csv | Daily logs of the runtime and energy usage of each output. | No | OutputMetering: DataFile:  |
+| latest_prices.json  | Ccache of Amber pricing data.  | Yes  | AmberAPI: PricesCacheFile: |
+| amber_usage_data.csv | Hourly log of total electricty used at your location, as reported by Amber by channel. | No | AmberAPI: UsageDataFile: |
+| temperature_history.csv | Log of temperature probe readings.  | No  | TempProbeLogging: HistoryDataFile: |
+| ups_status.csv  | Log of UPS capacity readings. | No | UPSIntegration: DataFile: |
+| [ShellyDevice_Name.json] | If Simulate: True is set for any Shelly device, then a json simulation file will be created to keep track of this simulation, using the same name as the ShellyDevice. You can edit this file to simulate device responses (e.g. energy meter readings) )  | No  | ShellyDevices: Devices: Simulate: |
 
-To stop freezing time, delete `logs/freeze_time.json` and restart the app.
+</div>
 
+(Note: For debug testing, it's possible to [freeze the system time](freeze_time.md) used by the app, but this shoudld only be used for development testing.)
 
-Talk about 
-- using launch script
-- rebiewing log files
-- Troubleshooting 
-- reference all the files generated (link to another page)
+## Web Interface
+PowerController includes a realtime web interface that you can use to view the status of each output and where appropriate, override it's state. The webapp is configured using the Website: section in the config file. If enabled, you can access this at http://192.168.1.20:8080 (change 192.168.1.20 to the IP of your machine)
 
- T
+We recommend that you only expose the PowerController web app to your local network. If you want remote acces, we recommend providing a secure read-only view via the PowerController Viewer app.
+
+## PowerController Viewer App
+
+There is also a companion web application (PowerControllerViewer) that can be used to monitor the state and history of multiple Power Controller installations. See [PowerControllerViewer](https://github.com/NickElseySpelloC/PowerControllerViewer) for more information on how to install and run this.
+

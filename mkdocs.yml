@@ -54,3 +54,4 @@ nav:
       - HeartbeatMonitor: configuration/sections/heartbeat_monitor.md
   - Running the App: running.md
   - Production Deployment: prod_deployment.md
+  - Upgrading an existing installation: upgrading.md

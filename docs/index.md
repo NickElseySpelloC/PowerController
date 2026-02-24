@@ -12,4 +12,6 @@ The pages below will walk you through the process of installing and configuring 
 
  - [Instalation and Getting Started](installation/index.md)
  - [Configuration Guide](configuration/index.md)
+ - [Running the App](running.md)
  - [Production Deployment](prod_deployment.md)
+ - [Upgrading an existing installation](upgrading.md)
