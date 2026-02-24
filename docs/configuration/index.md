@@ -17,21 +17,21 @@ The config file supports the following sections. Some of mandatory and some are 
 | Section | Description | Required | 
 |:--|:--|:--|
 | [General](sections/general.md) | General settings for the Power Controller application | Yes |
-| Files | Location of log and system state files | Yes |
-| Email | If you want to be emailed when there's a critical error or excessive energy use | No |
-| Website | Settings for the built-in web server that provides a web interface to view and control the outputs | No |
-| AmberAPI | Integration with the Amber Electric API to download real time energy prices for your home | No |
-| ShellyDevices | Describe the Shelly devices you want to control | Yes |
-| Outputs | Configure the behaviour of each outputs and/or meters that will control and monitor your electrical devices | Yes |
-| OperatingSchedules | Schedule used for switched outputs | Yes |
-| OutputSequences | Define a sequence of actions to perform on outputs when turning On or off | No |
-| ViewerWebsite | Integration with the [PowerControllerViewer app](https://github.com/NickElseySpelloC/PowerControllerViewer) | No |
-| OutputMetering | Logging of output energy consumption data to CSV and the system state file, as well as viewing and charting in the PowerControllerView application (if enabled) | No |
-| TempProbeLogging | Logging of temperature probes to CSV and the system state file, as well as viewing and charting in the PowerControllerView application (if enabled) | No |
-| UPSIntegration | Define one or more UPS units that can modify the behaviour of an Output | No |
-| Location | Specific the location of your home. Used to define dawn and dusk times in an operating schedule | No |
-| TeslaMate | Configure integration with the TeslaMate database to import Tesla charging session data | No |
-| HeartbeatMonitor | Integration with a [Better Uptime](https://betterstack.com/uptime) heartbeat monitor to monitor uptime of the application | No |
+| [Files](sections/files.md) | Location of log and system state files | Yes |
+| [Email](sections/email.md) | If you want to be emailed when there's a critical error or excessive energy use | No |
+| [Website](sections/website.md) | Settings for the built-in web server that provides a web interface to view and control the outputs | No |
+| [AmberAPI](sections/amber_api.md) | Integration with the Amber Electric API to download real time energy prices for your home | No |
+| [ShellyDevices](sections/shelly_devices.md) | Describe the Shelly devices you want to control | Yes |
+| [Outputs](sections/outputs.md) | Configure the behaviour of each outputs and/or meters that will control and monitor your electrical devices | Yes |
+| [OperatingSchedules](sections/operating_schedules.md) | Schedule used for switched outputs | Yes |
+| [OutputSequences](sections/output_sequences.md) | Define a sequence of actions to perform on outputs when turning On or off | No |
+| [ViewerWebsite](sections/viewer_website.md) | Integration with the [PowerControllerViewer app](https://github.com/NickElseySpelloC/PowerControllerViewer) | No |
+| [OutputMetering](sections/output_metering.md) | Logging of output energy consumption data to CSV and the system state file, as well as viewing and charting in the PowerControllerView application (if enabled) | No |
+| [TempProbeLogging](sections/temp_probe_logging.md) | Logging of temperature probes to CSV and the system state file, as well as viewing and charting in the PowerControllerView application (if enabled) | No |
+| [UPSIntegration](sections/ups_integration.md) | Define one or more UPS units that can modify the behaviour of an Output | No |
+| [Location](sections/location.md) | Specific the location of your home. Used to define dawn and dusk times in an operating schedule | No |
+| [TeslaMate](sections/teslamate.md) | Configure integration with the TeslaMate database to import Tesla charging session data | No |
+| [HeartbeatMonitor](sections/heartbeat_monitor.md) | Integration with a [Better Uptime](https://betterstack.com/uptime) heartbeat monitor to monitor uptime of the application | No |
 
 </div>
 
