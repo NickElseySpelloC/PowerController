@@ -104,9 +104,13 @@ class RunPlanner:
 
         # Step 1: Select qualifying slots based on price criteria and optionally the constraint slots
         # ExternalServiceHelper.save_object_to_json_file(sorted_slot_data, "logs/debug_sorted_slots.json")
+        # Issue 72: When required_hours = -1, pass a very large value so we select ALL qualifying slots,
+        # not just enough to fill the remaining time. Without this, we'd only select the cheapest
+        # slots up to the remaining minutes, potentially creating gaps.
+        selection_mins = 999999 if required_hours == -1 else required_mins
         selected_slots = self._select_qualifying_slots(
                                     sorted_slot_data=sorted_slot_data,
-                                    remaining_required_mins=required_mins,
+                                    remaining_required_mins=selection_mins,
                                     max_price=max_price,
                                     max_priority_price=max_priority_price,
                                     hourly_energy_usage=hourly_energy_usage,
@@ -202,7 +206,8 @@ class RunPlanner:
         """
         current_time = DateHelper.now()
         for slot in run_plan.get("RunPlan", []):
-            if slot["StartDateTime"] <= current_time <= slot["EndDateTime"]:
+            # Issue 72: Use < for EndDateTime to prevent slot overlap at exact boundary times (e.g., at 22:45:00 we're in the 22:45 slot, not the 22:40 slot)
+            if slot["StartDateTime"] <= current_time < slot["EndDateTime"]:
                 return slot, True
         return None, False
 
