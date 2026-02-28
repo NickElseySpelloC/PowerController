@@ -666,7 +666,7 @@ wheels = [
 
 [[package]]
 name = "powercontroller"
-version = "1.7.6"
+version = "1.7.7"
 source = { virtual = "." }
 dependencies = [
     { name = "astral" },
@@ -720,7 +720,7 @@ requires-dist = [
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "pytz", specifier = ">=2025.2" },
-    { name = "sc-utility", specifier = ">=2.5.4" },
+    { name = "sc-utility", specifier = ">=2.5.5" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
@@ -1023,7 +1023,7 @@ socks = [
 
 [[package]]
 name = "sc-utility"
-version = "2.5.4"
+version = "2.5.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cerberus" },
@@ -1037,9 +1037,9 @@ dependencies = [
     { name = "tzdata" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/bb/9a2e30656f7184b0cd35398ac2abfa8490f32c1411cdda7395185a4be52c/sc_utility-2.5.4.tar.gz", hash = "sha256:1fd746c2a1d11679fad8e1b17099f86e045670e779001a1accbcb824a27f3ec7", size = 65597, upload-time = "2026-02-28T08:02:19.541Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/0f/f5f9c25435d74d860205c22bd3fefaf4f719be7d87da14befc2df7e9da0f/sc_utility-2.5.5.tar.gz", hash = "sha256:f7d23ab72f2f6a8784f763b1371af30b75c7485355f4565cf394064d62b52c5c", size = 65592, upload-time = "2026-02-28T23:24:33.11Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/48/9d44904afea58744ad86ee8efc71898070d6b1f2ba41bb4d8fa3bfc1f0be/sc_utility-2.5.4-py3-none-any.whl", hash = "sha256:2f9d05e7cdb05cd283ed2e1186ff15682ff4c7ddf5d1291be5ef93b7411c6ba0", size = 61282, upload-time = "2026-02-28T08:02:17.221Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/7e/4d87e92f4bba094bef7d08f10c7afc26344571a4697f18457f79c5d19f09/sc_utility-2.5.5-py3-none-any.whl", hash = "sha256:418d0c42cbce127d93e62ec2d27df17703980b6b74d6224c00846de231d958c4", size = 61252, upload-time = "2026-02-28T23:24:31.684Z" },
 ]
 
 [[package]]

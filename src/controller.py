@@ -1160,109 +1160,6 @@ class PowerController:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
 
-    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
-        """Log the temperature probes if enabled."""
-        if not self.temp_probe_logging.get("enabled"):
-            return
-
-        current_time = DateHelper.now()
-
-        # Read the temperatures and save the latest values
-        for probe in self.temp_probe_logging.get("probes", []):
-            probe_id = probe.get("ProbeID")
-            probe_name = probe.get("Name")
-            if not probe_id or not probe_name:
-                continue
-            temperature = view.get_temp_probe_temperature(probe_id)
-            last_reading_time = view.get_temp_probe_reading_time(probe_id)
-
-            # Check if we need to skip this reading based on last reading time
-            last_reading_within_minutes = int(self.temp_probe_logging.get("last_reading_within_minutes", 0) or 0)  # pyright: ignore[reportArgumentType]
-            if last_reading_within_minutes > 0 and last_reading_time:
-                minutes_since_last_reading = (current_time - last_reading_time).total_seconds() / 60.0
-                if minutes_since_last_reading > last_reading_within_minutes:
-                    temperature = None  # Invalidate the reading
-
-            probe["Temperature"] = temperature
-            probe["LastLoggedTime"] = current_time
-            probe["LastReadingTime"] = last_reading_time
-
-        # Now record the readings to history and trim old entries if the time interval has passed
-        last_log_time = self.temp_probe_logging.get("last_log_time")
-        logging_interval = int(self.temp_probe_logging.get("logging_interval", 60) or 60)  # pyright: ignore[reportArgumentType]
-        if last_log_time and (current_time - last_log_time).total_seconds() < logging_interval * 60:
-            return  # Not time to log yet
-
-        # Max days to keep in saved state JSON file. 0 to disable
-        max_saved_state_days = int(self.temp_probe_logging.get("saved_state_file_max_days"))  # pyright: ignore[reportArgumentType]
-
-        # Update the last log time
-        self.temp_probe_logging["last_log_time"] = current_time
-
-        # Log each probe temperature and save to history
-        for probe in self.temp_probe_logging.get("probes", []):
-            probe_name = probe.get("Name")
-            probe_display_name = probe.get("DisplayName", probe_name)
-            temperature = probe.get("Temperature")
-            last_reading_time = probe.get("LastReadingTime")
-
-            if not probe_name or not temperature:
-                continue
-            self.logger.log_message(f"{probe_name} = {temperature:.1f} °C", "debug")
-
-            # Save to saved state history
-            if max_saved_state_days:
-                # Append the current reading to the history
-                history_entry = {
-                    "Timestamp": current_time,
-                    "LastReadingTime": last_reading_time,
-                    "ProbeName": probe_name,
-                    "ProbeDisplayName": probe_display_name,
-                    "Temperature": temperature,
-                }
-                self.temp_probe_logging["history"].append(history_entry)
-
-                # Remove old entries from history
-                saved_state_cutoff_time = DateHelper.add_datetime(current_time, days=-max_saved_state_days)
-                self.temp_probe_logging["history"] = [entry for entry in self.temp_probe_logging["history"] if entry["Timestamp"] >= saved_state_cutoff_time]
-
-        # Max days to keep in history CSV file. 0 to disable
-        max_history_days = self.temp_probe_logging.get("history_data_file_max_days") or 0
-        history_file_name = self.temp_probe_logging.get("history_data_file_name")
-        current_time = DateHelper.now().replace(tzinfo=None)
-        if history_file_name and max_history_days:
-            # Create a CSVreader to read the existing data
-            csv_reader = None
-            try:
-                file_path = SCCommon.select_file_location(history_file_name)  # pyright: ignore[reportArgumentType]
-                schemas = ConfigSchema()
-                if file_path and file_path.exists() and file_path.stat().st_size < 30:
-                    file_path.unlink()
-                csv_reader = CSVReader(file_path, schemas.temp_probe_history_config)  # pyright: ignore[reportArgumentType]
-
-                # Build the new entries
-                new_data = []
-                for probe in self.temp_probe_logging.get("probes", []):
-                    probe_name = probe.get("Name")
-                    probe_display_name = probe.get("DisplayName", probe_name)
-                    temperature = probe["Temperature"]
-                    if not probe_name or not temperature:
-                        continue
-
-                    new_data.append({
-                        "Timestamp": current_time,
-                        "ProbeName": probe_display_name,
-                        "Temperature": f"{temperature:.1f}",
-                    })
-                if new_data:
-                    csv_reader.update_csv_file(new_data, max_days=max_history_days)
-            except (ImportError, TypeError, ValueError) as e:
-                self.logger.log_message(f"Error initializing CSVReader in _log_temp_probes(): {e}", "error")
-                return
-            except RuntimeError as e:
-                self.logger.log_message(f"Error updating temp probe history CSV file: {e}", "error")
-                return
-
     def _monitor_device_internal_temps(self, view: ShellyView):
         """Monitor the internal temperatures of devices and log if needed."""
         # Loop through all devices in the view
@@ -1420,3 +1317,107 @@ class PowerController:
         else:
             self.logger.log_message("Successfully imported TeslaMate charging data.", "debug")
             self.tesla_last_import_query = DateHelper.now()
+
+    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
+        """Log the temperature probes if enabled."""
+        if not self.temp_probe_logging.get("enabled"):
+            return
+
+        current_time = DateHelper.now()
+
+        # Read the temperatures and save the latest values
+        for probe in self.temp_probe_logging.get("probes", []):
+            probe_id = probe.get("ProbeID")
+            probe_name = probe.get("Name")
+            if not probe_id or not probe_name:
+                continue
+            temperature = view.get_temp_probe_temperature(probe_id)
+            last_reading_time = view.get_temp_probe_reading_time(probe_id)
+
+            # Check if we need to skip this reading based on last reading time
+            last_reading_within_minutes = int(self.temp_probe_logging.get("last_reading_within_minutes", 0) or 0)  # pyright: ignore[reportArgumentType]
+            if last_reading_within_minutes > 0 and last_reading_time:
+                minutes_since_last_reading = (current_time - last_reading_time).total_seconds() / 60.0
+                if minutes_since_last_reading > last_reading_within_minutes:
+                    temperature = None  # Invalidate the reading
+
+            probe["Temperature"] = temperature
+            probe["LastLoggedTime"] = current_time
+            probe["LastReadingTime"] = last_reading_time
+
+        # Now record the readings to history and trim old entries if the time interval has passed
+        last_log_time = self.temp_probe_logging.get("last_log_time")
+        logging_interval = int(self.temp_probe_logging.get("logging_interval", 60) or 60)  # pyright: ignore[reportArgumentType]
+        if last_log_time and (current_time - last_log_time).total_seconds() < logging_interval * 60:
+            return  # Not time to log yet
+
+        # Max days to keep in saved state JSON file. 0 to disable
+        max_saved_state_days = int(self.temp_probe_logging.get("saved_state_file_max_days"))  # pyright: ignore[reportArgumentType]
+
+        # Update the last log time
+        self.temp_probe_logging["last_log_time"] = current_time
+
+        # Log each probe temperature and save to history
+        for probe in self.temp_probe_logging.get("probes", []):
+            probe_name = probe.get("Name")
+            probe_display_name = probe.get("DisplayName", probe_name)
+            temperature = probe.get("Temperature")
+            last_reading_time = probe.get("LastReadingTime")
+
+            if not probe_name or not temperature:
+                continue
+            self.logger.log_message(f"{probe_name} = {temperature:.1f} °C", "debug")
+
+            # Save to saved state history
+            if max_saved_state_days:
+                # Append the current reading to the history
+                history_entry = {
+                    "Timestamp": current_time,
+                    "LastReadingTime": last_reading_time,
+                    "ProbeName": probe_name,
+                    "ProbeDisplayName": probe_display_name,
+                    "Temperature": temperature,
+                }
+                self.temp_probe_logging["history"].append(history_entry)
+
+                # Remove old entries from history
+                saved_state_cutoff_time = DateHelper.add_datetime(current_time, days=-max_saved_state_days)
+                self.temp_probe_logging["history"] = [entry for entry in self.temp_probe_logging["history"] if entry["Timestamp"] >= saved_state_cutoff_time]
+
+        # Max days to keep in history CSV file. 0 to disable
+        max_history_days = self.temp_probe_logging.get("history_data_file_max_days") or 0
+        history_file_name = self.temp_probe_logging.get("history_data_file_name")
+        # current_time = DateHelper.now().replace(tzinfo=None)
+        current_time = DateHelper.now()
+        if history_file_name and max_history_days:
+            # Create a CSVreader to read the existing data
+            csv_reader = None
+            try:
+                file_path = SCCommon.select_file_location(history_file_name)  # pyright: ignore[reportArgumentType]
+                schemas = ConfigSchema()
+                if file_path and file_path.exists() and file_path.stat().st_size < 30:
+                    file_path.unlink()
+                csv_reader = CSVReader(file_path, schemas.temp_probe_history_config)  # pyright: ignore[reportArgumentType]
+
+                # Build the new entries
+                new_data = []
+                for probe in self.temp_probe_logging.get("probes", []):
+                    probe_name = probe.get("Name")
+                    probe_display_name = probe.get("DisplayName", probe_name)
+                    temperature = probe["Temperature"]
+                    if not probe_name or not temperature:
+                        continue
+
+                    new_data.append({
+                        "Timestamp": current_time,
+                        "ProbeName": probe_display_name,
+                        "Temperature": f"{temperature:.1f}",
+                    })
+                if new_data:
+                    csv_reader.update_csv_file(new_data, max_days=max_history_days)
+            except (ImportError, TypeError, ValueError) as e:
+                self.logger.log_message(f"Error initializing CSVReader in _log_temp_probes(): {e}", "error")
+                return
+            except RuntimeError as e:
+                self.logger.log_message(f"Error updating temp probe history CSV file: {e}", "error")
+                return
