@@ -489,7 +489,7 @@ class RunPlanner:
             else:
                 # Trim part of this slot
                 start_dt = slot["StartDateTime"]
-                new_end_dt = start_dt + dt.timedelta(minutes=slot["Minutes"] - excess_minutes)
+                new_end_dt = DateHelper.add_datetime(start_dt, minutes=(slot["Minutes"] - excess_minutes))
 
                 # Calculate the original price from weighted price minutes
                 original_price = slot["_WeightedPriceMinutes"] / slot["Minutes"] if slot["Minutes"] > 0 else 0.0
@@ -594,9 +594,8 @@ class RunPlanner:
         """
         # If required_hours is -1, we need to fill all remaining time today (hot water mode)
         if required_hours == -1:    # Issue 63
-            local_tz = dt.datetime.now().astimezone().tzinfo
-            current_time = dt.datetime.now().astimezone(local_tz)
-            end_of_day = dt.datetime.combine(current_time.date(), dt.time.max, tzinfo=local_tz)
+            current_time = DateHelper.now()
+            end_of_day = DateHelper.combine(current_time.date(), dt.time.max)
             remaining_required_mins = int((end_of_day - current_time).total_seconds() / 60 + 0.5) + 1
         else:
             remaining_required_mins = required_hours * 60

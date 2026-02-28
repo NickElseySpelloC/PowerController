@@ -2,7 +2,6 @@
 import contextlib
 import copy
 import datetime as dt
-import json
 import queue
 import time
 from collections.abc import Callable
@@ -49,11 +48,6 @@ from teslamate import (
 )
 from teslamate_output import TeslaMateOutput
 from ups_integration import UPSIntegration
-
-try:
-    from freezegun import freeze_time
-except ImportError:  # pragma: no cover
-    freeze_time = None  # type: ignore[assignment]
 
 
 class LookupMode(StrEnum):
@@ -134,11 +128,6 @@ class PowerController:
         # This is set by main.py once the ASGI webapp is initialised.
         self._webapp_notify: Callable[[], None] | None = None
         self._last_webapp_notify: dt.datetime | None = None
-
-        # Freeze time functionality
-        self._freeze_time_freezer: Any | None = None
-        self._last_frozen_time: dt.datetime | None = None
-        self._last_freeze_ticking: bool = False
 
         self._initialise(startup_mode=True)
         self.update_device_locations = True
@@ -232,29 +221,23 @@ class PowerController:
         self.logger.log_message("Power controller starting main control loop.", "detailed")
 
         while not stop_event.is_set():
-            freeze_cfg = self._read_freeze_time_file_config()
-            self._maybe_start_ticking_freeze(freeze_cfg)
+            time_now = DateHelper.now()
+            is_new_day = self.last_tick_time.date() != time_now.date()
+            console_msg = f"Main tick at {time_now.strftime('%H:%M:%S')}"
+            if is_new_day:
+                console_msg += " - New day!"
+            self.print_to_console(console_msg)
 
-            # NOTE: If time is fully frozen (tick=False), do not freeze around blocking waits;
-            # some underlying timeout logic relies on monotonic time.
-            with self._freeze_time_for_iteration_if_needed(freeze_cfg):
-                time_now = DateHelper.now()
-                is_new_day = self.last_tick_time.date() != time_now.date()
-                console_msg = f"Main tick at {time_now.strftime('%H:%M:%S')}"
-                if is_new_day:
-                    console_msg += " - New day!"
-                self.print_to_console(console_msg)
+            # Run self tests if in testing mode
+            self.run_self_tests(is_new_day)
 
-                # Run self tests if in testing mode
-                self.run_self_tests(is_new_day)
+            force_refresh = self._run_scheduler_tick(is_new_day)
+            # Push updates periodically and immediately after commands.
+            self._maybe_notify_webapp(force=force_refresh)
+            self.wake_event.clear()
 
-                force_refresh = self._run_scheduler_tick(is_new_day)
-                # Push updates periodically and immediately after commands.
-                self._maybe_notify_webapp(force=force_refresh)
-                self.wake_event.clear()
-
-                # Update the last tick time after the tick is complete
-                self.last_tick_time = time_now
+            # Update the last tick time after the tick is complete
+            self.last_tick_time = time_now
 
             self.wake_event.wait(timeout=self.poll_interval)
 
@@ -263,10 +246,6 @@ class PowerController:
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
         with self._io_lock:
-            if self._freeze_time_freezer is not None:
-                with contextlib.suppress(Exception):
-                    self._freeze_time_freezer.stop()
-                self._freeze_time_freezer = None
             self.logger.log_message("Starting PowerController shutdown...", "debug")
             view = self._get_latest_status_view()
             for output in self.outputs:
@@ -1244,7 +1223,7 @@ class PowerController:
                 self.temp_probe_logging["history"].append(history_entry)
 
                 # Remove old entries from history
-                saved_state_cutoff_time = current_time - dt.timedelta(days=max_saved_state_days)
+                saved_state_cutoff_time = DateHelper.add_datetime(current_time, days=-max_saved_state_days)
                 self.temp_probe_logging["history"] = [entry for entry in self.temp_probe_logging["history"] if entry["Timestamp"] >= saved_state_cutoff_time]
 
         # Max days to keep in history CSV file. 0 to disable
@@ -1441,135 +1420,3 @@ class PowerController:
         else:
             self.logger.log_message("Successfully imported TeslaMate charging data.", "debug")
             self.tesla_last_import_query = DateHelper.now()
-
-    @contextlib.contextmanager
-    def _freeze_time_for_iteration_if_needed(self, cfg: tuple[dt.datetime, bool] | None):
-        """Freeze time for the current controller iteration (non-ticking mode)."""
-        # If we have a ticking freeze active, it applies globally.
-        if self._last_freeze_ticking and self._freeze_time_freezer is not None:
-            yield
-            return
-
-        if not cfg:
-            yield
-            return
-
-        frozen_time, do_tick = cfg
-        if do_tick:
-            # Handled by _maybe_start_ticking_freeze().
-            yield
-            return
-
-        if freeze_time is None:
-            yield
-            return
-
-        # Non-ticking mode: apply freeze for this iteration only
-        with freeze_time(frozen_time, tick=False):
-            yield
-
-    def _read_freeze_time_file_config(self) -> tuple[dt.datetime, bool] | None:
-        """Read and parse logs/freeze_time.json.
-
-        Expected JSON format:
-            {"freeze_time": "2026-02-21T12:34:56", "do_tick": false}
-
-        Returns:
-            tuple[datetime, bool] | None: (freeze_time, do_tick) if configured and valid, otherwise None.
-        """
-        freeze_file = SCCommon.get_project_root() / "logs" / "freeze_time.json"
-        if not freeze_file.exists():
-            return None
-
-        try:
-            raw = freeze_file.read_text(encoding="utf-8")
-            data = json.loads(raw)
-        except (OSError, ValueError, TypeError) as e:
-            self.logger.log_message(f"Error reading freeze time file {freeze_file}: {e}", "error")
-            return None
-
-        if not isinstance(data, dict):
-            self.logger.log_message(f"Freeze time file {freeze_file} must contain a JSON object.", "error")
-            return None
-
-        freeze_time_raw = data.get("freeze_time")
-        if not freeze_time_raw or not isinstance(freeze_time_raw, str):
-            return None
-
-        do_tick_raw = data.get("do_tick", False)
-        if isinstance(do_tick_raw, bool):
-            do_tick = do_tick_raw
-        else:
-            do_tick = str(do_tick_raw).strip().lower() in {"1", "true", "yes", "y"}
-
-        try:
-            # Support ISO format with optional timezone (e.g., "2026-02-21T12:34:56" or "2026-02-21T12:34:56+11:00")
-            freeze_time_str = freeze_time_raw.strip().replace("Z", "+00:00")
-            frozen_time = dt.datetime.fromisoformat(freeze_time_str)
-
-            # If the parsed datetime is naive (no timezone), add local timezone
-            if frozen_time.tzinfo is None:
-                local_tz = dt.datetime.now().astimezone().tzinfo
-                frozen_time = frozen_time.replace(tzinfo=local_tz)
-
-            assert isinstance(frozen_time, dt.datetime), "Parsed freeze_time is not a datetime object."
-        except ValueError as e:
-            self.logger.log_message(
-                f"Invalid freeze_time value in {freeze_file}: '{freeze_time_raw}'. Expected ISO datetime. Error: {e}",
-                "error",
-            )
-            return None
-
-        return frozen_time, do_tick
-
-    def _maybe_start_ticking_freeze(self, cfg: tuple[dt.datetime, bool] | None) -> None:
-        """Start or restart a ticking freeze if the freeze_time value has changed."""
-        if not cfg:
-            # No freeze config - stop any existing freeze
-            if self._freeze_time_freezer is not None:
-                with contextlib.suppress(Exception):
-                    self._freeze_time_freezer.stop()
-                self._freeze_time_freezer = None
-                self._last_frozen_time = None
-                self._last_freeze_ticking = False
-                self.logger.log_message("Stopped freeze_time (config removed).", "debug")
-            return
-
-        frozen_time, do_tick = cfg
-        if not do_tick:
-            # Non-ticking mode - stop any existing ticking freeze
-            if self._freeze_time_freezer is not None:
-                with contextlib.suppress(Exception):
-                    self._freeze_time_freezer.stop()
-                self._freeze_time_freezer = None
-                self._last_frozen_time = None
-                self._last_freeze_ticking = False
-            return
-
-        # Check if we need to refreeze (time changed or mode changed)
-        if (self._last_frozen_time == frozen_time and self._last_freeze_ticking):
-            # Already frozen at this time in ticking mode
-            return
-
-        if freeze_time is None:
-            self.logger.log_message("freezegun is not installed; cannot apply freeze_time.", "error")
-            return
-
-        # Stop any existing freeze before starting a new one
-        if self._freeze_time_freezer is not None:
-            with contextlib.suppress(Exception):
-                self._freeze_time_freezer.stop()
-            self._freeze_time_freezer = None
-            self.logger.log_message(f"Stopped previous freeze_time to refreeze at {frozen_time.isoformat()}.", "debug")
-
-        try:
-            freezer = freeze_time(frozen_time, tick=True)
-            freezer.start()
-        except (RuntimeError, TypeError, ValueError) as e:
-            self.logger.log_message(f"Failed to start ticking freeze_time: {e}", "error")
-            return
-
-        self._freeze_time_freezer = freezer
-        self._last_frozen_time = frozen_time
-        self._last_freeze_ticking = True
-        self.logger.log_message(f"Applied ticking freeze_time at {frozen_time.isoformat()}.", "debug")

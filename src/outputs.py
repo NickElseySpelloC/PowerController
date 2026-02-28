@@ -523,21 +523,22 @@ class OutputManager:  # noqa: PLR0904
             self.run_plan = self.scheduler.get_run_plan(self.schedule_name, required_hours=required_hours, priority_hours=priority_hours, max_price=self.max_best_price, max_priority_price=self.max_priority_price, hourly_energy_usage=hourly_energy_used)  # pyright: ignore[reportArgumentType]
 
         # Log errors and warnings
+        time_now = DateHelper.now()
         if not self.run_plan or self.run_plan["Status"] == RunPlanStatus.FAILED:
-            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
+            self.next_run_plan_check = DateHelper.add_datetime(time_now, minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
             logging_level = "warning" if self.run_plan_target_mode == RunPlanTargetHours.ALL_HOURS else "error"
             self.logger.log_message(f"Failed to generate run plan for output {self.name}. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", logging_level)
 
         elif self.run_plan["Status"] == RunPlanStatus.BELOW_MINIMUM and self.run_plan_target_mode == RunPlanTargetHours.NORMAL:
-            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
+            self.next_run_plan_check = DateHelper.add_datetime(time_now, minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
             self.logger.log_message(f"Partially generated run plan for output {self.name}. Not enough low-price slots to meet pririority or target hours. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", "warning")
 
         elif self.run_plan["Status"] == RunPlanStatus.PARTIAL and self.run_plan_target_mode == RunPlanTargetHours.NORMAL:
-            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
+            self.next_run_plan_check = DateHelper.add_datetime(time_now, minutes=FAILED_RUNPLAN_CHECK_INTERVAL)
             self.logger.log_message(f"Partially generated run plan for output {self.name}. Not enough low-price slots to meet target hours. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", "warning")
 
         else:
-            self.next_run_plan_check = DateHelper.now() + dt.timedelta(minutes=RUNPLAN_CHECK_INTERVAL)
+            self.next_run_plan_check = DateHelper.add_datetime(time_now, minutes=RUNPLAN_CHECK_INTERVAL)
             self.logger.log_message(f"Successfully generated run plan for output {self.name}. Next check at {self.next_run_plan_check.strftime('%H:%M')}.", "debug")
 
         self.invalidate_run_plan = False
@@ -751,14 +752,9 @@ class OutputManager:  # noqa: PLR0904
             # If we're setting to ON or OFF mode, set the revert time if specified
             if new_mode in {AppMode.ON, AppMode.OFF}:
                 if revert_minutes and revert_minutes > 0:
-                    self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=revert_minutes)
+                    self.app_mode_revert_time = DateHelper.add_datetime(DateHelper.now(), minutes=revert_minutes)
                 else:
                     self.app_mode_revert_time = None
-                # Remove this code - revert_minutes now passed from the webapp
-                # elif new_mode == AppMode.ON and self.app_mode_max_on_time > 0:
-                #     self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_on_time)
-                # elif new_mode == AppMode.OFF and self.app_mode_max_off_time > 0:
-                #     self.app_mode_revert_time = DateHelper.now() + dt.timedelta(minutes=self.app_mode_max_off_time)
             else:
                 self.app_mode_revert_time = None
 

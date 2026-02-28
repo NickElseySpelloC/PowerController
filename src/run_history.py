@@ -613,11 +613,10 @@ class RunHistory:
         if last_day["DeviceRuns"][-1].get("EndTime") is not None:
             return
 
-        local_tz = dt.datetime.now().astimezone().tzinfo
-        end_time = dt.datetime.combine(last_day["Date"], dt.time(23, 59, 59), tzinfo=local_tz)
+        end_time = DateHelper.combine(last_day["Date"], dt.time(23, 59, 59))
         last_run = last_day["DeviceRuns"][-1]
         current_time = DateHelper.now()
-        start_of_day = dt.datetime.combine(DateHelper.today(), dt.time(0, 0, 0), tzinfo=local_tz)
+        start_of_day = DateHelper.combine(DateHelper.today(), dt.time(0, 0, 0))
 
         if status_data.output_type != "meter":
             self.stop_run(StateReasonOff.DAY_END, status_data, end_time)

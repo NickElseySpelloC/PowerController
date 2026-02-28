@@ -1,11 +1,14 @@
 """Main initialisation module for the PowerController app."""
 
 # Check that Python version is >= 3.13, else exit with error.
+import argparse
+import os
 import signal
 import sys
+from pathlib import Path
 from threading import Event
 
-from sc_utility import SCConfigManager, SCLogger
+from sc_utility import SCCommon, SCConfigManager, SCLogger
 
 from config_schemas import ConfigSchema
 from controller import PowerController
@@ -13,6 +16,84 @@ from local_enumerations import CONFIG_FILE
 from shelly_worker import ShellyWorker
 from thread_manager import RestartPolicy, ThreadManager
 from webapp import create_asgi_app, serve_asgi_blocking
+
+
+def parse_command_line_args() -> dict[str, str | None]:
+    """Parse and validate command line arguments.
+
+    Returns:
+        dict: Dictionary containing parsed arguments with keys:
+            - 'config_file': Path to configuration file (always present)
+            - 'homedir': Project home directory (for logging purposes, may be None)
+
+    Exits:
+        Exits with code 1 if arguments are invalid.
+    """
+    parser = argparse.ArgumentParser(
+        description="PowerController - Intelligent power management system",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main.py
+  python main.py --config /path/to/config.yaml
+  python main.py --homedir /opt/powercontroller --config config.yaml
+        """
+    )
+
+    parser.add_argument(
+        "--homedir",
+        type=str,
+        metavar="PATH",
+        help="Specify the project home directory",
+    )
+
+    parser.add_argument(
+        "--config",
+        type=str,
+        metavar="FILE",
+        help=f"Path to configuration file (default: {CONFIG_FILE})",
+    )
+
+    args = parser.parse_args()
+
+    # Determine the base directory for resolving relative paths
+    if args.homedir:
+        homedir = Path(args.homedir)
+        if not homedir.exists():
+            print(f"ERROR: Specified homedir does not exist: {args.homedir}", file=sys.stderr)
+            sys.exit(1)
+        if not homedir.is_dir():
+            print(f"ERROR: Specified homedir is not a directory: {args.homedir}", file=sys.stderr)
+            sys.exit(1)
+        base_dir = homedir.resolve()
+
+        # Set the project root environment variable for use by SC_Utility and other components
+        os.environ["SC_UTILITY_PROJECT_ROOT"] = str(base_dir)
+    else:
+        base_dir = Path(SCCommon.get_project_root())
+
+    # Determine the config file path
+    if args.config:
+        config_path = Path(args.config)
+        # If relative path, resolve it relative to base_dir
+        if not config_path.is_absolute():
+            config_path = base_dir / config_path
+        config_file = str(config_path.resolve())
+
+        # Validate that the config file exists
+        if not Path(config_file).exists():
+            print(f"ERROR: Configuration file does not exist: {config_file}", file=sys.stderr)
+            sys.exit(1)
+        if not Path(config_file).is_file():
+            print(f"ERROR: Configuration path is not a file: {config_file}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        config_file = CONFIG_FILE
+
+    return {
+        "config_file": config_file,
+        "homedir": str(base_dir) if args.homedir else None,
+    }
 
 
 def main():  # noqa: PLR0915
@@ -23,6 +104,9 @@ def main():  # noqa: PLR0915
     if sys.version_info < (3, 13):   # noqa: UP036
         print(f"ERROR: Python 3.13 or higher is required. You are running {sys.version}", file=sys.stderr)
         sys.exit(1)
+
+    # Parse command line arguments
+    cmd_args = parse_command_line_args()
 
     # Install SIGINT handler early
     def handle_sigint(_sig, _frame):
@@ -35,8 +119,10 @@ def main():  # noqa: PLR0915
 
     # Initialize the SC_ConfigManager class
     try:
+        config_file = cmd_args["config_file"]
+        assert isinstance(config_file, str), "config_file must be a string"
         config = SCConfigManager(
-            config_file=CONFIG_FILE,
+            config_file=config_file,
             validation_schema=schemas.validation,
             placeholders=schemas.placeholders
         )
@@ -56,6 +142,9 @@ def main():  # noqa: PLR0915
         logger.log_message("", "summary")
         logger.log_message("", "summary")
         logger.log_message("PowerController application starting.", "summary")
+        if cmd_args["homedir"]:
+            logger.log_message(f"Home directory: {cmd_args['homedir']}", "debug")
+        logger.log_message(f"Configuration file: {cmd_args['config_file']}", "debug")
 
     # Now create instances of the main worked classes
     shelly_worker = None

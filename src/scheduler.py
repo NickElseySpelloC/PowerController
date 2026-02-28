@@ -210,7 +210,6 @@ class Scheduler:
         today = DateHelper.today()
         weekday_str = WEEKDAY_ABBREVIATIONS[today.weekday()]
         time_now = DateHelper.now().time().replace(second=0, microsecond=0)
-        local_tz = dt.datetime.now().astimezone().tzinfo
 
         # Loop through each window in the provided schedule
         for idx, window in enumerate(schedule.get("Windows", [])):
@@ -230,8 +229,8 @@ class Scheduler:
                 start_time = max(start_time, time_now)
 
             # need datetime versions to calculate minutes
-            start_dt = dt.datetime.combine(today, start_time, tzinfo=local_tz)
-            end_dt = dt.datetime.combine(today, end_time, tzinfo=local_tz)
+            start_dt = DateHelper.combine(today, start_time)
+            end_dt = DateHelper.combine(today, end_time)
 
             time_slot = {
                 "Date": today,
@@ -266,8 +265,6 @@ class Scheduler:
         Returns:
             time: The parsed time.
         """
-        local_tz = dt.datetime.now().astimezone().tzinfo
-
         if not self.dusk_dawn:
             self.logger.log_fatal_error(f"Dawn/Dusk times have not been set for schedule '{schedule_name}', window {window_index}")
 
@@ -293,8 +290,9 @@ class Scheduler:
                             total_minutes = -total_minutes
 
                         # Apply the offset to base_time
-                        base_datetime = dt.datetime.combine(DateHelper.today(), base_time)
-                        adjusted_datetime = base_datetime + dt.timedelta(minutes=total_minutes)
+                        base_datetime = DateHelper.combine(DateHelper.today(), base_time)
+                        adjusted_datetime = DateHelper.add_datetime(base_datetime, minutes=total_minutes)
+                        assert isinstance(adjusted_datetime, dt.datetime)
                         base_time = adjusted_datetime.time()
                     else:
                         self.logger.log_fatal_error(f"Invalid dawn/dusk offset format for the schedule '{schedule_name}', time entry '{time_str}'. Use format like 'Dawn+00:10' or 'Dusk-01:30'")
@@ -302,7 +300,7 @@ class Scheduler:
                     self.logger.log_fatal_error(f"Invalid dawn/dusk offset format for the schedule '{schedule_name}', time entry '{time_str}'. Use format like 'Dawn+00:10' or 'Dusk-01:30'")
         else:
             try:
-                base_time = dt.datetime.strptime(time_str, "%H:%M").replace(tzinfo=local_tz).time()
+                base_time = DateHelper.extract_time(time_str, "%H:%M")
             except ValueError:
                 self.logger.log_fatal_error(f"Invalid time format for the schedule '{schedule_name}', time entry '{time_str}'. Use format like 'HH:MM'")
 

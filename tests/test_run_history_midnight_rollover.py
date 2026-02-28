@@ -90,6 +90,7 @@ def test_meter_run_is_split_across_midnight(monkeypatch: pytest.MonkeyPatch):
     assert yesterday_run["PriorMeterRead"] == pytest.approx(1005.0)
     assert yesterday_run["EnergyUsed"] == pytest.approx(5.0)
 
+
 def test_non_meter_run_is_split_across_midnight(monkeypatch: pytest.MonkeyPatch):
     """Test that non-meter outputs (like Shelly) get a new run started for the new day when they remain on."""
     local_tz = dt.datetime.now().astimezone().tzinfo

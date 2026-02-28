@@ -88,7 +88,7 @@ class PricingManager:
         _, mod_time = self._get_price_cache_file_info()
         if self.mode == AmberAPIMode.LIVE and mod_time is not None and (DateHelper.now() - mod_time).total_seconds() < (self.refresh_interval * 60):
             self._refresh_price_data(load_from_file=True)
-            self.next_refresh = mod_time + dt.timedelta(minutes=self.refresh_interval)
+            self.next_refresh = DateHelper.add_datetime(mod_time, minutes=self.refresh_interval)
         else:
             self._refresh_price_data()
 
@@ -258,15 +258,12 @@ class PricingManager:
         Returns:
             dt.datetime: The corresponding local datetime object.
         """
-        # Get local timezone
-        local_tz = dt.datetime.now().astimezone().tzinfo
-
         # Parse the UTC string to a datetime object
-        utc_dt = dt.datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%SZ")  # noqa: DTZ007
+        utc_dt = DateHelper.extract_datetime(utc_time_str, format_str="%Y-%m-%dT%H:%M:%SZ")
         utc_dt = utc_dt.replace(tzinfo=dt.UTC)
 
         # Convert to local timezone
-        local_dt = utc_dt.astimezone(local_tz)
+        local_dt = DateHelper.convert_timezone(utc_dt)
         local_dt = local_dt.replace(second=0, microsecond=0)
         return local_dt
 
@@ -288,10 +285,10 @@ class PricingManager:
 
         # Now build the self.today_forecast_data list into 5 minute increments for today
         today = DateHelper.today()
-        now = DateHelper.now()
+        time_now = DateHelper.now()
         # Round down to the nearest 5 minutes
-        rounded_minute = now.minute - (now.minute % PRICE_SLOT_INTERVAL)
-        first_start_time = now.replace(minute=rounded_minute, second=0, microsecond=0)
+        rounded_minute = time_now.minute - (time_now.minute % PRICE_SLOT_INTERVAL)
+        first_start_time = time_now.replace(minute=rounded_minute, second=0, microsecond=0)
         self.today_forecast_data.clear()
         for channel in self.raw_price_data:
 
@@ -301,12 +298,12 @@ class PricingManager:
             }
 
             for entry in channel["PriceData"]:
-                start_time = entry["StartDateTime"]
-                end_time = entry["EndDateTime"]
+                start_time: dt.datetime = entry["StartDateTime"]
+                end_time: dt.datetime = entry["EndDateTime"]
                 if end_time >= first_start_time and start_time.date() == today:
                     while start_time < end_time and start_time.date() == today:
                         if start_time >= first_start_time:
-                            slot_end_time = start_time + dt.timedelta(minutes=PRICE_SLOT_INTERVAL)
+                            slot_end_time = DateHelper.add_datetime(start_time, minutes=PRICE_SLOT_INTERVAL)
                             channel_data["PriceData"].append({
                                 "Date": start_time.date(),
                                 "StartTime": start_time.time(),
@@ -316,7 +313,7 @@ class PricingManager:
                                 "Minutes": PRICE_SLOT_INTERVAL,
                                 "Price": entry["Price"]
                             })
-                        start_time += dt.timedelta(minutes=PRICE_SLOT_INTERVAL)
+                        start_time = DateHelper.add_datetime(start_time, minutes=PRICE_SLOT_INTERVAL)
 
             self.today_forecast_data.append(channel_data)
 
@@ -365,7 +362,7 @@ class PricingManager:
 
         return True
 
-    def _get_amber_prices(self, load_from_file: bool = False) -> bool:  # noqa: PLR0915
+    def _get_amber_prices(self, load_from_file: bool = False) -> bool:  # noqa: PLR0914, PLR0915
         """Retrieves the current raw pricing data from Amber.
 
         Returns:
@@ -373,16 +370,18 @@ class PricingManager:
         """
         connection_error = False
         max_errors = 10
+        time_now = DateHelper.now()
+        date_today = DateHelper.today()
         # If Amber pricing is disabled, nothing to do
         if self.mode == AmberAPIMode.DISABLED:
-            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=self.refresh_interval)  # pyright: ignore[reportArgumentType]
+            self.next_refresh = DateHelper.add_datetime(time_now, minutes=self.refresh_interval)
             return True
         if self.mode == AmberAPIMode.LIVE and not load_from_file:
             # Maximum number of API query errors before we send an email notification
             max_errors = self.config.get("AmberAPI", "MaxConcurrentErrors", default=10)
 
             # By default, our next refresh is 5 mins from now
-            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=self.refresh_interval)  # pyright: ignore[reportArgumentType]
+            self.next_refresh = DateHelper.add_datetime(time_now, minutes=self.refresh_interval)
 
             # Authenticate to Amber
             assert isinstance(self.raw_price_data, list)
@@ -401,8 +400,8 @@ class PricingManager:
                 channel_list, raw_data = result
 
                 # Remove any records that are more than 35 days old or more than 2 days in the future
-                oldest_date = DateHelper.today() - dt.timedelta(days=35)
-                newest_date = DateHelper.today() + dt.timedelta(days=2)
+                oldest_date = DateHelper.add_date(date_today, days=-35)
+                newest_date = DateHelper.add_date(date_today, days=2)
                 price_data_30min = [entry for entry in raw_data if (entry.get("Date") >= oldest_date and entry.get("Date") <= newest_date)]  # pyright: ignore[reportOptionalOperand, reportAttributeAccessIssue]
 
                 # Download the 5 min data for the prior 35 days and today
@@ -413,7 +412,7 @@ class PricingManager:
                 _, raw_data = result
 
                 # Remove any records that are more than 5 days old and any that aren't 5 min slots
-                oldest_date = DateHelper.today() - dt.timedelta(days=5)
+                oldest_date = DateHelper.add_date(date_today, days=-5)
                 price_data_5min = [entry for entry in raw_data if (entry.get("Date") >= oldest_date and entry.get("Minutes") == 5)]  # pyright: ignore[reportOptionalOperand, reportAttributeAccessIssue]
 
                 # Consolidate the two data sets
@@ -435,7 +434,7 @@ class PricingManager:
 
                 # And finally save the lot to file
                 self._save_prices()
-                self.next_refresh = DateHelper.now() + dt.timedelta(minutes=self.refresh_interval)  # pyright: ignore[reportArgumentType]
+                self.next_refresh = DateHelper.add_datetime(time_now, minutes=self.refresh_interval)
                 self.logger.log_message(f"Refreshed Amber pricing. Next refresh at {self.next_refresh.strftime('%H:%M:%S')}", "debug")
                 break
 
@@ -444,14 +443,14 @@ class PricingManager:
             if max_errors and self.concurrent_error_count >= max_errors and self.report_critical_errors_delay:  # pyright: ignore[reportOperatorIssue]
                 assert isinstance(self.report_critical_errors_delay, int)
                 self.logger.report_notifiable_issue(entity="Amber API", issue_type="Connection Error", send_delay=self.report_critical_errors_delay * 60, message=f"API is still not responding after {max_errors} connection attempts.")
-            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=1)  # Shorten the refresh interval if we previously errored
+            self.next_refresh = DateHelper.add_datetime(time_now, minutes=1)  # Shorten the refresh interval if we previously errored
             self.logger.log_message(f"Amber unavailable, reverting to default pricing / schedules. Next attempt at {self.next_refresh.strftime('%H:%M:%S')}", "warning")
         else:
             self.logger.clear_notifiable_issue(entity="Amber API", issue_type="Connection Error")
 
         if connection_error or self.mode == AmberAPIMode.OFFLINE or load_from_file:
             # If we had an error but still within limits, revert to default pricing
-            self.next_refresh = DateHelper.now() + dt.timedelta(minutes=1)  # Shorten the refresh interval if we previously errored
+            self.next_refresh = DateHelper.add_datetime(time_now, minutes=1)  # Shorten the refresh interval if we previously errored
             self._import_prices()
 
         return True
@@ -619,14 +618,13 @@ class PricingManager:
         Returns:
             tuple(Path, dt.datetime) | None: The path to the pricing cache file and its last modified time, or None if not found.
         """
-        local_tz = dt.datetime.now().astimezone().tzinfo
         file_name = self.config.get("AmberAPI", "PricesCacheFile", default=PRICES_DATA_FILE) or PRICES_DATA_FILE
         file_path = SCCommon.select_file_location(file_name)  # pyright: ignore[reportArgumentType]
         assert isinstance(file_path, Path)
         if not file_path.exists():
             return file_path, None
         try:
-            mod_time = dt.datetime.fromtimestamp(file_path.stat().st_mtime, tz=local_tz)
+            mod_time = DateHelper.get_file_datetime(file_path)
         except OSError as e:
             self.logger.log_message(f"Error getting pricing cache file info: {e}", "error")
             return file_path, None
@@ -668,9 +666,9 @@ class PricingManager:
             for channel in self.raw_price_data:
                 for entry in channel["PriceData"]:
                     if is_date_only(entry["StartDateTime"]):
-                        entry["StartDateTime"] = dt.datetime.combine(entry["StartDateTime"], dt.time.min)
+                        entry["StartDateTime"] = DateHelper.combine(entry["StartDateTime"], dt.time.min)
                     if is_date_only(entry["EndDateTime"]):
-                        entry["EndDateTime"] = dt.datetime.combine(entry["EndDateTime"], dt.time.min)
+                        entry["EndDateTime"] = DateHelper.combine(entry["EndDateTime"], dt.time.min)
         except RuntimeError as e:
             self.logger.log_message(f"Error importing raw price data file {file_path}: {e}", "error")
             return False
@@ -693,7 +691,7 @@ class PricingManager:
         # Validate the start date
         if (end_date - start_date).days > 7:
             self.logger.log_message("Start date for Amber usage data download must be no more than 7 days ago.", "error")
-            start_date = end_date - dt.timedelta(days=7)
+            start_date = DateHelper.add_date(end_date, days=-7)
 
         # Only attempt to download usage data if in LIVE mode
         if self.mode == AmberAPIMode.LIVE:
@@ -746,7 +744,7 @@ class PricingManager:
 
             # Build a return list[dict] in a format suitable for CSV writing
             for entry in response_data:
-                entry_date = dt.datetime.strptime(entry["date"], "%Y-%m-%d").date()  # pyright: ignore[reportArgumentType]  # noqa: DTZ007
+                entry_date = DateHelper.extract_date(entry["date"], "%Y-%m-%d")  # pyright: ignore[reportArgumentType]
                 dt_start = self._convert_utc_dt_string(entry["startTime"])
                 if entry_date == end_date:
                     continue    # Skip records for today
@@ -805,7 +803,7 @@ class PricingManager:
 
         # If there are any records older than max_history_days or any records for today, remove them
         if max_history_days is not None:
-            cutoff_date = today - dt.timedelta(days=max_history_days)
+            cutoff_date = DateHelper.add_date(today, days=-max_history_days)
             csv_data = [row for row in csv_data if row["Date"] > cutoff_date]
 
         # Now determine the most recent date in the existing data
@@ -813,9 +811,9 @@ class PricingManager:
         last_date = max(existing_dates) if existing_dates else None
 
         # Set the start to be last_date or 6 days prior to today, which ever is later
-        start_date = today - dt.timedelta(days=6)
+        start_date = DateHelper.add_date(today, days=-6)
         if last_date and last_date >= start_date:
-            start_date = last_date + dt.timedelta(days=1)
+            start_date = DateHelper.add_date(last_date, days=1)
         start_date = min(start_date, today)
 
         # Call _download_amber_usage_data and append any new data

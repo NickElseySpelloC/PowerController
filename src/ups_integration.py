@@ -230,9 +230,7 @@ class UPSIntegration:
             data = json.loads(result.stdout)
 
             # Update UPS entry with data from script
-            timestamp = DateHelper.parse_date(data.get("timestamp"), "%Y-%m-%d %H:%M:%S")
-            assert isinstance(timestamp, dt.datetime), "Script output missing 'timestamp' field or invalid format"
-            timestamp.replace(tzinfo=None)
+            timestamp = DateHelper.extract_datetime(data.get("timestamp"), format_str="%Y-%m-%d %H:%M:%S", hide_tz=True)
             ups["timestamp"] = timestamp
             ups["battery_state"] = data.get("battery_state")
             ups["battery_charge_percent"] = data.get("battery_charge_percent")

@@ -31,19 +31,6 @@ if TYPE_CHECKING:
     from scheduler import Scheduler
 
 
-def _local_midnight(day: dt.date) -> dt.datetime:
-    """Return local midnight for the given day.
-
-    Args:
-        day: Local date.
-
-    Returns:
-        Local datetime representing 00:00:00 of the day.
-    """
-    local_tz = dt.datetime.now().astimezone().tzinfo
-    return dt.datetime(day.year, day.month, day.day, 0, 0, 0, tzinfo=local_tz)
-
-
 def _as_local_dt(value: Any) -> dt.datetime | None:
     """Best-effort conversion of persisted values into a local tz-aware datetime.
 
@@ -54,19 +41,19 @@ def _as_local_dt(value: Any) -> dt.datetime | None:
         A tz-aware datetime in local timezone, or None if conversion fails.
     """
     if isinstance(value, dt.datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=dt.datetime.now().astimezone().tzinfo)
-        return value.astimezone(dt.datetime.now().astimezone().tzinfo)
+        return DateHelper.convert_timezone(value)
 
     if isinstance(value, str):
         # Accept both "2025-12-31T12:34:56" and "2025-12-31 12:34:56".
-        try:
-            parsed = dt.datetime.fromisoformat(value)
-        except ValueError:
+        parsed = DateHelper.extract(value, "ISO")
+        if not parsed:
+            parsed = DateHelper.extract(value, "%Y-%m-%d %H:%M:%S")
+        if not parsed:
             return None
+        assert isinstance(parsed, dt.datetime)
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=dt.datetime.now().astimezone().tzinfo)
-        return parsed.astimezone(dt.datetime.now().astimezone().tzinfo)
+            parsed = DateHelper.add_timezone(parsed)
+        return DateHelper.convert_timezone(parsed)
 
     return None
 
@@ -284,10 +271,12 @@ class TeslaMateOutput:
         """Run self tests on the output manager."""
         print(f"Running self tests for output {self.name}:")
 
-        as_at_time = DateHelper.now() - dt.timedelta(hours=12)
+        time_now = DateHelper.now()
+
+        as_at_time = DateHelper.add_datetime(time_now, hours=-12)
         print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} c/kWh")
 
-        as_at_time = DateHelper.now() + dt.timedelta(days=4)
+        as_at_time = DateHelper.add_datetime(time_now, days=4)
         print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} c/kWh")
 
     # --- State / UI / CSV ---
@@ -413,7 +402,7 @@ class TeslaMateOutput:
             The price in c/kWh
         """
         if as_at_time is None:
-            as_at_time = dt.datetime.now().astimezone()
+            as_at_time = DateHelper.now()
         if self.device_mode == RunPlanMode.BEST_PRICE:
             price = self.pricing.get_price(as_at_time=as_at_time, channel_id=self.amber_channel)
             if price is not None and price > 0.0:

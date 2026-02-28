@@ -12,16 +12,18 @@ Key goals:
 
 from __future__ import annotations
 
-import datetime as dt
 import urllib.parse
 from typing import TYPE_CHECKING, Any
 
 from org_enums import AppMode, RunPlanMode, StateReasonOff, StateReasonOn, SystemState
+from sc_utility import DateHelper
 
 from local_enumerations import DEFAULT_PRICE, AmberChannel, OutputStatusData
 from run_history import RunHistory
 
 if TYPE_CHECKING:
+    import datetime as dt
+
     from sc_utility import SCConfigManager, SCLogger
 
 
@@ -202,11 +204,11 @@ class MeterOutput:
         current_run = self.run_history.get_current_run()
         if new_is_on and current_run is None:
             self.run_history.start_run(SystemState.EXTERNAL_CONTROL, StateReasonOn.POWER_INCREASE, status_data)
-            self.last_changed = dt.datetime.now().astimezone()
+            self.last_changed = DateHelper.now()
             self.reason = StateReasonOn.POWER_INCREASE
         elif not new_is_on and current_run is not None:
             self.run_history.stop_run(StateReasonOff.POWER_DECREASE, status_data)
-            self.last_changed = dt.datetime.now().astimezone()
+            self.last_changed = DateHelper.now()
             self.reason = StateReasonOff.POWER_DECREASE
 
         self._is_on = new_is_on
@@ -246,7 +248,7 @@ class MeterOutput:
             The price in c/kWh
         """
         if as_at_time is None:
-            as_at_time = dt.datetime.now().astimezone()
+            as_at_time = DateHelper.now()
         if self.device_mode == RunPlanMode.BEST_PRICE:
             price = self.pricing.get_price(as_at_time=as_at_time, channel_id=self.amber_channel)
             if price is not None and price > 0.0:
