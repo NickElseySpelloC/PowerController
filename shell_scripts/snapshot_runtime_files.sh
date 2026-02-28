@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Change directory to the location of the script
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 # List of filenames to snapshot
 FILES_TO_SNAPSHOT=("logs/*" "system_state.json" "config.yaml")
