@@ -267,7 +267,7 @@ class TeslaMateOutput:
         _ = (view, revert_minutes)
         self.app_mode = new_mode
 
-    def run_self_tests(self):
+    def run_self_tests(self, _is_new_day: Any) -> None:
         """Run self tests on the output manager."""
         print(f"Running self tests for output {self.name}:")
 
@@ -422,6 +422,29 @@ class TeslaMateOutput:
             int: The number of days of history.
         """
         return int(self.output_config.get("DaysOfHistory") or 14)
+
+    def get_api_data(self, _view: Any | None = None, display_name: str | None = None) -> dict:
+        """Get the data for API output.
+
+        Args:
+            _view (Any | None): Not used.
+            display_name (str | None): Optional display name for the output.
+
+        Returns:
+            dict: The data for API output in JSON format.
+        """
+        is_on, reason = self._current_state_from_charge_data()
+        return {
+            "Name": self.name,
+            "DisplayName": display_name or self.name,
+            "AppMode": self.app_mode.value,
+            "State": "ON" if is_on else "OFF",
+            "SystemState": str(self.system_state),
+            "Reason": reason,
+            "LastChanged": self.last_changed.isoformat() if self.last_changed else None,
+            "DeviceMode": str(self.device_mode) if self.device_mode else None,
+            "ActualHoursToday": float(self.run_history.get("DailyData", [{}])[-1].get("ActualHours") or 0.0) if self.run_history.get("DailyData") else 0.0,
+        }
 
     # --- Internal helpers ---
     def _current_power_draw_text(self) -> str:

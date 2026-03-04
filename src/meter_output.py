@@ -328,3 +328,25 @@ class MeterOutput:
             dict: The schedule or None if none assigned.
         """
         return self.schedule
+
+    def get_api_data(self, _view: Any, display_name: str | None = None) -> dict:
+        """Get the data for API output.
+
+        Args:
+            _view (Any): Not used
+            display_name (str | None): Optional display name for the output.
+
+        Returns:
+            dict: The data for API output in JSON format.
+        """
+        return {
+            "Name": self.name,
+            "DisplayName": display_name or self.name,
+            "State": "ON" if self._is_on else "OFF",
+            "AppMode": str(self.app_mode),
+            "SystemState": str(self.system_state),
+            "Reason": str(self.reason) if self.reason else None,
+            "LastChanged": self.last_changed.isoformat() if self.last_changed else None,
+            "DeviceMode": str(self.device_mode) if self.device_mode else None,
+            "ActualHoursToday": self.run_history.get_actual_hours() if self.run_history else 0.0,
+        }

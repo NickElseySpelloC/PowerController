@@ -444,7 +444,7 @@ class PricingManager:
                 assert isinstance(self.report_critical_errors_delay, int)
                 self.logger.report_notifiable_issue(entity="Amber API", issue_type="Connection Error", send_delay=self.report_critical_errors_delay * 60, message=f"API is still not responding after {max_errors} connection attempts.")
             self.next_refresh = DateHelper.add_datetime(time_now, minutes=1)  # Shorten the refresh interval if we previously errored
-            self.logger.log_message(f"Amber unavailable, reverting to default pricing / schedules. Next attempt at {self.next_refresh.strftime('%H:%M:%S')}", "warning")
+            self.logger.log_message(f"Amber unavailable, reverting to cached prices. Next attempt at {self.next_refresh.strftime('%H:%M:%S')}", "warning")
         else:
             self.logger.clear_notifiable_issue(entity="Amber API", issue_type="Connection Error")
 

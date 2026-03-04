@@ -359,6 +359,65 @@ class ConfigSchema:
                     },
                 },
             },
+            "DataAPI": {
+                "type": "dict",
+                "required": False,
+                "schema": {
+                    "Enable": {"type": "boolean", "required": False, "nullable": True},
+                    "HostingIP": {"type": "string", "required": True, "nullable": True},
+                    "Port": {"type": "number", "required": True, "nullable": True, "min": 80, "max": 65535},
+                    "RefreshInterval": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 3600},
+                    "AccessKey": {"type": "string", "required": False, "nullable": True},
+                    "Outputs": {
+                        "type": "list",
+                        "required": False,
+                        "nullable": True,
+                        "schema": {
+                            "type": "dict",
+                            "schema": {
+                                "Name": {"type": "string", "required": True},
+                                "DisplayName": {"type": "string", "required": False, "nullable": True},
+                            },
+                        },
+                    },
+                    "Meters": {
+                        "type": "list",
+                        "required": False,
+                        "nullable": True,
+                        "schema": {
+                            "type": "dict",
+                            "schema": {
+                                "Name": {"type": "string", "required": True},
+                                "DisplayName": {"type": "string", "required": False, "nullable": True},
+                            },
+                        },
+                    },
+                    "TempProbes": {
+                        "type": "list",
+                        "required": False,
+                        "nullable": True,
+                        "schema": {
+                            "type": "dict",
+                            "schema": {
+                                "Name": {"type": "string", "required": True},
+                                "DisplayName": {"type": "string", "required": False, "nullable": True},
+                            },
+                        },
+                    },
+                    "EnergyPrices": {
+                        "type": "dict",
+                        "required": False,
+                        "nullable": True,
+                        "schema": {
+                            "AmberChannel": {"type": "string", "required": False, "nullable": True, "allowed": ["general", "controlledLoad"]},
+                            "IntervalTime": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 1440},
+                            "NumIntervals": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 200},
+                            "WarningPrice": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 1000},
+                            "CriticalPrice": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 1000},
+                        },
+                    },
+                },
+            }
         }
 
         self.amber_usage_csv_config = [

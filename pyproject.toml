@@ -50,7 +50,7 @@ where = ["src"]
 remote="~/Library/CloudStorage/Dropbox/Development/dev_setup/app_config/PowerController"
 patterns = [
     ".env",
-    "config.yaml",
+    "configs/*",
     "system_state.json",
     "logs/*",
     "snapshots/dev/*",

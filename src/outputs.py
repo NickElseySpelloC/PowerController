@@ -13,7 +13,7 @@ from org_enums import (
     StateReasonOn,
     SystemState,
 )
-from sc_utility import DateHelper, SCConfigManager, SCLogger
+from sc_utility import DateHelper, JSONEncoder, SCConfigManager, SCLogger
 
 from local_enumerations import (
     FAILED_RUNPLAN_CHECK_INTERVAL,
@@ -1013,6 +1013,42 @@ class OutputManager:  # noqa: PLR0904
             is_new_day (bool): Indicates if it's a new day.
         """
         pass  # Currently no self tests defined
+
+    def get_api_data(self, view: ShellyView | None = None, display_name: str | None = None) -> dict:
+        """Get the data for API output.
+
+        Args:
+            view (ShellyView | None): Optional view of the Shelly devices.
+            display_name (str | None): Optional display name for the output.
+
+        Returns:
+            dict: The data for API output in JSON format.
+        """
+        api_run_plan = []
+        if self.run_plan:
+            api_run_plan = JSONEncoder.ready_dict_for_json(self.run_plan.get("RunPlan", [])) or []
+        return {
+            "Name": self.name,
+            "DisplayName": display_name or self.name,
+            "AppMode": self.app_mode.value,
+            "State": ("ON" if view.get_output_state(self.device_output_id) else "OFF") if view else "Unknown",
+            "SystemState": str(self.system_state),
+            "Reason": str(self.reason) if self.reason else None,
+            "LastChanged": self.last_changed.isoformat() if self.last_changed else None,
+            "OutputName": self.device_output_name,
+            "DeviceMode": str(self.device_mode) if self.device_mode else None,
+            "ScheduleName": self.schedule_name,
+            "AmberChannel": self.amber_channel,
+            "MinHours": self.min_hours,
+            "MaxHours": self.max_hours,
+            "TargetHours": self._get_target_hours(),
+            "PlannedHours": self.run_plan.get("PlannedHours") if self.run_plan else None,
+            "MaxBestPrice": self.max_best_price,
+            "MaxPriorityPrice": self.max_priority_price,
+            "ActualHoursToday": self.run_history.get_actual_hours() if self.run_history else 0.0,
+            "RunPlan": api_run_plan,
+            "MeterName": self.device_meter_name,
+        }
 
     # Private Functions ===========================================================================
     def _should_revert_app_override(self, view: ShellyView) -> bool:

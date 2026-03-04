@@ -2,7 +2,9 @@
 import contextlib
 import copy
 import datetime as dt
+import json
 import queue
+import threading
 import time
 from collections.abc import Callable
 from enum import StrEnum
@@ -115,6 +117,12 @@ class PowerController:
         # UPS Integration
         self.ups_integration = UPSIntegration(config, logger)
 
+        # DataAPI related
+        self.data_api_data: dict = {}   # Safe copy of the latest data
+        self._data_api_lock = threading.Lock()  # Thread safe lock to prevent concurrent access to the data_api_data
+        self._data_api_config: dict = {}
+        self._data_api_next_refresh: dt.datetime = DateHelper.now()
+
         # Metered Output usage data
         self.output_metering: dict = {}   # To be updated by self._update_system_state_usage_data()
 
@@ -122,7 +130,7 @@ class PowerController:
         self.scheduler = Scheduler(self.config, self.logger)
         self.pricing = PricingManager(self.config, self.logger)
 
-        self._io_lock = RLock()  # NEW: serialize state/CSV writes
+        self._io_shutdown_lock = RLock()  # Serialize state/CSV writes during shutdown
 
         # Optional callback used to notify the webapp (WebSocket) layer that a new snapshot should be pushed.
         # This is set by main.py once the ASGI webapp is initialised.
@@ -245,7 +253,7 @@ class PowerController:
 
     def shutdown(self):
         """Shutdown the power controller, turning off outputs if configured to do so."""
-        with self._io_lock:
+        with self._io_shutdown_lock:
             self.logger.log_message("Starting PowerController shutdown...", "debug")
             view = self._get_latest_status_view()
             for output in self.outputs:
@@ -276,6 +284,12 @@ class PowerController:
         """
         if not self.config.get("General", "TestingMode", default=False):
             return False
+
+        api_data = self.get_api_data()
+        self.logger.log_message(f"API Data: \n{json.dumps(api_data, indent=4)}", "debug")
+
+        api_output_data = self.get_api_data("Outputs")
+        self.logger.log_message(f"API Output Data: \n{json.dumps(api_output_data, indent=4)}", "debug")
 
         # Run output level self tests
         for output in self.outputs:
@@ -324,6 +338,26 @@ class PowerController:
         ]
         job_id = self.post_shelly_sequence(steps, label="pool-seq", timeout_s=180)
         self.logger.log_message(f"Submitted pool sequence job_id={job_id}", "debug")
+
+    def get_api_data(self, entry: str | None = None) -> dict:
+        """Get the latest API data.
+
+        Args:
+            entry (str | None): Specific entry to retrieve. If None, returns all data.
+
+        Returns:
+            dict: The latest API data.
+        """
+        with self._data_api_lock:
+            if entry is None:
+                return self.data_api_data
+
+            # If we were asked for a specific entry, return just that entry's data (or an empty dict if it doesn't exist)
+            return_data = {
+                entry: copy.deepcopy(self.data_api_data.get(entry, {})),
+                "LastRefresh": self.data_api_data.get("LastRefresh"),
+            }
+            return return_data
 
     # Private Functions ===========================================================================
     def _initialise(self, startup_mode: bool | None = False):  # noqa: PLR0912, PLR0915
@@ -466,6 +500,10 @@ class PowerController:
         # Reinitialise the UPS integration
         self.ups_integration.initialise()
 
+        # Load DataAPI data if enabled
+        self._data_api_config = self.config.get("DataAPI", default={}) or {}
+        self._initialise_data_api_cache()
+
         # Reinitialize the scheduler and pricing manager
         if not startup_mode:
             self.scheduler.initialise()
@@ -517,6 +555,9 @@ class PowerController:
 
         # Save the system state to disk
         self._save_system_state(view)
+
+        # Update the API Data cache if time
+        self._refresh_api_data_if_needed(view)
 
         # Ping the heartbeat monitor - this function takes care of frequency checks
         self.external_service_helper.ping_heatbeat()
@@ -1421,3 +1462,55 @@ class PowerController:
             except RuntimeError as e:
                 self.logger.log_message(f"Error updating temp probe history CSV file: {e}", "error")
                 return
+
+    def _initialise_data_api_cache(self):
+        """Initialise the data API cache."""
+        with self._data_api_lock:
+            self.data_api_data = {
+                "Outputs": {},
+                "Meters": {},
+                "TempProbes": {},
+                "EnergyPrices": {},
+                "LastRefresh": None,
+            }
+            self._data_api_next_refresh = DateHelper.now()
+
+    def _refresh_api_data_if_needed(self, view: ShellyView):
+        """Refresh the API data if needed based on the configured refresh intervals."""
+        if not self._data_api_config.get("Enable", False):
+            return  # Data API not enabled
+
+        if self._data_api_next_refresh > DateHelper.now():
+            return  # Not time to refresh yet
+
+        # Get the Output data
+        output_data = {}
+        for output_cfg in self._data_api_config.get("Outputs", []):
+            name = output_cfg.get("Name")
+            display_name = output_cfg.get("DisplayName") or name
+            if not name:
+                continue
+            output_obj = next((o for o in self.outputs if o.name == name), None)
+            if not output_obj:
+                self.logger.log_message(f"Data API: Output {name} not found among configured outputs; skipping.", "error")
+                continue
+            new_output_data = output_obj.get_api_data(view, display_name)
+            output_data[name] = new_output_data
+
+        # Get the Meter data
+        meter_data = {}  # TO DO: Implement meter data retrieval and add to the schema
+
+        # Get the Temp Probe data
+        temp_probe_data = {}    # TO DO: Implement temp probe data retrieval and add to the schema
+
+        # Get the energy price data
+        energy_price_data = {}  # TO DO: Implement energy price data retrieval and add to the schema}
+
+        # Update the data API cache with the new data in JSON format
+        with self._data_api_lock:
+            self.data_api_data["Outputs"] = copy.deepcopy(output_data)
+            self.data_api_data["Meters"] = copy.deepcopy(meter_data)
+            self.data_api_data["TempProbes"] = copy.deepcopy(temp_probe_data)
+            self.data_api_data["EnergyPrices"] = copy.deepcopy(energy_price_data)
+            self.data_api_data["LastRefresh"] = DateHelper.now_str("ISO")
+            self._data_api_next_refresh = DateHelper.add_datetime(DateHelper.now(), seconds=int(self._data_api_config.get("RefreshInterval", 60) or 60))  # pyright: ignore[reportArgumentType]
