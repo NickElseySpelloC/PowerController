@@ -26,6 +26,7 @@ The config file supports the following sections. Some of mandatory and some are 
 | [OperatingSchedules](sections/operating_schedules.md) | Schedule used for switched outputs | Yes |
 | [OutputSequences](sections/output_sequences.md) | Define a sequence of actions to perform on outputs when turning On or off | No |
 | [ViewerWebsite](sections/viewer_website.md) | Integration with the [PowerControllerViewer app](https://github.com/NickElseySpelloC/PowerControllerViewer) | No |
+| [DataAPI](sections/data_api.md) | Publish a Data API that other applications can subscribe to | No | 
 | [OutputMetering](sections/output_metering.md) | Logging of output energy consumption data to CSV and the system state file, as well as viewing and charting in the PowerControllerView application (if enabled) | No |
 | [TempProbeLogging](sections/temp_probe_logging.md) | Logging of temperature probes to CSV and the system state file, as well as viewing and charting in the PowerControllerView application (if enabled) | No |
 | [UPSIntegration](sections/ups_integration.md) | Define one or more UPS units that can modify the behaviour of an Output | No |

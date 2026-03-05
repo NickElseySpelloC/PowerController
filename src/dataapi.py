@@ -108,6 +108,8 @@ def create_asgi_app(controller: PowerController, config: SCConfigManager, logger
             raise HTTPException(status_code=401, detail="Unauthorized: Invalid or missing access key")
 
         data = await asyncio.to_thread(controller.get_api_data, "Outputs")
+        if not data:
+            raise HTTPException(status_code=503, detail="API data not available")
         return JSONResponse(content=data)
 
     @app.get("/meters")
@@ -128,6 +130,8 @@ def create_asgi_app(controller: PowerController, config: SCConfigManager, logger
             raise HTTPException(status_code=401, detail="Unauthorized: Invalid or missing access key")
 
         data = await asyncio.to_thread(controller.get_api_data, "Meters")
+        if not data:
+            raise HTTPException(status_code=503, detail="API data not available")
         return JSONResponse(content=data)
 
     @app.get("/tempprobes")
@@ -148,6 +152,8 @@ def create_asgi_app(controller: PowerController, config: SCConfigManager, logger
             raise HTTPException(status_code=401, detail="Unauthorized: Invalid or missing access key")
 
         data = await asyncio.to_thread(controller.get_api_data, "TempProbes")
+        if not data:
+            raise HTTPException(status_code=503, detail="API data not available")
         return JSONResponse(content=data)
 
     @app.get("/energyprices")
@@ -168,6 +174,8 @@ def create_asgi_app(controller: PowerController, config: SCConfigManager, logger
             raise HTTPException(status_code=401, detail="Unauthorized: Invalid or missing access key")
 
         data = await asyncio.to_thread(controller.get_api_data, "EnergyPrices")
+        if not data:
+            raise HTTPException(status_code=503, detail="API data not available")
         return JSONResponse(content=data)
 
     @app.get("/all")
@@ -189,6 +197,8 @@ def create_asgi_app(controller: PowerController, config: SCConfigManager, logger
             raise HTTPException(status_code=401, detail="Unauthorized: Invalid or missing access key")
 
         data = await asyncio.to_thread(controller.get_api_data)
+        if not data:
+            raise HTTPException(status_code=503, detail="API data not available")
         return JSONResponse(content=data)
 
     @app.get("/")

@@ -2,7 +2,7 @@
 import contextlib
 import copy
 import datetime as dt
-import json
+import json  # noqa: F401
 import queue
 import threading
 import time
@@ -28,6 +28,7 @@ from local_enumerations import (
     DUMP_SHELLY_SNAPSHOT,
     SCHEMA_VERSION,
     STEP_TYPE_MAP,
+    AmberChannel,
     Command,
     OutputAction,
     OutputActionType,
@@ -291,8 +292,12 @@ class PowerController:
         # api_output_data = self.get_api_data("Outputs")
         # self.logger.log_message(f"API Output Data: \n{json.dumps(api_output_data, indent=4)}", "debug")
 
-        api_meter_data = self.get_api_data("Meters")
-        self.logger.log_message(f"API Meter Data: \n{json.dumps(api_meter_data, indent=4)}", "debug")
+        # api_meter_data = self.get_api_data("Meters")
+        # self.logger.log_message(f"API Meter Data: \n{json.dumps(api_meter_data, indent=4)}", "debug")
+
+        # amber_data = self.pricing.get_prices_for_data_api(channel_id=AmberChannel.GENERAL, interval_time=15, number_of_intervals=12, price_warning=45, price_critical=48)
+        # amber_data_json = JSONEncoder.ready_dict_for_json(amber_data)
+        # self.logger.log_message(f"Amber Data: \n{json.dumps(amber_data_json, indent=4)}", "debug")
 
         # Run output level self tests
         for output in self.outputs:
@@ -351,6 +356,9 @@ class PowerController:
         Returns:
             dict: The latest API data.
         """
+        if not self._data_api_config.get("Enable", False):
+            return {}  # Data API not enabled
+
         with self._data_api_lock:
             if entry is None:
                 return self.data_api_data
@@ -1478,7 +1486,7 @@ class PowerController:
             }
             self._data_api_next_refresh = DateHelper.now()
 
-    def _refresh_api_data_if_needed(self, view: ShellyView):
+    def _refresh_api_data_if_needed(self, view: ShellyView):  # noqa: PLR0914
         """Refresh the API data if needed based on the configured refresh intervals."""
         if not self._data_api_config.get("Enable", False):
             return  # Data API not enabled
@@ -1560,7 +1568,13 @@ class PowerController:
             return_data["TempProbes"].append(new_probe_data)
 
         # Get the energy price data
-        # TO DO: Implement energy price data retrieval and add to the schema}
+        pricing_cfg = self._data_api_config.get("EnergyPrices", {})
+        if pricing_cfg:
+            return_data["EnergyPrices"] = self.pricing.get_prices_for_data_api(channel_id=pricing_cfg.get("ChannelID", AmberChannel.GENERAL),
+                                                            interval_time=pricing_cfg.get("IntervalTime", 30),
+                                                            number_of_intervals=pricing_cfg.get("NumberOfIntervals", 12),
+                                                            price_warning=pricing_cfg.get("WarningPrice"),
+                                                            price_critical=pricing_cfg.get("CriticalPrice"))
 
         # Now build up the JSON ready data dict that we will cache and return for API calls
         return_data_json = JSONEncoder.ready_dict_for_json(return_data)  # pyright: ignore[reportReturnType]

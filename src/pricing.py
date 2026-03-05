@@ -246,15 +246,15 @@ class PricingManager:
 
         return daily_totals
 
-    def get_prices_for_data_api(self, channel_id: AmberChannel = AmberChannel.GENERAL, interval_time: int = 30, number_of_intervals: int = 12, price_warning: float = None, price_critical: float = None) -> list[dict]:
+    def get_prices_for_data_api(self, channel_id: AmberChannel = AmberChannel.GENERAL, interval_time: int = 30, number_of_intervals: int = 12, price_warning: float | None = None, price_critical: float | None = None) -> list[dict]:
         """Gets the current and forecasted price data for selected channel.
 
         Args:
             channel_id (AmberChannel): The ID of the channel to get the price data for.
             interval_time (int): The interval time in minutes for each price slot (e.g. 30 for half-hourly prices, 60 for hourly prices).
             number_of_intervals (int): The number of future intervals to include in the data.
-            price_warning (float): An optional price threshold for warning level. If provided and a slot's price exceeds this threshold, then the status key will be set to "Warning" for that slot.
-            price_critical (float): An optional price threshold for critical level. If provided and a slot's price exceeds this threshold, then the status key will be set to "Critical" for that slot.
+            price_warning (float | None): An optional price threshold for warning level. If provided and a slot's price exceeds this threshold, then the status key will be set to "Warning" for that slot.
+            price_critical (float | None): An optional price threshold for critical level. If provided and a slot's price exceeds this threshold, then the status key will be set to "Critical" for that slot.
 
         Returns:
             list[dict]: A list of dictionaries containing the price data for the next 24 hours. Each dictionary contains the following keys:
@@ -264,6 +264,135 @@ class PricingManager:
                 - Status (str): "OK", "Warning", or "Critical" based on the price thresholds provided.
                 - Type (str): "Current" for the current slot, "Forecast" for future slots.
         """
+        # Get raw price data for the specified channel
+        assert isinstance(self.raw_price_data, list)
+        raw_data = next((channel.get("PriceData", []) for channel in self.raw_price_data if channel.get("Name") == channel_id), [])
+        if not raw_data:
+            return []
+
+        now = DateHelper.now()
+        current_slot_start = PricingManager._find_current_slot_start(raw_data, now)
+        if current_slot_start is None:
+            return []
+
+        # Generate intervals starting from the current slot
+        result = []
+        interval_start = current_slot_start
+        for i in range(number_of_intervals):
+            interval_end = DateHelper.add_datetime(interval_start, minutes=interval_time)
+            overlapping_entries = PricingManager._find_overlapping_entries(raw_data, interval_start, interval_end)
+
+            if overlapping_entries:
+                avg_price = PricingManager._calculate_weighted_average_price(overlapping_entries, interval_start, interval_end)
+                status = PricingManager._determine_status(avg_price, price_warning, price_critical)
+                slot_type = "Current" if i == 0 else "Forecast"
+
+                result.append({
+                    "StartDateTime": interval_start,
+                    "EndDateTime": interval_end,
+                    "Minutes": interval_time,
+                    "Price": round(avg_price, 2),
+                    "Status": status,
+                    "Type": slot_type,
+                })
+
+            interval_start = interval_end
+
+        return result
+
+    @staticmethod
+    def _find_current_slot_start(raw_data: list[dict], now: dt.datetime) -> dt.datetime | None:
+        """Find the start time of the current or next available price slot.
+
+        Args:
+            raw_data: List of raw price data entries.
+            now: Current datetime.
+
+        Returns:
+            Start datetime of the current/next slot, or None if not found.
+        """
+        # Find the current time slot
+        for entry in raw_data:
+            if isinstance(entry.get("StartDateTime"), dt.datetime) and isinstance(entry.get("EndDateTime"), dt.datetime) and entry["StartDateTime"] <= now < entry["EndDateTime"]:
+                return entry["StartDateTime"]
+
+        # If no current slot, use the first future slot
+        future_slots = [e for e in raw_data if isinstance(e.get("StartDateTime"), dt.datetime) and e["StartDateTime"] > now]
+        return future_slots[0]["StartDateTime"] if future_slots else None
+
+    @staticmethod
+    def _find_overlapping_entries(raw_data: list[dict], interval_start: dt.datetime, interval_end: dt.datetime) -> list[dict]:
+        """Find all raw data entries that overlap with the specified interval.
+
+        Args:
+            raw_data: List of raw price data entries.
+            interval_start: Start of the interval.
+            interval_end: End of the interval.
+
+        Returns:
+            List of overlapping entries.
+        """
+        overlapping = []
+        for entry in raw_data:
+            if not isinstance(entry.get("StartDateTime"), dt.datetime) or not isinstance(entry.get("EndDateTime"), dt.datetime):
+                continue
+            entry_start = entry["StartDateTime"]
+            entry_end = entry["EndDateTime"]
+
+            # Check if there's any overlap
+            if entry_start < interval_end and entry_end > interval_start:
+                overlapping.append(entry)
+
+        return overlapping
+
+    @staticmethod
+    def _calculate_weighted_average_price(overlapping_entries: list[dict], interval_start: dt.datetime, interval_end: dt.datetime) -> float:
+        """Calculate weighted average price based on overlap duration.
+
+        Args:
+            overlapping_entries: List of entries that overlap with the interval.
+            interval_start: Start of the interval.
+            interval_end: End of the interval.
+
+        Returns:
+            Weighted average price.
+        """
+        total_overlap_minutes = 0.0
+        weighted_price_sum = 0.0
+
+        for entry in overlapping_entries:
+            entry_start = entry["StartDateTime"]
+            entry_end = entry["EndDateTime"]
+
+            # Calculate the overlap period
+            overlap_start = max(interval_start, entry_start)
+            overlap_end = min(interval_end, entry_end)
+            overlap_minutes = (overlap_end - overlap_start).total_seconds() / 60.0
+
+            if overlap_minutes > 0:
+                entry_price = entry.get("Price", 0.0) or 0.0
+                weighted_price_sum += entry_price * overlap_minutes
+                total_overlap_minutes += overlap_minutes
+
+        return weighted_price_sum / total_overlap_minutes if total_overlap_minutes > 0 else 0.0
+
+    @staticmethod
+    def _determine_status(price: float, price_warning: float | None, price_critical: float | None) -> str:
+        """Determine status based on price thresholds.
+
+        Args:
+            price: The price to check.
+            price_warning: Warning threshold.
+            price_critical: Critical threshold.
+
+        Returns:
+            Status string: "OK", "Warning", or "Critical".
+        """
+        if price_critical is not None and price >= price_critical:
+            return "Critical"
+        if price_warning is not None and price >= price_warning:
+            return "Warning"
+        return "OK"
 
     # Private Functions ===========================================================================
     @staticmethod

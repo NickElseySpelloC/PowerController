@@ -46,6 +46,7 @@ nav:
       - OperatingSchedules: configuration/sections/operating_schedules.md
       - OutputSequences: configuration/sections/output_sequences.md
       - ViewerWebsite: configuration/sections/viewer_website.md
+      - DataAPI: configuration/sections/data_api.md
       - OutputMetering: configuration/sections/output_metering.md
       - TempProbeLogging: configuration/sections/temp_probe_logging.md
       - UPSIntegration: configuration/sections/ups_integration.md
