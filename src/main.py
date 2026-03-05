@@ -12,6 +12,8 @@ from sc_utility import SCCommon, SCConfigManager, SCLogger
 
 from config_schemas import ConfigSchema
 from controller import PowerController
+from dataapi import create_asgi_app as create_data_api_app
+from dataapi import serve_asgi_blocking as serve_data_api_blocking
 from local_enumerations import CONFIG_FILE
 from shelly_worker import ShellyWorker
 from thread_manager import RestartPolicy, ThreadManager
@@ -150,6 +152,7 @@ def main():  # noqa: PLR0915
     shelly_worker = None
     controller = None
     asgi_app = None
+    data_api_app = None
     try:
         # Create an instance of the ShellyWorker class
         shelly_worker = ShellyWorker(config, logger, wake_event)
@@ -159,6 +162,10 @@ def main():  # noqa: PLR0915
 
         asgi_app, web_notifier = create_asgi_app(controller, config, logger)
         controller.set_webapp_notifier(web_notifier.notify)
+
+        # Create Data API app if enabled
+        if config.get("DataAPI", "Enable", default=False):
+            data_api_app = create_data_api_app(controller, config, logger)
     except (RuntimeError, TypeError) as e:
         logger.log_fatal_error(f"Fatal error at startup: {e}")
         return
@@ -188,6 +195,15 @@ def main():  # noqa: PLR0915
         args=(asgi_app, config, logger, stop_event),
         restart=RestartPolicy(mode="on_crash", max_restarts=3, backoff_seconds=2.0),
     )
+
+    # Manage the Data API as a blocking worker in its own managed thread (if enabled)
+    if data_api_app is not None:
+        tm.add(
+            name="dataapi",
+            target=serve_data_api_blocking,
+            args=(data_api_app, config, logger, stop_event),
+            restart=RestartPolicy(mode="on_crash", max_restarts=3, backoff_seconds=2.0),
+        )
 
     tm.start_all()
     # (SIGINT handler already installed; remove later duplicate)

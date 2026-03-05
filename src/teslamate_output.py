@@ -431,17 +431,18 @@ class TeslaMateOutput:
             display_name (str | None): Optional display name for the output.
 
         Returns:
-            dict: The data for API output in JSON format.
+            dict: The data for API output.
         """
         is_on, reason = self._current_state_from_charge_data()
         return {
             "Name": self.name,
             "DisplayName": display_name or self.name,
+            "Type": self.type,
             "AppMode": self.app_mode.value,
             "State": "ON" if is_on else "OFF",
             "SystemState": str(self.system_state),
             "Reason": reason,
-            "LastChanged": self.last_changed.isoformat() if self.last_changed else None,
+            "LastChanged": self.last_changed,
             "DeviceMode": str(self.device_mode) if self.device_mode else None,
             "ActualHoursToday": float(self.run_history.get("DailyData", [{}])[-1].get("ActualHours") or 0.0) if self.run_history.get("DailyData") else 0.0,
         }

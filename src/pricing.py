@@ -246,6 +246,25 @@ class PricingManager:
 
         return daily_totals
 
+    def get_prices_for_data_api(self, channel_id: AmberChannel = AmberChannel.GENERAL, interval_time: int = 30, number_of_intervals: int = 12, price_warning: float = None, price_critical: float = None) -> list[dict]:
+        """Gets the current and forecasted price data for selected channel.
+
+        Args:
+            channel_id (AmberChannel): The ID of the channel to get the price data for.
+            interval_time (int): The interval time in minutes for each price slot (e.g. 30 for half-hourly prices, 60 for hourly prices).
+            number_of_intervals (int): The number of future intervals to include in the data.
+            price_warning (float): An optional price threshold for warning level. If provided and a slot's price exceeds this threshold, then the status key will be set to "Warning" for that slot.
+            price_critical (float): An optional price threshold for critical level. If provided and a slot's price exceeds this threshold, then the status key will be set to "Critical" for that slot.
+
+        Returns:
+            list[dict]: A list of dictionaries containing the price data for the next 24 hours. Each dictionary contains the following keys:
+                - StartDateTime (datetime): The start datetime of the price slot.
+                - EndDateTime (datetime): The end datetime of the price slot.
+                - Price (float): The price in AUD/kWh for that slot.
+                - Status (str): "OK", "Warning", or "Critical" based on the price thresholds provided.
+                - Type (str): "Current" for the current slot, "Forecast" for future slots.
+        """
+
     # Private Functions ===========================================================================
     @staticmethod
     def _convert_utc_dt_string(utc_time_str: str) -> dt.datetime:

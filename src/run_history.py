@@ -286,6 +286,68 @@ class RunHistory:
             })
         return usage_list
 
+    def get_energy_usage(self, hours: int = 24) -> dict:
+        """Returns the energy usage for the most recent specified hours.
+
+        The data is returned in the following structure:
+        {
+            "Hours": 24,
+            "EnergyUsed": 0.0,  # Energy used in Wh
+            "TotalCost": 0.0,   # Total cost in $
+            "AveragePrice": 0.0 # Average price in c/kWh
+        }
+
+        Args:
+            hours (int): The number of hours to look back for energy usage. Defaults to 24.
+
+        Returns:
+            dict: The energy usage data as described above.
+        """
+        energy_used = 0.0
+        total_cost = 0.0
+
+        if not self.history["DailyData"]:
+            return {
+                "Hours": hours,
+                "EnergyUsed": energy_used,
+                "TotalCost": total_cost,
+                "AveragePrice": 0.0
+            }
+
+        cutoff_time = DateHelper.now() - dt.timedelta(hours=hours)
+
+        for day in reversed(self.history["DailyData"]):
+            for run in reversed(day["DeviceRuns"]):
+                run_end_time = run["EndTime"] or DateHelper.now()
+                if run_end_time < cutoff_time:
+                    break
+
+                run_start_time = run["StartTime"]
+
+                # Check if the run spans the cutoff time
+                if run_start_time < cutoff_time <= run_end_time:
+                    # Pro-rate the energy and cost based on the portion after cutoff
+                    total_duration = (run_end_time - run_start_time).total_seconds()
+                    duration_after_cutoff = (run_end_time - cutoff_time).total_seconds()
+
+                    if total_duration > 0:
+                        fraction = duration_after_cutoff / total_duration
+                        energy_used += run["EnergyUsed"] * fraction
+                        total_cost += run["TotalCost"] * fraction
+                else:
+                    # Run is entirely after cutoff, include it fully
+                    energy_used += run["EnergyUsed"]
+                    total_cost += run["TotalCost"]
+
+        average_price = self.calc_price(energy_used, total_cost)
+
+        return {
+            "Hours": hours,
+            "EnergyUsed": energy_used,
+            "TotalCost": total_cost,
+            "AveragePrice": average_price
+        }
+
     @staticmethod
     def calc_cost(energy_used: float, price: float) -> float:
         """Calculate the cost in $ given energy used in Wh and price in c/kWh.

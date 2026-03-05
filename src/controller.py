@@ -285,11 +285,14 @@ class PowerController:
         if not self.config.get("General", "TestingMode", default=False):
             return False
 
-        api_data = self.get_api_data()
-        self.logger.log_message(f"API Data: \n{json.dumps(api_data, indent=4)}", "debug")
+        # api_data = self.get_api_data()
+        # self.logger.log_message(f"API Data: \n{json.dumps(api_data, indent=4)}", "debug")
 
-        api_output_data = self.get_api_data("Outputs")
-        self.logger.log_message(f"API Output Data: \n{json.dumps(api_output_data, indent=4)}", "debug")
+        # api_output_data = self.get_api_data("Outputs")
+        # self.logger.log_message(f"API Output Data: \n{json.dumps(api_output_data, indent=4)}", "debug")
+
+        api_meter_data = self.get_api_data("Meters")
+        self.logger.log_message(f"API Meter Data: \n{json.dumps(api_meter_data, indent=4)}", "debug")
 
         # Run output level self tests
         for output in self.outputs:
@@ -1467,9 +1470,9 @@ class PowerController:
         """Initialise the data API cache."""
         with self._data_api_lock:
             self.data_api_data = {
-                "Outputs": {},
-                "Meters": {},
-                "TempProbes": {},
+                "Outputs": [],
+                "Meters": [],
+                "TempProbes": [],
                 "EnergyPrices": {},
                 "LastRefresh": None,
             }
@@ -1483,8 +1486,16 @@ class PowerController:
         if self._data_api_next_refresh > DateHelper.now():
             return  # Not time to refresh yet
 
+        # Setup the new data dict with the current refresh time
+        return_data = {
+            "Outputs": [],
+            "Meters": [],
+            "TempProbes": [],
+            "EnergyPrices": {},
+            "LastRefresh": DateHelper.now(),
+        }
+
         # Get the Output data
-        output_data = {}
         for output_cfg in self._data_api_config.get("Outputs", []):
             name = output_cfg.get("Name")
             display_name = output_cfg.get("DisplayName") or name
@@ -1495,22 +1506,65 @@ class PowerController:
                 self.logger.log_message(f"Data API: Output {name} not found among configured outputs; skipping.", "error")
                 continue
             new_output_data = output_obj.get_api_data(view, display_name)
-            output_data[name] = new_output_data
+            return_data["Outputs"].append(new_output_data)
 
-        # Get the Meter data
-        meter_data = {}  # TO DO: Implement meter data retrieval and add to the schema
+        # Get the Meter data - just read the current power draw directly from the Shelly view
+        for meter_cfg in self._data_api_config.get("Meters", []):
+            name = meter_cfg.get("Name")
+            display_name = meter_cfg.get("DisplayName") or name
+            if not name:
+                continue
+            meter_id = view.get_meter_id(name)
+            if not meter_id:
+                self.logger.log_message(f"Data API: Meter {name} not found among configured outputs; skipping.", "error")
+                continue
+            meter_power = view.get_meter_power(meter_id)
+            new_meter_data = {
+                "Name": name,
+                "Type": "meter",
+                "DisplayName": display_name,
+                "Power": meter_power,
+            }
+            return_data["Meters"].append(new_meter_data)
 
         # Get the Temp Probe data
-        temp_probe_data = {}    # TO DO: Implement temp probe data retrieval and add to the schema
+        probe_logging_data = self.temp_probe_logging.get("history", [])
+        probe_history_cutoff_time = DateHelper.add_datetime(DateHelper.now(), days=-(self._data_api_config.get("TempProbeHistoryDays", 7) or 7))  # pyright: ignore[reportArgumentType]
+        for probe_cfg in self._data_api_config.get("TempProbes", []):
+            name = probe_cfg.get("Name")
+            display_name = probe_cfg.get("DisplayName") or name
+            if not name:
+                continue
+            probe_id = view.get_temp_probe_id(name)
+            if not probe_id:
+                self.logger.log_message(f"Data API: Temp Probe {name} not found among configured probes; skipping.", "error")
+                continue
+            probe_temp = view.get_temp_probe_temperature(probe_id)
+
+            # Now build a logging history list if available for this probe
+            probe_history = []
+            for entry in probe_logging_data:
+                if entry.get("ProbeName") == name and entry.get("Timestamp") and entry["Timestamp"] >= probe_history_cutoff_time:
+                    probe_history.append({
+                        "Timestamp": entry.get("Timestamp"),
+                        "Temperature": entry.get("Temperature"),
+                    })
+            new_probe_data = {
+                "Name": name,
+                "Type": "temp_probe",
+                "DisplayName": display_name,
+                "Temperature": probe_temp,
+                "LastReadingTime": view.get_temp_probe_reading_time(probe_id),
+                "History": probe_history,
+            }
+            return_data["TempProbes"].append(new_probe_data)
 
         # Get the energy price data
-        energy_price_data = {}  # TO DO: Implement energy price data retrieval and add to the schema}
+        # TO DO: Implement energy price data retrieval and add to the schema}
+
+        # Now build up the JSON ready data dict that we will cache and return for API calls
+        return_data_json = JSONEncoder.ready_dict_for_json(return_data)  # pyright: ignore[reportReturnType]
 
         # Update the data API cache with the new data in JSON format
         with self._data_api_lock:
-            self.data_api_data["Outputs"] = copy.deepcopy(output_data)
-            self.data_api_data["Meters"] = copy.deepcopy(meter_data)
-            self.data_api_data["TempProbes"] = copy.deepcopy(temp_probe_data)
-            self.data_api_data["EnergyPrices"] = copy.deepcopy(energy_price_data)
-            self.data_api_data["LastRefresh"] = DateHelper.now_str("ISO")
-            self._data_api_next_refresh = DateHelper.add_datetime(DateHelper.now(), seconds=int(self._data_api_config.get("RefreshInterval", 60) or 60))  # pyright: ignore[reportArgumentType]
+            self.data_api_data = copy.deepcopy(return_data_json)  # pyright: ignore[reportAttributeAccessIssue, reportAssignmentType]

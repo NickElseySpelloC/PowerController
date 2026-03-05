@@ -337,16 +337,17 @@ class MeterOutput:
             display_name (str | None): Optional display name for the output.
 
         Returns:
-            dict: The data for API output in JSON format.
+            dict: The data for API output.
         """
         return {
             "Name": self.name,
             "DisplayName": display_name or self.name,
+            "Type": self.type,
             "State": "ON" if self._is_on else "OFF",
             "AppMode": str(self.app_mode),
             "SystemState": str(self.system_state),
             "Reason": str(self.reason) if self.reason else None,
-            "LastChanged": self.last_changed.isoformat() if self.last_changed else None,
+            "LastChanged": self.last_changed,
             "DeviceMode": str(self.device_mode) if self.device_mode else None,
             "ActualHoursToday": self.run_history.get_actual_hours() if self.run_history else 0.0,
         }

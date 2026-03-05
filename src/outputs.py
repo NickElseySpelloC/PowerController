@@ -13,7 +13,7 @@ from org_enums import (
     StateReasonOn,
     SystemState,
 )
-from sc_utility import DateHelper, JSONEncoder, SCConfigManager, SCLogger
+from sc_utility import DateHelper, SCConfigManager, SCLogger
 
 from local_enumerations import (
     FAILED_RUNPLAN_CHECK_INTERVAL,
@@ -1022,19 +1022,28 @@ class OutputManager:  # noqa: PLR0904
             display_name (str | None): Optional display name for the output.
 
         Returns:
-            dict: The data for API output in JSON format.
+            dict: The data for API output.
         """
-        api_run_plan = []
-        if self.run_plan:
-            api_run_plan = JSONEncoder.ready_dict_for_json(self.run_plan.get("RunPlan", [])) or []
+        is_on = None
+        if view:
+            is_on = view.get_output_state(self.device_output_id)
+
+        next_change_dt = None
+        if is_on:
+            next_change_dt = self.run_plan.get("NextStopDateTime") if self.run_plan else None
+        elif is_on is not None:
+            next_change_dt = self.run_plan.get("NextStartDateTime") if self.run_plan else None
+
         return {
             "Name": self.name,
             "DisplayName": display_name or self.name,
+            "Type": self.type,
             "AppMode": self.app_mode.value,
-            "State": ("ON" if view.get_output_state(self.device_output_id) else "OFF") if view else "Unknown",
+            "State": ("ON" if is_on else "OFF") if view else "Unknown",
+            "NextChange": next_change_dt,
             "SystemState": str(self.system_state),
             "Reason": str(self.reason) if self.reason else None,
-            "LastChanged": self.last_changed.isoformat() if self.last_changed else None,
+            "LastChanged": self.last_changed,
             "OutputName": self.device_output_name,
             "DeviceMode": str(self.device_mode) if self.device_mode else None,
             "ScheduleName": self.schedule_name,
@@ -1046,8 +1055,11 @@ class OutputManager:  # noqa: PLR0904
             "MaxBestPrice": self.max_best_price,
             "MaxPriorityPrice": self.max_priority_price,
             "ActualHoursToday": self.run_history.get_actual_hours() if self.run_history else 0.0,
-            "RunPlan": api_run_plan,
-            "MeterName": self.device_meter_name,
+            "RunPlan": self.run_plan.get("RunPlan") if self.run_plan else None,
+            "EnergyUsage": {
+                "1hr": self.run_history.get_energy_usage(1) if self.run_history else None,
+                "24hr": self.run_history.get_energy_usage(24) if self.run_history else None
+            },
         }
 
     # Private Functions ===========================================================================

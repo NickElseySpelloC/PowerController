@@ -368,6 +368,7 @@ class ConfigSchema:
                     "Port": {"type": "number", "required": True, "nullable": True, "min": 80, "max": 65535},
                     "RefreshInterval": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 3600},
                     "AccessKey": {"type": "string", "required": False, "nullable": True},
+                    "TempProbeHistoryDays": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 365},
                     "Outputs": {
                         "type": "list",
                         "required": False,
