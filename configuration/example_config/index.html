@@ -837,6 +837,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sections/data_api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DataAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../sections/output_metering/" class="md-nav__link">
         
   
@@ -1426,6 +1454,40 @@ ViewerWebsite:
   AccessKey: &lt;Your website API key here&gt;  # The access key for the PowerControllerViewer app. Alternatively, set the VIEWER_ACCESS_KEY environment variable.
   APITimeout: 5                   # How long to wait in seconds for a response from the PowerControllerViewer app
   Frequency: 10                   # How often to post the state to the web viewer app (in seconds)
+
+
+# Optionally use this section to enable a data API that can be used to get the current state of the system and recent history for integration with other applications or custom dashboards.
+DataAPI:
+  Enable: True
+  HostingIP: 0.0.0.0
+  Port: 8081
+  RefreshInterval: 30  # Seconds between cache refresh. Set to 0 to refresh every polling interval.
+  AccessKey:  # The access key for the API calls. Alternatively, set the DATAAPI_ACCESS_KEY environment variable.
+  Outputs:
+    - Name: Pool Pump
+      DisplayName: Pool
+    - Name: &quot;EM1.1 Living &amp; Beds&quot;
+      DisplayName: &quot;Living &amp; Beds&quot;
+    - Name: Tesla
+  Meters:
+    - Name: &quot;Panel EM1.1&quot;
+      DisplayName: &quot;Living &amp; Beds&quot;
+    - Name: &quot;Panel EM1.2&quot;
+      DisplayName: &quot;Kitchen &amp; Laundry&quot;
+  TempProbes:
+    - Name: &quot;Temp Pool Water&quot;
+      DisplayName: &quot;Pool&quot;
+    - Name: &quot;Temp Solar Return&quot;
+      DisplayName: &quot;Solar Return&quot;
+    - Name: &quot;Temp Roof&quot;
+      DisplayName: &quot;Roof&quot;
+  TempProbeHistoryDays: 5 # Number of days of temp probe history data to include in the TempProbes API response. 
+  EnergyPrices:
+    AmberChannel: general
+    IntervalTime: 30    # Interval for each forecast period in minutes (e.g. 30 for half-hourly prices, 60 for hourly prices)
+    NumIntervals: 15    # Number of intervals to return in the forecast (e.g. 48 for 24 hours of half-hourly prices, 24 for 24 hours of hourly prices)
+    WarningPrice: 46.0   # If the price exceeds this value, the API will include a warning in the response for this interval. Set to 0 to disable warnings.
+    CriticalPrice: 50.0  # If the price exceeds this value, the API will include a critical warning in the response for this interval. Set to 0 to disable critical warnings.
 
 
 # Optionally use this section to enable logging of output energy consumption data to CSV and the system state file
