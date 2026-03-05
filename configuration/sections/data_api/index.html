@@ -901,6 +901,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#outputs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1261,6 +1272,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#outputs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1380,14 +1402,320 @@
 </table>
 <h2 id="api-end-points">API End Points</h2>
 <p>The Data API response to the following end-points</p>
+<h3 id="all">/all</h3>
+<p>Return all the sections listed below.</p>
 <h3 id="outputs">/outputs</h3>
 <p>Return output information, as configured in the <em>DataAPI: Outputs:</em> parameter above. </p>
+<pre><code class="language-json">{
+    &quot;Outputs&quot;: [
+        {
+            &quot;Name&quot;: &quot;Pool Pump&quot;,
+            &quot;DisplayName&quot;: &quot;Pool&quot;,
+            &quot;Type&quot;: &quot;shelly&quot;,
+            &quot;AppMode&quot;: &quot;auto&quot;,
+            &quot;State&quot;: &quot;ON&quot;,
+            &quot;NextChange&quot;: &quot;2026-03-06T14:59:00+11:00&quot;,
+            &quot;NextChange__datatype&quot;: &quot;datetime&quot;,
+            &quot;SystemState&quot;: &quot;Automatic control based on schedule or best price&quot;,
+            &quot;Reason&quot;: &quot;Run plan dictates that the output should be on&quot;,
+            &quot;LastChanged&quot;: &quot;2026-03-06T10:05:14.619047+11:00&quot;,
+            &quot;LastChanged__datatype&quot;: &quot;datetime&quot;,
+            &quot;OutputName&quot;: &quot;Pool Pump Output&quot;,
+            &quot;DeviceMode&quot;: &quot;BestPrice&quot;,
+            &quot;ScheduleName&quot;: &quot;General&quot;,
+            &quot;AmberChannel&quot;: &quot;general&quot;,
+            &quot;MinHours&quot;: 2,
+            &quot;MaxHours&quot;: 10,
+            &quot;TargetHours&quot;: 6,
+            &quot;PlannedHours&quot;: 4.9,
+            &quot;MaxBestPrice&quot;: 25.0,
+            &quot;MaxPriorityPrice&quot;: 30.0,
+            &quot;ActualHoursToday&quot;: 1.2284398791666666,
+            &quot;RunPlan&quot;: [
+                {
+                    &quot;Date&quot;: &quot;2026-03-06&quot;,
+                    &quot;Date__datatype&quot;: &quot;date&quot;,
+                    &quot;StartDateTime&quot;: &quot;2026-03-06T10:05:00+11:00&quot;,
+                    &quot;StartDateTime__datatype&quot;: &quot;datetime&quot;,
+                    &quot;EndDateTime&quot;: &quot;2026-03-06T14:59:00+11:00&quot;,
+                    &quot;EndDateTime__datatype&quot;: &quot;datetime&quot;,
+                    &quot;Minutes&quot;: 294,
+                    &quot;Price&quot;: 16.14,
+                    &quot;ForecastEnergyUsage&quot;: 4889.304361034673,
+                    &quot;EstimatedCost&quot;: 0.7889866552532078,
+                    &quot;SlotCount&quot;: 59
+                }
+            ],
+            &quot;EnergyUsage&quot;: {
+                &quot;1hr&quot;: {
+                    &quot;Hours&quot;: 1,
+                    &quot;EnergyUsed&quot;: 1017.067198107691,
+                    &quot;TotalCost&quot;: 0.16674767951499742,
+                    &quot;AveragePrice&quot;: 16.394952056780575
+                },
+                &quot;24hr&quot;: {
+                    &quot;Hours&quot;: 24,
+                    &quot;EnergyUsed&quot;: 6153.821788686064,
+                    &quot;TotalCost&quot;: 1.052588584471647,
+                    &quot;AveragePrice&quot;: 17.104632220693393
+                }
+            }
+        },
+        {
+            &quot;Name&quot;: &quot;Solar Pump&quot;,
+            &quot;DisplayName&quot;: &quot;Solar&quot;,
+            &quot;Type&quot;: &quot;shelly&quot;,
+            &quot;AppMode&quot;: &quot;auto&quot;,
+            &quot;State&quot;: &quot;OFF&quot;,
+            &quot;NextChange&quot;: &quot;2026-03-06T10:05:00+11:00&quot;,
+            &quot;NextChange__datatype&quot;: &quot;datetime&quot;,
+            &quot;SystemState&quot;: &quot;Automatic control based on schedule or best price&quot;,
+            &quot;Reason&quot;: &quot;A temperature probe constraint requires the output to be off&quot;,
+            &quot;LastChanged&quot;: &quot;2026-03-06T10:05:14.622337+11:00&quot;,
+            &quot;LastChanged__datatype&quot;: &quot;datetime&quot;,
+            &quot;OutputName&quot;: &quot;Solar Pump&quot;,
+            &quot;DeviceMode&quot;: &quot;Schedule&quot;,
+            &quot;ScheduleName&quot;: &quot;Pool Solar&quot;,
+            &quot;AmberChannel&quot;: &quot;general&quot;,
+            &quot;MinHours&quot;: 2,
+            &quot;MaxHours&quot;: 6,
+            &quot;TargetHours&quot;: null,
+            &quot;PlannedHours&quot;: 5.916666666666667,
+            &quot;MaxBestPrice&quot;: 25.0,
+            &quot;MaxPriorityPrice&quot;: 30.0,
+            &quot;ActualHoursToday&quot;: 0.0,
+            &quot;RunPlan&quot;: [
+                {
+                    &quot;Date&quot;: &quot;2026-03-06&quot;,
+                    &quot;Date__datatype&quot;: &quot;date&quot;,
+                    &quot;StartDateTime&quot;: &quot;2026-03-06T10:05:00+11:00&quot;,
+                    &quot;StartDateTime__datatype&quot;: &quot;datetime&quot;,
+                    &quot;EndDateTime&quot;: &quot;2026-03-06T16:00:00+11:00&quot;,
+                    &quot;EndDateTime__datatype&quot;: &quot;datetime&quot;,
+                    &quot;Minutes&quot;: 355,
+                    &quot;Price&quot;: 15.0,
+                    &quot;ForecastEnergyUsage&quot;: 3492.525301210315,
+                    &quot;EstimatedCost&quot;: 0.5238787951815472,
+                    &quot;SlotCount&quot;: 1
+                }
+            ],
+            &quot;EnergyUsage&quot;: {
+                &quot;1hr&quot;: {
+                    &quot;Hours&quot;: 1,
+                    &quot;EnergyUsed&quot;: 0.0,
+                    &quot;TotalCost&quot;: 0.0,
+                    &quot;AveragePrice&quot;: 0
+                },
+                &quot;24hr&quot;: {
+                    &quot;Hours&quot;: 24,
+                    &quot;EnergyUsed&quot;: 1395.6509999999835,
+                    &quot;TotalCost&quot;: 0.20934764999999744,
+                    &quot;AveragePrice&quot;: 14.999999999999995
+                }
+            }
+        },
+        {
+            &quot;Name&quot;: &quot;Network Rack&quot;,
+            &quot;DisplayName&quot;: &quot;Network&quot;,
+            &quot;Type&quot;: &quot;shelly&quot;,
+            &quot;AppMode&quot;: &quot;auto&quot;,
+            &quot;State&quot;: &quot;ON&quot;,
+            &quot;NextChange&quot;: &quot;2026-03-07T00:00:00+11:00&quot;,
+            &quot;NextChange__datatype&quot;: &quot;datetime&quot;,
+            &quot;SystemState&quot;: &quot;Automatic control based on schedule or best price&quot;,
+            &quot;Reason&quot;: &quot;Run plan dictates that the output should be on&quot;,
+            &quot;LastChanged&quot;: &quot;2026-03-06T10:05:14.633633+11:00&quot;,
+            &quot;LastChanged__datatype&quot;: &quot;datetime&quot;,
+            &quot;OutputName&quot;: &quot;Network Rack O1&quot;,
+            &quot;DeviceMode&quot;: &quot;BestPrice&quot;,
+            &quot;ScheduleName&quot;: &quot;General&quot;,
+            &quot;AmberChannel&quot;: &quot;general&quot;,
+            &quot;MinHours&quot;: -1,
+            &quot;MaxHours&quot;: -1,
+            &quot;TargetHours&quot;: null,
+            &quot;PlannedHours&quot;: 13.916666666666666,
+            &quot;MaxBestPrice&quot;: 60.0,
+            &quot;MaxPriorityPrice&quot;: 65.0,
+            &quot;ActualHoursToday&quot;: 10.235384890833332,
+            &quot;RunPlan&quot;: [
+                {
+                    &quot;Date&quot;: &quot;2026-03-06&quot;,
+                    &quot;Date__datatype&quot;: &quot;date&quot;,
+                    &quot;StartDateTime&quot;: &quot;2026-03-06T10:05:00+11:00&quot;,
+                    &quot;StartDateTime__datatype&quot;: &quot;datetime&quot;,
+                    &quot;EndDateTime&quot;: &quot;2026-03-07T00:00:00+11:00&quot;,
+                    &quot;EndDateTime__datatype&quot;: &quot;datetime&quot;,
+                    &quot;Minutes&quot;: 835,
+                    &quot;Price&quot;: 29.82,
+                    &quot;ForecastEnergyUsage&quot;: 0.0,
+                    &quot;EstimatedCost&quot;: 0.0,
+                    &quot;SlotCount&quot;: 167
+                }
+            ],
+            &quot;EnergyUsage&quot;: {
+                &quot;1hr&quot;: {
+                    &quot;Hours&quot;: 1,
+                    &quot;EnergyUsed&quot;: 0.0,
+                    &quot;TotalCost&quot;: 0.0,
+                    &quot;AveragePrice&quot;: 0
+                },
+                &quot;24hr&quot;: {
+                    &quot;Hours&quot;: 24,
+                    &quot;EnergyUsed&quot;: 0.0,
+                    &quot;TotalCost&quot;: 0.0,
+                    &quot;AveragePrice&quot;: 0
+                }
+            }
+        }
+    ],
+    &quot;LastRefresh&quot;: &quot;2026-03-06T10:14:07.481844+11:00&quot;
+}
+</code></pre>
 <h3 id="meters">/meters</h3>
 <p>Return Shelly energy meter information, as configured in the <em>DataAPI: Meters:</em> parameter above. </p>
+<pre><code class="language-json">{
+    &quot;Meters&quot;: [
+        {
+            &quot;Name&quot;: &quot;Panel EM1.1&quot;,
+            &quot;Type&quot;: &quot;meter&quot;,
+            &quot;DisplayName&quot;: &quot;Living &amp; Beds&quot;,
+            &quot;Power&quot;: 286.0
+        },
+        {
+            &quot;Name&quot;: &quot;Panel EM1.2&quot;,
+            &quot;Type&quot;: &quot;meter&quot;,
+            &quot;DisplayName&quot;: &quot;Kitchen &amp; Laundry&quot;,
+            &quot;Power&quot;: 210.7
+        },
+        {
+            &quot;Name&quot;: &quot;Panel EM2.1&quot;,
+            &quot;Type&quot;: &quot;meter&quot;,
+            &quot;DisplayName&quot;: &quot;Cooking&quot;,
+            &quot;Power&quot;: 0.0
+        },
+        {
+            &quot;Name&quot;: &quot;Panel EM2.2&quot;,
+            &quot;Type&quot;: &quot;meter&quot;,
+            &quot;DisplayName&quot;: &quot;Bedroom A/C&quot;,
+            &quot;Power&quot;: 0.0
+        },
+        {
+            &quot;Name&quot;: &quot;Panel EM3.1&quot;,
+            &quot;Type&quot;: &quot;meter&quot;,
+            &quot;DisplayName&quot;: &quot;Living A/C&quot;,
+            &quot;Power&quot;: 26.52
+        },
+        {
+            &quot;Name&quot;: &quot;Panel EM3.2&quot;,
+            &quot;Type&quot;: &quot;meter&quot;,
+            &quot;DisplayName&quot;: &quot;Study A/C&quot;,
+            &quot;Power&quot;: 50.06
+        }
+    ],
+    &quot;LastRefresh&quot;: &quot;2026-03-06T10:15:28.138335+11:00&quot;
+}
+</code></pre>
 <h3 id="tempprobes">/tempprobes</h3>
 <p>Return Shelly temperature probe information, as configured in the <em>DataAPI: TempProbes:</em> parameter above. </p>
+<pre><code class="language-json">{
+    &quot;TempProbes&quot;: [
+        {
+            &quot;Name&quot;: &quot;Temp Pool Water&quot;,
+            &quot;Type&quot;: &quot;temp_probe&quot;,
+            &quot;DisplayName&quot;: &quot;Pool&quot;,
+            &quot;Temperature&quot;: 25.9,
+            &quot;LastReadingTime&quot;: &quot;2026-03-06T10:16:13.619495+11:00&quot;,
+            &quot;LastReadingTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;History&quot;: [
+                {
+                    &quot;Timestamp&quot;: &quot;2026-03-01T10:26:17.871014+11:00&quot;,
+                    &quot;Timestamp__datatype&quot;: &quot;datetime&quot;,
+                    &quot;Temperature&quot;: 24.8
+                },
+                {
+                    &quot;Timestamp&quot;: &quot;2026-03-01T11:26:23.062229+11:00&quot;,
+                    &quot;Timestamp__datatype&quot;: &quot;datetime&quot;,
+                    &quot;Temperature&quot;: 24.9
+                },
+                {
+                    &quot;Timestamp&quot;: &quot;2026-03-01T12:26:33.873555+11:00&quot;,
+                    &quot;Timestamp__datatype&quot;: &quot;datetime&quot;,
+                    &quot;Temperature&quot;: 24.9
+                },
+                ...
+            ]
+        },
+        {
+            &quot;Name&quot;: &quot;Temp Roof&quot;,
+            &quot;Type&quot;: &quot;temp_probe&quot;,
+            &quot;DisplayName&quot;: &quot;Roof&quot;,
+            &quot;Temperature&quot;: 27.1,
+            &quot;LastReadingTime&quot;: &quot;2026-03-06T10:16:13.620818+11:00&quot;,
+            &quot;LastReadingTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;History&quot;: [...]
+        },
+        {
+            &quot;Name&quot;: &quot;Temp Air&quot;,
+            &quot;Type&quot;: &quot;temp_probe&quot;,
+            &quot;DisplayName&quot;: &quot;Air&quot;,
+            &quot;Temperature&quot;: 24.3,
+            &quot;LastReadingTime&quot;: &quot;2026-03-06T10:16:13.621942+11:00&quot;,
+            &quot;LastReadingTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;History&quot;: [...]
+        }
+    ],
+    &quot;LastRefresh&quot;: &quot;2026-03-06T10:16:14.728099+11:00&quot;
+}
+</code></pre>
 <h3 id="energyprices">/energyprices</h3>
 <p>Return Amber electricity forecast price information, as configured in the <em>DataAPI: EnergyPrices:</em> parameter above. </p>
+<pre><code class="language-json">{
+    &quot;EnergyPrices&quot;: [
+        {
+            &quot;StartDateTime&quot;: &quot;2026-03-06T10:10:00+11:00&quot;,
+            &quot;StartDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;EndDateTime&quot;: &quot;2026-03-06T10:40:00+11:00&quot;,
+            &quot;EndDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;Minutes&quot;: 30,
+            &quot;Price&quot;: 16.25,
+            &quot;Status&quot;: &quot;OK&quot;,
+            &quot;Type&quot;: &quot;Current&quot;
+        },
+        {
+            &quot;StartDateTime&quot;: &quot;2026-03-06T10:40:00+11:00&quot;,
+            &quot;StartDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;EndDateTime&quot;: &quot;2026-03-06T11:10:00+11:00&quot;,
+            &quot;EndDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;Minutes&quot;: 30,
+            &quot;Price&quot;: 15.87,
+            &quot;Status&quot;: &quot;OK&quot;,
+            &quot;Type&quot;: &quot;Forecast&quot;
+        },
+        {
+            &quot;StartDateTime&quot;: &quot;2026-03-06T11:10:00+11:00&quot;,
+            &quot;StartDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;EndDateTime&quot;: &quot;2026-03-06T11:40:00+11:00&quot;,
+            &quot;EndDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;Minutes&quot;: 30,
+            &quot;Price&quot;: 15.87,
+            &quot;Status&quot;: &quot;OK&quot;,
+            &quot;Type&quot;: &quot;Forecast&quot;
+        },
+        {
+            &quot;StartDateTime&quot;: &quot;2026-03-06T11:40:00+11:00&quot;,
+            &quot;StartDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;EndDateTime&quot;: &quot;2026-03-06T12:10:00+11:00&quot;,
+            &quot;EndDateTime__datatype&quot;: &quot;datetime&quot;,
+            &quot;Minutes&quot;: 30,
+            &quot;Price&quot;: 16.03,
+            &quot;Status&quot;: &quot;OK&quot;,
+            &quot;Type&quot;: &quot;Forecast&quot;
+        },
+        ...
+    ],
+    &quot;LastRefresh&quot;: &quot;2026-03-06T10:12:34.701514+11:00&quot;
+}
+</code></pre>
 
 
 
