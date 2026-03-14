@@ -278,23 +278,42 @@ class PricingManager:
         # Generate intervals starting from the current slot
         result = []
         interval_start = current_slot_start
+
         for i in range(number_of_intervals):
-            interval_end = DateHelper.add_datetime(interval_start, minutes=interval_time)
+            if i == 0:
+                # First slot starts at current slot start and ends at the next interval boundary
+                # (or full interval if already on a boundary).
+                midnight = interval_start.replace(hour=0, minute=0, second=0, microsecond=0)
+                minutes_since_midnight = int((interval_start - midnight).total_seconds() // 60)
+                remainder = minutes_since_midnight % interval_time
+
+                if remainder == 0 and interval_start.second == 0 and interval_start.microsecond == 0:
+                    interval_end = DateHelper.add_datetime(interval_start, minutes=interval_time)
+                else:
+                    minutes_to_boundary = interval_time - remainder
+                    interval_end = DateHelper.add_datetime(interval_start, minutes=minutes_to_boundary)
+            else:
+                # Subsequent slots always start on interval boundaries.
+                interval_end = DateHelper.add_datetime(interval_start, minutes=interval_time)
+
             overlapping_entries = PricingManager._find_overlapping_entries(raw_data, interval_start, interval_end)
 
-            if overlapping_entries:
-                avg_price = PricingManager._calculate_weighted_average_price(overlapping_entries, interval_start, interval_end)
-                status = PricingManager._determine_status(avg_price, price_warning, price_critical)
-                slot_type = "Current" if i == 0 else "Forecast"
+            if not overlapping_entries:
+                continue
 
-                result.append({
-                    "StartDateTime": interval_start,
-                    "EndDateTime": interval_end,
-                    "Minutes": interval_time,
-                    "Price": round(avg_price, 2),
-                    "Status": status,
-                    "Type": slot_type,
-                })
+            avg_price = PricingManager._calculate_weighted_average_price(overlapping_entries, interval_start, interval_end)
+            status = PricingManager._determine_status(avg_price, price_warning, price_critical)
+            slot_type = "Current" if i == 0 else "Forecast"
+            minutes = int((interval_end - interval_start).total_seconds() / 60)
+
+            result.append({
+                "StartDateTime": interval_start,
+                "EndDateTime": interval_end,
+                "Minutes": minutes,
+                "Price": round(avg_price, 2),
+                "Status": status,
+                "Type": slot_type,
+            })
 
             interval_start = interval_end
 

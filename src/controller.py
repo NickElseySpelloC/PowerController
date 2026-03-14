@@ -1572,7 +1572,7 @@ class PowerController:
         if pricing_cfg:
             return_data["EnergyPrices"] = self.pricing.get_prices_for_data_api(channel_id=pricing_cfg.get("ChannelID", AmberChannel.GENERAL),
                                                             interval_time=pricing_cfg.get("IntervalTime", 30),
-                                                            number_of_intervals=pricing_cfg.get("NumberOfIntervals", 12),
+                                                            number_of_intervals=pricing_cfg.get("NumIntervals", 12),
                                                             price_warning=pricing_cfg.get("WarningPrice"),
                                                             price_critical=pricing_cfg.get("CriticalPrice"))
 
