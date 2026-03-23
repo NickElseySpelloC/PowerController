@@ -93,6 +93,6 @@ Note: Required keys are shown in **bold**.
 | MinEnergyToLog | If a device run is logged with less than this number of Watts, the entry will be discarded. |
 | HideFromWebApp | If True, this output will not be shown in the built-in web app. |
 | HideFromViewerApp | If True, this output will not be shown in the PowerControllerViewer app. |
-| TempProbeConstraints | List of temperature probe constraints that must be met for the output to run. Each entry must include:<br>**TempProbe**: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: TempProbes section.<br>**Condition**: Either _GreaterThan_ or _LessThan_<br>**Temperature**: The threshold temperature on degress C. |
+| TempProbeConstraints | List of temperature probe constraints that must be met for the output to run. Each entry must include:<br>**TempProbe**: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: TempProbes section.<br>**Condition**: Either _GreaterThan_ or _LessThan_<br>**Temperature**: The threshold temperature on degress C.<br>**FallBackTemp**: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C. |
 
 Take a look at the [example configuration file](../example_config.md) for some real world examples.

@@ -4,9 +4,6 @@ import datetime as dt
 import operator
 import re
 
-import pytz
-from astral import LocationInfo
-from astral.sun import sun
 from org_enums import RunPlanMode
 from sc_utility import DateHelper, SCConfigManager, SCLogger
 
@@ -315,7 +312,6 @@ class Scheduler:
         Returns:
             dict: A dictionary with 'dawn' and 'dusk' times.
         """
-        name = "PowerController"
         loc_conf = self.config.get("Location", default={})
         assert isinstance(loc_conf, dict), "Location configuration must be a dictionary"
         tz = lat = lon = None
@@ -350,11 +346,10 @@ class Scheduler:
             lat = 0.0
             lon = 0.0
 
-        # Create location object and compute times
-        location = LocationInfo(name=name, region="", timezone=tz, latitude=lat, longitude=lon)
-        s = sun(location.observer, date=DateHelper.today(), tzinfo=pytz.timezone(tz))
+        astral_info = DateHelper.get_dawn_dusk_times(latitude=lat, longitude=lon, timezone=tz)   # Issue 80
 
-        return {
-            "dawn": s["dawn"].time(),
-            "dusk": s["dusk"].time(),
+        return_obj = {
+            "dawn": astral_info["dawn"].time(),
+            "dusk": astral_info["dusk"].time(),
         }
+        return return_obj

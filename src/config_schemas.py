@@ -198,6 +198,7 @@ class ConfigSchema:
                                     "TempProbe": {"type": "string", "required": True},
                                     "Condition": {"type": "string", "required": True, "allowed": ["GreaterThan", "LessThan"]},
                                     "Temperature": {"type": "number", "required": True, "min": -50.0, "max": 150.0},
+                                    "FallBackTemp": {"type": "number", "required": False, "nullable": True, "min": -50.0, "max": 150.0},
                                 },
                             },
                         },
@@ -525,6 +526,7 @@ class ConfigSchema:
                 "name": "Timestamp",
                 "type": "datetime",
                 "format": "%Y-%m-%d %H:%M:%S",
+                "minimum": 365,
             },
             {
                 "name": "UPSName",

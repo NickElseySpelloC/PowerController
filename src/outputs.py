@@ -290,12 +290,17 @@ class OutputManager:  # noqa: PLR0904
                 temp_probe_name = constraint.get("TempProbe")
                 condition = constraint.get("Condition")
                 temperature = constraint.get("Temperature")
+                fall_back_temp = constraint.get("FallBackTemp")
                 if not temp_probe_name or condition not in {"GreaterThan", "LessThan"} or not isinstance(temperature, (int, float)):
                     _validation_error(f"Invalid TempProbeConstraint in output {self.name}.")
                 else:
                     temp_probe_id = view.get_temp_probe_id(temp_probe_name)
                     if not temp_probe_id:
                         _validation_error(f"TempProbe {temp_probe_name} not found for output {self.name}.")
+                    elif condition == "GreaterThan" and fall_back_temp and fall_back_temp >= temperature:
+                        _validation_error(f"Invalid FallBackTemp for TempProbeConstraint in output {self.name}. For a GreaterThan constraint, FallBackTemp must be less than the main Temperature.")
+                    elif condition == "LessThan" and fall_back_temp and fall_back_temp <= temperature:
+                        _validation_error(f"Invalid FallBackTemp for TempProbeConstraint in output {self.name}. For a LessThan constraint, FallBackTemp must be greater than the main Temperature.")
                     else:
                         # Add the TempProbeID to the constraint
                         constraint["ProbeID"] = temp_probe_id
@@ -666,11 +671,16 @@ class OutputManager:  # noqa: PLR0904
                 new_output_state = False
                 reason_off = StateReasonOff.PARENT_OFF
 
-        # If we're proposing to turn on and the system_state is AUTO, then make sure we don't have any temp probe constraints
-        if new_system_state == SystemState.AUTO and new_output_state and self._are_there_temp_probe_constraints(view):
-            # One or more temp probe constraints are active, so we have to remain off
-            new_output_state = False
-            reason_off = StateReasonOff.TEMP_PROBE_CONSTRAINT
+        # If the system_state is AUTO, then make sure we don't have any temp probe constraints
+        if new_system_state == SystemState.AUTO:
+            is_constraint, override_state = self._are_there_temp_probe_constraints(view, new_output_state)
+            if is_constraint:
+                if override_state:  # A temp probes requires us to stay on even though we would otherwise be off
+                    new_output_state = True
+                    reason_on = StateReasonOn.TEMP_PROBE_CONSTRAINT
+                else:     # A temp probes requires us to stay off even though we would otherwise be on
+                    new_output_state = False
+                    reason_off = StateReasonOff.TEMP_PROBE_CONSTRAINT
 
         # Check minimum runtime constraints before applying changes
         if new_system_state == SystemState.AUTO and self._should_respect_minimum_runtime(new_output_state, view):
@@ -1186,44 +1196,81 @@ class OutputManager:  # noqa: PLR0904
                 return True
         return False
 
-    def _are_there_temp_probe_constraints(self, view: ShellyView) -> bool:
+    def _are_there_temp_probe_constraints(self, view: ShellyView, new_output_state: bool) -> tuple[bool, bool | None]:  # noqa: ARG002, PLR0912
         """Evaluate the temperature probe constraints to see if they require the output to be off.
 
         Args:
             view (ShellyView): The current view of the Shelly devices.
+            new_output_state (bool): The proposed new state of the output (True for ON, False for OFF).
 
         Returns:
-            bool: True if a temperature constraint applied, False otherwise.
+            tuple: A tuple containing two booleans. The first boolean is True if a temperature constraint applied, False otherwise.
+                   The second boolean indicates the state to override to if a constraint is applied (True for ON, False for OFF). None if no constraint applied.
         """
+        current_output_state = view.get_output_state(self.device_output_id)
         for constraint in self.temp_probe_constraints:
             probe_name = constraint.get("TempProbe", "Unknown Probe")
             probe_id = constraint.get("ProbeID")
             condition = constraint.get("Condition")
             set_temp = constraint.get("Temperature")
+            fall_back_temp = constraint.get("FallBackTemp")
 
             if not probe_id or not isinstance(probe_id, int) or not set_temp or not isinstance(set_temp, int | float) or condition not in {"GreaterThan", "LessThan"}:
                 continue
 
             probe_temp = view.get_temp_probe_temperature(probe_id)
+
+            self.logger.log_message(f"Checking constraint: output {self.name}; probe: {probe_name}; condition: {condition}; set temp: {set_temp}°C; fall back temp: {fall_back_temp}°C; probe reads: {probe_temp}", "debug")
+
             if condition == "GreaterThan":
                 if probe_temp is None:
                     # Issue 45: If temp probe = N/A for greater than condition, constaint exists
-                    # self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "debug")
-                    return True
-                if probe_temp < set_temp:
-                    # self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
-                    return True
+                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "debug")
+                    return True, False
+                if probe_temp >= set_temp:
+                    continue  # No constaint for this condition
+                if fall_back_temp is None:  # No fall back range set for this condition
+                    if probe_temp < set_temp:
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
+                        return True, False  # Less than set temp and fall back doesn't apply, must stay off
+                else:   # Fall back range has been set
+                    fall_back_temp = float(fall_back_temp)
+                    if probe_temp >= fall_back_temp and probe_temp < set_temp:  # pyright: ignore[reportOperatorIssue]
+                        if current_output_state:   # In the range and output currently on
+                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "debug")
+                            continue  # No constaint for this condition
+                        else:   # In the range and output currently off  # noqa: RET507
+                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "debug")
+                            return True, False  # Less than set temp and fall back doesn't apply, must stay off
+                    if probe_temp < fall_back_temp:
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, less than the minimum temperature of {fall_back_temp}°C.", "debug")
+                        return True, False  # Less than set temp and fall back doesn't apply, must stay off
 
-            if probe_temp is None:
-                # Issue 45: Ignore temp probe = N/A for less than condition
-                self.logger.log_message(f"Temperature probe {probe_name} not available for output {self.name}.", "debug")
-                continue
+            if condition == "LessThan":
+                if probe_temp is None:
+                    # Issue 45: Ignore temp probe = N/A for less than condition
+                    self.logger.log_message(f"Temperature probe {probe_name} not available for output {self.name}.", "debug")
+                    continue
+                if probe_temp <= set_temp:
+                    continue  # No constaint for this condition
+                if fall_back_temp is None:  # No fall back range set for this condition
+                    if probe_temp > set_temp:
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a minimum temperature of {set_temp}°C.", "debug")
+                        return True, False  # more than set temp and fall back doesn't apply, must stay off
+                else:
+                    fall_back_temp = float(fall_back_temp)
+                    if probe_temp <= fall_back_temp and probe_temp > set_temp:  # pyright: ignore[reportOperatorIssue]
+                        if current_output_state:  # In the range and output currently on
+                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "debug")
+                            continue  # No constaint for this condition
+                        else:   # In the range and output currently off  # noqa: RET507
+                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "debug")
+                            return True, False  # Less than set temp and fall back doesn't apply, must stay off
+                    if probe_temp > fall_back_temp:
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, more than the maximum temperature of {fall_back_temp}°C.", "debug")
+                        return True, False  # Less than set temp and fall back doesn't apply, must stay off
 
-            if condition == "LessThan" and probe_temp > set_temp:
-                # self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a maximum temperature of {set_temp}°C.", "debug")
-                return True
-
-        return False
+        return False, None
 
     @staticmethod
     def _get_current_thread_name() -> str:

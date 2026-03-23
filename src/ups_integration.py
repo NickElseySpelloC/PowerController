@@ -310,6 +310,14 @@ class UPSIntegration:
         # Build the UPS data to write
         ups_data = []
         for ups in self.ups_list:
+            ups_timestamp_tz = ups["timestamp"]  # Issue 81
+            if isinstance(ups_timestamp_tz, dt.datetime):
+                local_tz = dt.datetime.now().astimezone().tzinfo
+                if ups_timestamp_tz.tzinfo is None:
+                    ups["timestamp"] = ups_timestamp_tz.replace(tzinfo=local_tz)
+                else:
+                    ups["timestamp"] = ups_timestamp_tz.astimezone(local_tz)
+
             ups_data.append({
                 "Timestamp": ups["timestamp"],
                 "UPSName": ups["name"],
@@ -324,6 +332,7 @@ class UPSIntegration:
         csv_reader = CSVReader(self.data_file["file_name"], schemas.ups_data_file_csv_config)
 
         # Read the existing CSV data to append to it.
-        csv_reader.update_csv_file(ups_data, max_days=self.data_file["keep_max_days"])
+        max_days = self.data_file["keep_max_days"]
+        csv_reader.update_csv_file(ups_data, max_days=max_days)
 
         # self.logger.log_message(f"Wrote UPS data to CSV file '{self.data_file['file_name']}'", "debug")

@@ -1553,7 +1553,7 @@
 </tr>
 <tr>
 <td style="text-align: left;">TempProbeConstraints</td>
-<td style="text-align: left;">List of temperature probe constraints that must be met for the output to run. Each entry must include:<br><strong>TempProbe</strong>: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: TempProbes section.<br><strong>Condition</strong>: Either <em>GreaterThan</em> or <em>LessThan</em><br><strong>Temperature</strong>: The threshold temperature on degress C.</td>
+<td style="text-align: left;">List of temperature probe constraints that must be met for the output to run. Each entry must include:<br><strong>TempProbe</strong>: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: TempProbes section.<br><strong>Condition</strong>: Either <em>GreaterThan</em> or <em>LessThan</em><br><strong>Temperature</strong>: The threshold temperature on degress C.<br><strong>FallBackTemp</strong>: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C.</td>
 </tr>
 </tbody>
 </table>
