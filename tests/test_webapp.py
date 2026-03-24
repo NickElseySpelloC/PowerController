@@ -8,6 +8,7 @@ Covers:
   - WebSocket /ws: invalid / malformed command ignored
 """
 
+import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -19,7 +20,7 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from webapp import create_asgi_app
+from webapp import WebAppNotifier, create_asgi_app
 
 # ---------------------------------------------------------------------------
 # Shared sample data
@@ -120,7 +121,7 @@ def no_data_client(logger):
 class TestIndexPage:
     def test_returns_200_or_503_when_no_key_required(self, client):
         resp = client.get("/")
-        assert resp.status_code in (200, 503)
+        assert resp.status_code in {200, 503}
 
     def test_returns_503_when_no_data_available(self, no_data_client):
         resp = no_data_client.get("/")
@@ -141,7 +142,7 @@ class TestIndexPage:
         app, _ = create_asgi_app(ctrl, cfg, logger)
         with TestClient(app) as c:
             resp = c.get("/?key=webapp-secret")
-            assert resp.status_code in (200, 503)
+            assert resp.status_code in {200, 503}
 
     def test_allowed_without_key_when_none_configured(self, client):
         resp = client.get("/")
@@ -180,19 +181,16 @@ class TestWebSocketInitialSnapshot:
 
 class TestWebSocketAccessKey:
     def test_wrong_key_closes_with_policy_violation(self, secured_client):
-        with pytest.raises(Exception):
-            # TestClient raises when the server closes with code 1008
-            with secured_client.websocket_connect("/ws?key=wrong"):
-                pass
+        with pytest.raises(Exception), secured_client.websocket_connect("/ws?key=wrong"):
+            pass
 
     def test_correct_key_connects_successfully(self, logger):
         cfg = _make_config(access_key="webapp-secret")
         ctrl = _make_controller()
         app, _ = create_asgi_app(ctrl, cfg, logger)
-        with TestClient(app) as c:
-            with c.websocket_connect("/ws?key=webapp-secret") as ws:
-                msg = ws.receive_json()
-                assert msg["type"] == "state_update"
+        with TestClient(app) as c, c.websocket_connect("/ws?key=webapp-secret") as ws:
+            msg = ws.receive_json()
+            assert msg["type"] == "state_update"
 
     def test_no_key_required_connects_without_key(self, client):
         with client.websocket_connect("/ws") as ws:
@@ -218,7 +216,7 @@ class TestWebSocketCommands:
                 "mode": "auto",
                 "revert_time_mins": None,
             })
-                # No reply expected — just verify post_command was called
+        # No reply expected - just verify post_command was called
         ctrl.post_command.assert_called_once()
         cmd = ctrl.post_command.call_args[0][0]
         assert cmd.kind == "set_mode"
@@ -302,15 +300,11 @@ class TestWebSocketCommands:
 # ---------------------------------------------------------------------------
 
 class TestWebAppNotifier:
-    def test_notify_before_bind_does_not_raise(self, logger):
-        from webapp import WebAppNotifier
+    def test_notify_before_bind_does_not_raise(self):
         n = WebAppNotifier()
         n.notify()  # Should be a no-op, not raise
 
-    def test_bind_sets_loop_and_queue(self, logger):
-        import asyncio
-
-        from webapp import WebAppNotifier
+    def test_bind_sets_loop_and_queue(self):
         n = WebAppNotifier()
         loop = asyncio.new_event_loop()
         q: asyncio.Queue = asyncio.Queue()

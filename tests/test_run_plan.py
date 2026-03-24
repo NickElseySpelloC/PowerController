@@ -1,8 +1,10 @@
 """Tests for RunPlanner — the core scheduling algorithm."""
 
 import datetime as dt
+import operator
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -50,7 +52,6 @@ def _slots_from_now(offsets: list[tuple[float, float, float]]) -> list[dict]:
 
 
 def _make_planner(plan_type=RunPlanMode.SCHEDULE) -> RunPlanner:
-    from unittest.mock import MagicMock
     logger = MagicMock()
     logger.log_message = MagicMock()
     return RunPlanner(logger, plan_type)
@@ -67,13 +68,11 @@ class TestRunPlannerInit:
         assert p.channel is None
 
     def test_valid_best_price_mode_with_channel(self):
-        from unittest.mock import MagicMock
         logger = MagicMock()
         p = RunPlanner(logger, RunPlanMode.BEST_PRICE, channel=AmberChannel.GENERAL)
         assert p.channel == AmberChannel.GENERAL
 
     def test_invalid_plan_type_raises(self):
-        from unittest.mock import MagicMock
         logger = MagicMock()
         with pytest.raises(RuntimeError, match="Invalid plan type"):
             RunPlanner(logger, "NotAMode")  # type: ignore[arg-type]
@@ -129,7 +128,7 @@ class TestPriceFiltering:
     def test_slots_within_max_price_selected(self):
         p = _make_planner()
         slots = sorted(_slots_from_now([(0, 1, 10.0), (1, 2, 50.0)]),
-                       key=lambda s: s["Price"])
+                       key=operator.itemgetter("Price"))
         result = p.calculate_run_plan(slots, required_hours=1, priority_hours=0,
                                       max_price=20.0, max_priority_price=20.0)
         assert result["Status"] in {RunPlanStatus.READY, RunPlanStatus.PARTIAL}
@@ -139,7 +138,7 @@ class TestPriceFiltering:
         p = _make_planner()
         # Three 1-hour slots, all under max price
         slots = sorted(_slots_from_now([(0, 1, 5.0), (1, 2, 8.0), (2, 3, 12.0)]),
-                       key=lambda s: s["Price"])
+                       key=operator.itemgetter("Price"))
         result = p.calculate_run_plan(slots, required_hours=-1, priority_hours=0,
                                       max_price=20.0, max_priority_price=20.0)
         assert result["Status"] in {RunPlanStatus.READY, RunPlanStatus.PARTIAL, RunPlanStatus.NOTHING}
@@ -150,7 +149,7 @@ class TestPriceFiltering:
         p = _make_planner()
         # Cheap slot (within normal max) + expensive slot (within priority max only)
         slots = sorted(_slots_from_now([(0, 1, 15.0), (1, 2, 40.0)]),
-                       key=lambda s: s["Price"])
+                       key=operator.itemgetter("Price"))
         result = p.calculate_run_plan(slots, required_hours=2, priority_hours=1,
                                       max_price=20.0, max_priority_price=50.0)
         # Both slots should appear since total required is 2h and priority allows up to 50c
@@ -249,7 +248,6 @@ class TestRunPlanMetadata:
         assert result["Source"] == RunPlanMode.SCHEDULE
 
     def test_plan_source_is_best_price(self):
-        from unittest.mock import MagicMock
         logger = MagicMock()
         p = RunPlanner(logger, RunPlanMode.BEST_PRICE, channel=AmberChannel.GENERAL)
         slots = _slots_from_now([(0, 2, 10.0)])

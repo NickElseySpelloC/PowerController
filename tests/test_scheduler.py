@@ -44,7 +44,7 @@ class TestGetScheduleSlots:
     def test_all_day_general_schedule_returns_slots(self, scheduler):
         sched = scheduler.get_schedule_by_name("General")
         slots = scheduler.get_schedule_slots(sched)
-        # "General" runs 00:00–23:59 every day, should always have at least one slot
+        # "General" runs 00:00-23:59 every day, should always have at least one slot
         assert len(slots) >= 1
 
     def test_slot_has_required_fields(self, scheduler):
@@ -115,7 +115,7 @@ class TestGetCurrentPrice:
         price = scheduler.get_current_price(sched)
         # Since all windows in General have Price: 20.0, we should get 20.0
         # unless we're past 23:59 (i.e. no window active), in which case default applies
-        assert price in (20.0, scheduler.default_price)
+        assert price in {20.0, scheduler.default_price}
 
     def test_returns_default_when_no_matching_slot(self, scheduler):
         """A schedule with no currently-active window returns the default price."""

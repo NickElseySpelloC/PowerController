@@ -378,8 +378,7 @@ class TestMidnightRollover:
         rh.stop_run(StateReasonOff.INACTIVE_RUN_PLAN, st)
         # Simulate the next day by backdating the date on the last daily entry
         # (_have_rolled_over_to_new_day compares DailyData[-1]["Date"] to today)
-        import datetime
-        rh.history["DailyData"][-1]["Date"] = DateHelper.today() - datetime.timedelta(days=1)
+        rh.history["DailyData"][-1]["Date"] = DateHelper.today() - dt.timedelta(days=1)
         st2 = _status(is_on=False)
         rolled = rh.tick(st2)
         assert rolled is True

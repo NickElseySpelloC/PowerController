@@ -13,7 +13,10 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from config_schemas import ConfigSchema
 from sc_utility import SCConfigManager, SCLogger
+from scheduler import Scheduler
+from ups_integration import UPSIntegration
 
 from local_enumerations import ShellyStatus
 from shelly_view import ShellyView
@@ -43,7 +46,6 @@ def logger() -> SCLogger:
 @pytest.fixture(scope="session")
 def config() -> SCConfigManager:
     """Return the test SCConfigManager loaded from configs/testing.yaml."""
-    from config_schemas import ConfigSchema
     schema = ConfigSchema()
     return SCConfigManager(
         config_file=TEST_CONFIG,
@@ -55,14 +57,12 @@ def config() -> SCConfigManager:
 @pytest.fixture(scope="session")
 def scheduler(config, logger):
     """Return a Scheduler built from the test config."""
-    from scheduler import Scheduler
     return Scheduler(config, logger)
 
 
 @pytest.fixture(scope="session")
 def ups_integration(config, logger):
     """Return an UPSIntegration built from the test config (disabled)."""
-    from ups_integration import UPSIntegration
     return UPSIntegration(config, logger)
 
 

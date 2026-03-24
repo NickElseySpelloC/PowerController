@@ -27,8 +27,9 @@ from org_enums import (
 )
 from sc_utility import DateHelper
 
-from local_enumerations import OutputActionType
+from local_enumerations import OutputActionType, ShellyStatus
 from outputs import OutputManager
+from pricing import PricingManager
 from shelly_view import ShellyView
 
 # ---------------------------------------------------------------------------
@@ -102,8 +103,6 @@ def _future_slot_plan() -> dict:
 @pytest.fixture(scope="module")
 def output_manager(config, logger, scheduler, ups_integration, shelly_worker):
     """Build a real OutputManager using the simulated ShellyWorker snapshot."""
-    from pricing import PricingManager
-
     view = ShellyView(snapshot=shelly_worker.get_latest_status())
     pricing = PricingManager(config, logger)
 
@@ -133,8 +132,6 @@ def output_manager(config, logger, scheduler, ups_integration, shelly_worker):
 
 def _online_view(shelly_worker, output_state: bool = False) -> ShellyView:
     """Return a ShellyView where the Network Rack device is online."""
-    from local_enumerations import ShellyStatus
-
     status = shelly_worker.get_latest_status()
     # Rebuild with a known output state; mark device online
     devices = [{**d, "Online": True} for d in status.devices]
@@ -156,8 +153,6 @@ def _online_view(shelly_worker, output_state: bool = False) -> ShellyView:
 
 def _offline_view(shelly_worker) -> ShellyView:
     """Return a ShellyView where all devices are offline."""
-    from local_enumerations import ShellyStatus
-
     status = shelly_worker.get_latest_status()
     devices = [{**d, "Online": False} for d in status.devices]
     new_status = ShellyStatus(
@@ -192,7 +187,6 @@ class TestInitialisation:
         assert output_manager.ups_integration is ups_integration
 
     def test_invalid_device_output_raises(self, config, logger, scheduler, ups_integration, shelly_worker):
-        from pricing import PricingManager
         view = ShellyView(snapshot=shelly_worker.get_latest_status())
         pricing = PricingManager(config, logger)
         bad_config = {

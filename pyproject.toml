@@ -44,6 +44,17 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "E402",    # sys.path manipulation is required before project imports in tests
+    "PLR6301", # pytest class methods naturally don't use self
+    "SLF001",  # private member access is intentional in tests
+    "DOC201",  # return values don't need docstring sections in test fixtures
+    "DOC402",  # yield values don't need docstring sections in test fixtures
+    "PT011",   # pytest.raises may legitimately catch broad exceptions in tests
+    "B017",    # related to PT011 — blind Exception catch acceptable in tests
+]
+
 [dev.env.sync]
 remote="~/Library/CloudStorage/Dropbox/Development/dev_setup/app_config/PowerController"
 patterns = [

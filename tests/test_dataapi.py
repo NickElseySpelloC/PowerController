@@ -111,7 +111,7 @@ def empty_data_client(logger):
     ctrl = MagicMock()
     ctrl.get_api_data.return_value = None
 
-    def _get(*keys, default=None):
+    def _get(*_keys, default=None):
         return default
 
     cfg = MagicMock()
@@ -131,7 +131,7 @@ class TestRootEndpoint:
         assert resp.status_code == 200
 
     def test_root_returns_api_info(self, client):
-        data = resp = client.get("/")
+        resp = client.get("/")
         body = resp.json()
         assert body["name"] == "PowerController Data API"
         assert "endpoints" in body
@@ -282,11 +282,10 @@ class TestAccessKeyEnforcement:
         cfg.get.side_effect = _get
 
         app = create_asgi_app(ctrl, cfg, logger)
-        with patch.dict(os.environ, {"DATAAPI_ACCESS_KEY": "env-key"}):
-            with TestClient(app) as c:
-                # config key should be rejected
-                resp = c.get("/outputs", params={"access_key": "config-key"})
-                assert resp.status_code == 401
-                # env key should work
-                resp = c.get("/outputs", params={"access_key": "env-key"})
-                assert resp.status_code == 200
+        with patch.dict(os.environ, {"DATAAPI_ACCESS_KEY": "env-key"}), TestClient(app) as c:
+        # config key should be rejected
+            resp = c.get("/outputs", params={"access_key": "config-key"})
+            assert resp.status_code == 401
+            # env key should work
+            resp = c.get("/outputs", params={"access_key": "env-key"})
+            assert resp.status_code == 200
