@@ -1225,7 +1225,7 @@ class OutputManager:  # noqa: PLR0904
             if condition == "GreaterThan":
                 if probe_temp is None:
                     # Issue 45: If temp probe = N/A for greater than condition, constaint exists
-                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "debug")
+                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "all")
                     return True, False
                 if probe_temp >= set_temp:
                     continue  # No constaint for this condition
@@ -1237,10 +1237,10 @@ class OutputManager:  # noqa: PLR0904
                     fall_back_temp = float(fall_back_temp)
                     if probe_temp >= fall_back_temp and probe_temp < set_temp:  # pyright: ignore[reportOperatorIssue]
                         if current_output_state:   # In the range and output currently on
-                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "debug")
+                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "all")
                             continue  # No constaint for this condition
                         else:   # In the range and output currently off  # noqa: RET507
-                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "debug")
+                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "all")
                             return True, False  # Less than set temp and fall back doesn't apply, must stay off
                     if probe_temp < fall_back_temp:
                         self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, less than the minimum temperature of {fall_back_temp}°C.", "debug")
@@ -1249,7 +1249,7 @@ class OutputManager:  # noqa: PLR0904
             if condition == "LessThan":
                 if probe_temp is None:
                     # Issue 45: Ignore temp probe = N/A for less than condition
-                    self.logger.log_message(f"Temperature probe {probe_name} not available for output {self.name}.", "debug")
+                    self.logger.log_message(f"Temperature probe {probe_name} not available for output {self.name}.", "all")
                     continue
                 if probe_temp <= set_temp:
                     continue  # No constaint for this condition
@@ -1261,10 +1261,10 @@ class OutputManager:  # noqa: PLR0904
                     fall_back_temp = float(fall_back_temp)
                     if probe_temp <= fall_back_temp and probe_temp > set_temp:  # pyright: ignore[reportOperatorIssue]
                         if current_output_state:  # In the range and output currently on
-                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "debug")
+                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "all")
                             continue  # No constaint for this condition
                         else:   # In the range and output currently off  # noqa: RET507
-                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "debug")
+                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "all")
                             return True, False  # Less than set temp and fall back doesn't apply, must stay off
                     if probe_temp > fall_back_temp:
                         self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, more than the maximum temperature of {fall_back_temp}°C.", "debug")
