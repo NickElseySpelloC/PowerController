@@ -153,9 +153,9 @@ def _register_routes(app: FastAPI, controller: PowerController, config: SCConfig
             return HTMLResponse("no output data available yet", status_code=503)
 
         return templates.TemplateResponse(
+            request,
             "index.html",
             {
-                "request": request,
                 "global_data": snapshot.get("global", {}),
                 "outputs": snapshot.get("outputs", {}),
             },
@@ -206,16 +206,8 @@ def create_asgi_app(controller: PowerController, config: SCConfigManager, logger
     notifier = WebAppNotifier()
     manager = ConnectionManager()
 
-    app = FastAPI()
-
-    # Serve static assets at /static
-    app.mount("/static", StaticFiles(directory=str(repo_root / "static")), name="static")
-
-    _configure_app_state(app, controller, config, logger, templates, notifier, manager)
-    _register_routes(app, controller, config, logger, templates, manager, notifier)
-
-    @app.on_event("startup")
-    def _startup() -> None:
+    @contextlib.asynccontextmanager
+    async def _lifespan(app: FastAPI):
         loop = asyncio.get_running_loop()
         notifier.bind(loop, app.state.update_queue)
 
@@ -236,15 +228,23 @@ def create_asgi_app(controller: PowerController, config: SCConfigManager, logger
                 # Expected during shutdown.
                 return
 
-        app.state.broadcast_task = loop.create_task(_broadcast_worker())
+        app.state.broadcast_task = asyncio.create_task(_broadcast_worker())
 
-    @app.on_event("shutdown")
-    async def _shutdown() -> None:
+        yield
+
         task = app.state.broadcast_task
         if task:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+
+    app = FastAPI(lifespan=_lifespan)
+
+    # Serve static assets at /static
+    app.mount("/static", StaticFiles(directory=str(repo_root / "static")), name="static")
+
+    _configure_app_state(app, controller, config, logger, templates, notifier, manager)
+    _register_routes(app, controller, config, logger, templates, manager, notifier)
 
     return app, notifier
 

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python -m pytest tests/ -x --tb=short -q)",
+      "Bash(.venv/bin/python -m pytest tests/ --tb=short -q)",
+      "Bash(.venv/bin/python -m pytest tests/test_webapp.py::TestIndexPage tests/test_run_history.py::TestEnergyAccumulation::test_cost_calculated_from_energy_and_price tests/test_shelly_worker.py::TestRequestExecution::test_wait_for_result_completes tests/test_output_manager.py::TestEvaluateConditionsAppMode::test_app_mode_on_with_timed_revert_respected --tb=long -q)",
+      "Bash(.venv/bin/python -m pytest tests/test_webapp.py::TestIndexPage::test_returns_200_or_503_when_no_key_required --tb=short -q)",
+      "Bash(.venv/bin/python -m pytest tests/test_webapp.py::TestIndexPage::test_returns_200_or_503_when_no_key_required --tb=long -s)",
+      "Bash(.venv/bin/python -m pytest tests/test_run_history.py::TestEnergyAccumulation::test_cost_calculated_from_energy_and_price tests/test_run_history.py::TestGetEnergyUsage::test_energy_within_window_included tests/test_run_history.py::TestMidnightRollover::test_history_day_count_increments tests/test_shelly_worker.py::TestRequestExecution tests/test_shelly_worker.py::TestLocationData tests/test_output_manager.py::TestEvaluateConditionsAppMode::test_app_mode_on_with_timed_revert_respected --tb=short -q)"
+    ]
+  }
+}
