@@ -18,6 +18,7 @@ from sc_utility import DateHelper, SCConfigManager, SCLogger
 from local_enumerations import (
     FAILED_RUNPLAN_CHECK_INTERVAL,
     RUNPLAN_CHECK_INTERVAL,
+    DELAY_AFTER_STATE_CHANGE,
     AmberChannel,
     InputMode,
     OutputAction,
@@ -562,6 +563,16 @@ class OutputManager:  # noqa: PLR0904
         Returns:
             OutputAction: The action to be taken for the output, or None if no action is needed.
         """
+        # # Issue 84: If we very recently changed state, skip evaluation until the next loop so the
+        # device has time to settle and the view reflects the new state accurately.
+        now = DateHelper.now()
+        if self.last_turned_on and (now - self.last_turned_on).total_seconds() < DELAY_AFTER_STATE_CHANGE:
+            self.logger.log_message(f"Output {self.name} changed state {(now - self.last_turned_on).total_seconds():.0f}s ago. Skipping evaluate_conditions.", "debug")
+            return None
+        if self.last_turned_off and (now - self.last_turned_off).total_seconds() < DELAY_AFTER_STATE_CHANGE:
+            self.logger.log_message(f"Output {self.name} changed state {(now - self.last_turned_off).total_seconds():.0f}s ago. Skipping evaluate_conditions.", "debug")
+            return None
+
         new_output_state = None  # This is the new state. Once it's set, we are blocked from further checks
         new_system_state = None
         reason_on = reason_off = None

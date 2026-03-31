@@ -534,8 +534,14 @@ class PowerController:
         # Refresh the Amber price data if it's time to do so
         self.pricing.refresh_price_data_if_time(is_new_day)
 
-        # Get a snapshot of all Shelly devices
-        view = self._refresh_device_statuses()
+        # Get a snapshot of all Shelly devices.
+        # If a sequence is already in-flight for any output, skip the blocking refresh and
+        # use the last-known snapshot so the main loop keeps ticking. The sequence completion
+        # callback (set_wake_event) will trigger a new iteration where a full refresh runs.
+        if self._has_pending_actions():     # Issue 84: if we have pending actions, we may be in a long-running sequence and the device status may be changing frequently. In this case, skip the refresh and just get the latest view snapshot to keep the main loop ticking smoothly.
+            view = self._get_latest_status_view()
+        else:
+            view = self._refresh_device_statuses()
 
         # Get the latest UPS data and update the UPSIntegration object
         self.ups_integration.read_ups_data()
@@ -784,6 +790,10 @@ class PowerController:
         """Generate / refresh the run plan for each output."""
         for output in self.outputs:
             output.review_run_plan(view)
+
+    def _has_pending_actions(self) -> bool:
+        """Return True if any output currently has an in-flight action request."""
+        return any(output.get_action_request() is not None for output in self.outputs)
 
     def _evaluate_conditions(self, view: ShellyView) -> bool:
         """Evaluate the conditions for each output.

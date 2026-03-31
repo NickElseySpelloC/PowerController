@@ -24,6 +24,7 @@ RUNPLAN_CHECK_INTERVAL = 30  # Minutes between checking if we need to regenerate
 FAILED_RUNPLAN_CHECK_INTERVAL = 10  # Minutes between checking if we need to regenerate run plan when then previous one failed or was incomplete
 USAGE_AGGREGATION_INTERVAL = 60  # Minutes between aggregating usage data
 DUMP_SHELLY_SNAPSHOT = False  # Save the JSON snapshot to a file for debugging
+DELAY_AFTER_STATE_CHANGE = 10  # Seconds to delay after changing state before refreshing status (to give Shelly time to update)
 
 
 # Amber API enumerations ======================================================
