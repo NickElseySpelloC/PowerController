@@ -232,9 +232,9 @@ class UPSIntegration:
             # Update UPS entry with data from script
             timestamp = DateHelper.extract_datetime(data.get("timestamp"), format_str="%Y-%m-%d %H:%M:%S", hide_tz=True)
             ups["timestamp"] = timestamp
-            ups["battery_state"] = data.get("battery_state")
-            ups["battery_charge_percent"] = data.get("battery_charge_percent")
-            ups["battery_runtime_seconds"] = data.get("battery_runtime_seconds")
+            ups["battery_state"] = data.get("battery_state", "unknown") or "unknown"
+            ups["battery_charge_percent"] = data.get("battery_charge_percent", 100) or 100
+            ups["battery_runtime_seconds"] = data.get("battery_runtime_seconds", 3600) or 3600
 
             # Determine health status based on thresholds
             self._update_ups_health_status(ups)
@@ -258,6 +258,11 @@ class UPSIntegration:
 
         # Deal with no data available yet
         if charge is None or runtime is None or battery_state is None:
+            return
+
+        # If battery state is unknown, we can't determine health, so we will consider it healthy but log a warning
+        if battery_state == "unknown":
+            self.logger.log_message(f"UPS '{ups['name']}' battery state is unknown. Unable to determine health status.", "warning")        
             return
 
         # If battery is fully charged, then it's healthy regardless of runtime or charge thresholds
@@ -310,6 +315,10 @@ class UPSIntegration:
         # Build the UPS data to write
         ups_data = []
         for ups in self.ups_list:
+            if ups["battery_state"] is None or ups["battery_state"] == "unknown":   # Issue 85
+                self.logger.log_message(f"Skipping UPS '{ups['name']}' for CSV write due to unknown battery state", "warning")
+                continue
+
             ups_timestamp_tz = ups["timestamp"]  # Issue 81
             if isinstance(ups_timestamp_tz, dt.datetime):
                 local_tz = dt.datetime.now().astimezone().tzinfo
@@ -326,6 +335,10 @@ class UPSIntegration:
                 "BatteryState": ups["battery_state"],
                 "IsHealthy": ups["is_healthy"],
             })
+
+        # If no valid UPS data to write, skip writing to CSV
+        if not ups_data:       # Issue 85
+            return
 
         # Create a CSVReasder object and read the current content of the CSV file to append to it.
         schemas = ConfigSchema()

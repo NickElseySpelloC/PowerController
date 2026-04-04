@@ -17,6 +17,7 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
 fi
 
 # Parse command line arguments
+UPS_ID=""
 LOOP_MODE=false
 SIMULATE_MODE=false
 SIMULATE_CHARGE="${SIMULATE_CHARGE:-97}"
@@ -54,6 +55,16 @@ while [[ $# -gt 0 ]]; do
             # If values weren't provided on command line, they'll use env vars or defaults
             shift
             ;;
+        --ups)
+            if [[ -n $2 ]]; then
+                UPS_ID="$2"
+                shift
+                shift
+            else
+                echo "Error: --ups requires a UPS identifier (e.g. apc@localhost)"
+                exit 1
+            fi
+            ;;
         --output)
             if [[ -n $2 ]]; then
                 JSON_FILE="$2"
@@ -65,7 +76,8 @@ while [[ $# -gt 0 ]]; do
             fi
             ;;
         *)
-            echo "Usage: $0 [--loop INTERVAL] [--output FILE] [--simulate [CHARGE] [RUNTIME]]"
+            echo "Usage: $0 --ups UPS_ID [--loop INTERVAL] [--output FILE] [--simulate [CHARGE] [RUNTIME]]"
+            echo "  --ups UPS_ID                     UPS identifier for upsc (e.g. apc@localhost) [required]"
             echo "  --loop INTERVAL                  Run continuously, updating every INTERVAL seconds"
             echo "  --output FILE                    Specify the path to the JSON output file (default: console output)"
             echo "  --simulate [CHARGE] [RUNTIME] [STATE]     Simulate UPS data instead of reading from upsc (for testing)"
@@ -76,6 +88,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Validate required arguments
+if [[ -z "$UPS_ID" && "$SIMULATE_MODE" = false ]]; then
+    echo "Error: --ups UPS_ID is required (e.g. --ups apc@localhost)"
+    exit 1
+fi
+
 # Function to get UPS data and write to JSON
 write_ups_status() {
     if [ "$SIMULATE_MODE" = true ]; then
@@ -85,23 +103,25 @@ write_ups_status() {
         local state=$SIMULATE_STATE
     else
         # Get battery charge (percent)
-        local charge=$(upsc apc@localhost battery.charge 2>/dev/null)
+        local charge=$(upsc "$UPS_ID" battery.charge 2>/dev/null)
         
         # Get battery runtime (seconds)
-        local runtime=$(upsc apc@localhost battery.runtime 2>/dev/null)
+        local runtime=$(upsc "$UPS_ID" battery.runtime 2>/dev/null)
 
         # Get battery state (charging/discharging)
         # APC UPS ups.status returns:
         #   "OL" (On Line) when the UPS is running on main power and fully charged.
         #   "OL CHRG" (On Line) when the UPS is on main power and charging.
         #   "OB DISCHRG" (On Battery) when the UPS is running on battery power (discharging)
-        local ups_status=$(upsc apc@localhost ups.status 2>/dev/null)
+        local ups_status=$(upsc "$UPS_ID" ups.status 2>/dev/null)
         if [[ "$ups_status" == "OL" ]]; then
             state="charged"
         elif [[ "$ups_status" == "OL CHRG"* ]]; then
             state="charging"
         elif [[ "$ups_status" == "OB DISCHRG"* ]]; then
             state="discharging"
+        else
+            state="unknown"
         fi
 
         # Replace empty values with null for valid JSON
