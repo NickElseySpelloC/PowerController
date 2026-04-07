@@ -115,10 +115,16 @@ write_ups_status() {
         #   "OB DISCHRG" (On Battery) when the UPS is running on battery power (discharging)
         local ups_status=$(upsc "$UPS_ID" ups.status 2>/dev/null)
         if [[ "$ups_status" == "OL" ]]; then
-            state="charged"
+            if [[ "$charge" =~ ^[0-9]+$ ]] && (( charge < 99 )); then
+                state="charging"
+            else
+                state="charged"
+            fi
         elif [[ "$ups_status" == "OL CHRG"* ]]; then
             state="charging"
         elif [[ "$ups_status" == "OB DISCHRG"* ]]; then
+            state="discharging"
+        elif [[ "$ups_status" == "OB" ]]; then
             state="discharging"
         else
             state="unknown"
