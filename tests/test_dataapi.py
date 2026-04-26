@@ -71,7 +71,7 @@ def _make_controller(data_map: dict | None = None, all_data: dict | None = None)
 
 
 @pytest.fixture
-def client(config, logger):
+def client(logger):
     """TestClient for the DataAPI with no access key configured."""
     ctrl = _make_controller()
 

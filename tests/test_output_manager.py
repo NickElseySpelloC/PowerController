@@ -104,7 +104,7 @@ def _future_slot_plan() -> dict:
 @pytest.fixture(scope="module")
 def output_manager(config, logger, scheduler, ups_integration, smart_device_workers):
     """Build a real OutputManager using the simulated SmartDeviceWorker snapshot."""
-    view = SmartDeviceView(snapshot=smart_device_workers.get_latest_status())
+    view = smart_device_workers.get_latest_status()
     pricing = PricingManager(config, logger)
 
     output_config = {
@@ -134,10 +134,11 @@ def output_manager(config, logger, scheduler, ups_integration, smart_device_work
 def _online_view(smart_device_workers, output_state: bool = False) -> SmartDeviceView:
     """Return a SmartDeviceView where the Network Rack device is online."""
     status = smart_device_workers.get_latest_status()
+    snapshot = status.snapshot
     # Rebuild with a known output state; mark device online
-    devices = [{**d, "Online": True} for d in status.devices]
+    devices = [{**d, "Online": True} for d in snapshot.devices]
     outputs = []
-    for o in status.outputs:
+    for o in snapshot.outputs:
         if o["Name"] == "Network Rack O1":
             outputs.append({**o, "State": output_state})
         else:
@@ -145,9 +146,9 @@ def _online_view(smart_device_workers, output_state: bool = False) -> SmartDevic
     new_status = SmartDeviceStatus(
         devices=devices,
         outputs=outputs,
-        inputs=status.inputs,
-        meters=status.meters,
-        temp_probes=status.temp_probes,
+        inputs=snapshot.inputs,
+        meters=snapshot.meters,
+        temp_probes=snapshot.temp_probes,
     )
     return SmartDeviceView(snapshot=new_status)
 
@@ -155,13 +156,14 @@ def _online_view(smart_device_workers, output_state: bool = False) -> SmartDevic
 def _offline_view(smart_device_workers) -> SmartDeviceView:
     """Return a SmartDeviceView where all devices are offline."""
     status = smart_device_workers.get_latest_status()
-    devices = [{**d, "Online": False} for d in status.devices]
+    snapshot = status.snapshot
+    devices = [{**d, "Online": False} for d in snapshot.devices]
     new_status = SmartDeviceStatus(
         devices=devices,
-        outputs=status.outputs,
-        inputs=status.inputs,
-        meters=status.meters,
-        temp_probes=status.temp_probes,
+        outputs=snapshot.outputs,
+        inputs=snapshot.inputs,
+        meters=snapshot.meters,
+        temp_probes=snapshot.temp_probes,
     )
     return SmartDeviceView(snapshot=new_status)
 
@@ -188,7 +190,7 @@ class TestInitialisation:
         assert output_manager.ups_integration is ups_integration
 
     def test_invalid_device_output_raises(self, config, logger, scheduler, ups_integration, smart_device_workers):
-        view = SmartDeviceView(snapshot=smart_device_workers.get_latest_status())
+        view = smart_device_workers.get_latest_status()
         pricing = PricingManager(config, logger)
         bad_config = {
             "Name": "BadOutput",

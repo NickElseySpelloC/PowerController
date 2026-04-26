@@ -47,23 +47,19 @@ class TestInitialState:
 
     def test_initial_status_has_network_rack_device(self, smart_device_workers):
         status = smart_device_workers.get_latest_status()
-        names = [d["Name"] for d in status.devices]
-        assert "Network Rack" in names
+        assert status.get_device_id("Network Rack") != 0
 
     def test_initial_status_has_expected_outputs(self, smart_device_workers):
         status = smart_device_workers.get_latest_status()
-        output_names = [o["Name"] for o in status.outputs]
-        assert "Network Rack O1" in output_names
-        assert "Network Rack O2" in output_names
+        assert status.get_output_id("Network Rack O1") != 0
+        assert status.get_output_id("Network Rack O2") != 0
 
     def test_initial_status_has_temp_probe(self, smart_device_workers):
         status = smart_device_workers.get_latest_status()
-        probe_names = [p["Name"] for p in status.temp_probes]
-        assert "Network Rack" in probe_names
+        assert status.get_temp_probe_id("Network Rack") != 0
 
     def test_smart_device_view_wraps_status_correctly(self, smart_device_workers):
-        status = smart_device_workers.get_latest_status()
-        view = SmartDeviceView(snapshot=status)
+        view = smart_device_workers.get_latest_status()
         assert view.get_device_id("Network Rack") != 0
         assert view.get_output_id("Network Rack O1") != 0
 
@@ -107,7 +103,7 @@ class TestRequestExecution:
         running_worker.wait_for_result(req_id, timeout=5.0)
         status = running_worker.get_latest_status()
         # Status should still have our simulated device
-        assert any(d["Name"] == "Network Rack" for d in status.devices)
+        assert status.get_device_id("Network Rack") != 0
 
     def test_multiple_requests_all_complete(self, running_worker):
         ids = []
