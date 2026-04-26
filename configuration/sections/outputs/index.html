@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/configuration/sections/outputs/">
       
       
-        <link rel="prev" href="../shelly_devices/">
+        <link rel="prev" href="../devices/">
       
       
         <link rel="next" href="../operating_schedules/">
@@ -332,14 +332,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../installation/shelly_setup/" class="md-nav__link">
+      <a href="../../../installation/device_setup/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Shelly Setup
+    Device Setup
   
 
     
@@ -689,14 +689,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../shelly_devices/" class="md-nav__link">
+      <a href="../devices/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    ShellyDevices
+    Smart Devices
   
 
     
@@ -1163,8 +1163,8 @@
 <p>This is wehre the action happens. This section configures your switched outputs and energy meters and controls how they behave. You must define at least one Output for the app to work.</p>
 <p>There are three fundametal types of Output device.</p>
 <ol>
-<li><strong>shelly</strong>: This the default - a specific output relay of a Shelly Smart switch. shelly type of outputs are used to switch electrical devices on and off.</li>
-<li><strong>meter</strong>: A Shelly energy meter. This is used to  monitor and log energy usage for a electrical circuit. </li>
+<li><strong>smart device</strong>: This the default - a specific output relay of a Shelly or Tasmota smart switch. 'smart device' type of outputs are used to switch electrical devices on and off.</li>
+<li><strong>meter</strong>: An energy meter. This is used to  monitor and log energy usage for a electrical circuit. </li>
 <li><strong>teslamate</strong>: A special type of energy meter that imports Tesla vehicle charging data from using TeslaMate. Requires the <a href="../teslamate/">TeslaMate</a> section to be properly configured.</li>
 </ol>
 <p>The Output device type is set via the Mode key. </p>
@@ -1173,7 +1173,7 @@
 <thead>
 <tr>
 <th style="text-align: left;">Setting</th>
-<th style="text-align: left;">shelly</th>
+<th style="text-align: left;">smart device</th>
 <th style="text-align: left;">meter</th>
 <th style="text-align: left;">teslamate</th>
 </tr>
@@ -1413,11 +1413,11 @@
 </tr>
 <tr>
 <td style="text-align: left;">Type</td>
-<td style="text-align: left;">Configures what type of output this is as decribed above:<br><strong>shelly</strong>: A fully functional Shelly smart switch output. <br><strong>meter</strong>: A Shelly energy meter. <br><strong>teslamate</strong>: Imports Tesla charging data from using TeslaMate.</td>
+<td style="text-align: left;">Configures what type of output this is as decribed above:<br><strong>smart device</strong>: A fully functional smart switch output. <br><strong>meter</strong>: An energy meter. <br><strong>teslamate</strong>: Imports Tesla charging data from using TeslaMate.</td>
 </tr>
 <tr>
 <td style="text-align: left;">DeviceOutput</td>
-<td style="text-align: left;">Specify the Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section.</td>
+<td style="text-align: left;">Specify the device output that controls this device - must match a Name in the SCSmartDevices: Devices: Outputs section.</td>
 </tr>
 <tr>
 <td style="text-align: left;">Mode</td>
@@ -1477,7 +1477,7 @@
 </tr>
 <tr>
 <td style="text-align: left;">DeviceMeter</td>
-<td style="text-align: left;">The Shelly device meter to use to track energy usage - must match a Name in the ShellyDevices: Devices: Meters section</td>
+<td style="text-align: left;">The device meter to use to track energy usage - must match a Name in the SCSmartDevices: Devices: Meters section</td>
 </tr>
 <tr>
 <td style="text-align: left;">MaxDailyEnergyUse</td>
@@ -1485,7 +1485,7 @@
 </tr>
 <tr>
 <td style="text-align: left;">DeviceInput</td>
-<td style="text-align: left;">The Shelly device input to used override the state of the output - must match a Name in the ShellyDevices: Devices: Inputs section</td>
+<td style="text-align: left;">The Shelly device input to used override the state of the output - must match a Name in the SCSmartDevices: Devices: Inputs section</td>
 </tr>
 <tr>
 <td style="text-align: left;">DeviceInputMode</td>
@@ -1553,7 +1553,7 @@
 </tr>
 <tr>
 <td style="text-align: left;">TempProbeConstraints</td>
-<td style="text-align: left;">List of temperature probe constraints that must be met for the output to run. Each entry must include:<br><strong>TempProbe</strong>: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: TempProbes section.<br><strong>Condition</strong>: Either <em>GreaterThan</em> or <em>LessThan</em><br><strong>Temperature</strong>: The threshold temperature on degress C.<br><strong>FallBackTemp</strong>: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C.</td>
+<td style="text-align: left;">List of temperature probe constraints that must be met for the output to run. Each entry must include:<br><strong>TempProbe</strong>: The name of the temperature probe that constrains this output. Must be defined in the SCSmartDevices: Devices: TempProbes section.<br><strong>Condition</strong>: Either <em>GreaterThan</em> or <em>LessThan</em><br><strong>Temperature</strong>: The threshold temperature on degress C.<br><strong>FallBackTemp</strong>: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C.</td>
 </tr>
 </tbody>
 </table>
