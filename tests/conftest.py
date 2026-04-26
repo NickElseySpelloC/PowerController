@@ -27,7 +27,7 @@ from sc_smart_device import SCSmartDevice, SmartDeviceStatus, SmartDeviceView, S
 # ---------------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-TEST_CONFIG = str(PROJECT_ROOT / "configs" / "testing.yaml")
+TEST_CONFIG = str(PROJECT_ROOT / "tests" / "testing.yaml")
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ def logger() -> SCLogger:
 
 @pytest.fixture(scope="session")
 def config() -> SCConfigManager:
-    """Return the test SCConfigManager loaded from configs/testing.yaml."""
+    """Return the test SCConfigManager loaded from tests/testing.yaml."""
     schemas = ConfigSchema()
     merged_schema = merge(deepcopy(schemas.validation), smart_devices_validator)
     assert isinstance(merged_schema, dict)

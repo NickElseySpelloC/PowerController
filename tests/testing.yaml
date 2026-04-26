@@ -1,0 +1,82 @@
+General:
+  Label: Test PowerController
+  PollingInterval: 10
+  PrintToConsole: False
+  DefaultPrice: 30.0
+
+Website:
+  HostingIP: 127.0.0.1
+  Port: 18080
+  PageAutoRefresh: 10
+  DebugMode: False
+
+DataAPI:
+  Enable: True
+  HostingIP: 127.0.0.1
+  Port: 18081
+
+# AmberAPI: Mode Live will auto-disable if AMBER_API_KEY env var is absent.
+AmberAPI:
+  Mode: Live
+  APIURL: https://api.amber.com.au/v1
+  RefreshInterval: 30
+
+SCSmartDevices:
+  AllowDebugLogging: False
+  SimulationFileFolder: simulation_data/
+  Devices:
+    - Name: Network Rack
+      Model: Shelly2PMG3
+      Hostname: 192.168.86.30
+      Simulate: True
+      ExpectOffline: True
+      Outputs:
+        - Name: "Network Rack O1"
+        - Name: "Network Rack O2"
+      TempProbes:
+        - Name: "Network Rack"
+
+Outputs:
+  - Name: "Network Rack"
+    DeviceOutput: "Network Rack O1"
+    Mode: Schedule
+    Schedule: General
+    AmberChannel: general
+    TargetHours: -1
+    MaxBestPrice: 100.0
+    MaxPriorityPrice: 100.0
+
+UPSIntegration:
+  Enable: False
+  PollingInterval: 60
+  UPSDevices:
+
+Location:
+  Timezone: Australia/Sydney
+  Latitude: -33.8688
+  Longitude: 151.2093
+
+Files:
+  SavedStateFile: logs/test_state.json
+  LogfileVerbosity: error
+  ConsoleVerbosity: error
+
+OperatingSchedules:
+  - Name: General
+    Windows:
+      - StartTime: "00:00"
+        EndTime: "23:59"
+        DaysOfWeek: All
+        Price: 20.00
+  - Name: MorningOnly
+    Windows:
+      - StartTime: "06:00"
+        EndTime: "12:00"
+        DaysOfWeek: All
+        Price: 15.00
+  - Name: WeekdaysOnly
+    Windows:
+      - StartTime: "08:00"
+        EndTime: "17:00"
+        DaysOfWeek: "Mon, Tue, Wed, Thu, Fri"
+        Price: 25.00
