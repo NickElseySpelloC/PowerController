@@ -237,7 +237,9 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -332,14 +334,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../installation/shelly_setup/" class="md-nav__link">
+      <a href="../../../installation/device_setup/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Shelly Setup
+    Device Setup
   
 
     
@@ -689,14 +691,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../shelly_devices/" class="md-nav__link">
+      <a href="../devices/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    ShellyDevices
+    Smart Devices
   
 
     
@@ -1163,8 +1165,8 @@
 <p>Log temperature probe readings to the system state JSON file and/or a CSV file. </p>
 <p>Temperature readings can be aquired from two sources:</p>
 <ol>
-<li>One or more ds18b20 digital temperature probes connected to a Shelly Addon device (see <a href="../../../installation/shelly_setup/">Shelly Setup</a> for more information. )</li>
-<li>An internal temperature probe that's included in most modern Shelly smart switches.</li>
+<li>One or more ds18b20 digital temperature probes connected to a Shelly Addon device (see <a href="../../../installation/device_setup/">Device Setup</a> for more information. )</li>
+<li>An internal temperature probe that's included in most modern smart switches.</li>
 </ol>
 <p>Note: The section is optionaly, but if you use it, the required keys below are shown in <strong>bold</strong>.</p>
 <table>
@@ -1181,7 +1183,7 @@
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Probes</strong></td>
-<td style="text-align: left;">A list of temp probe names, as defined in the ShellyDevices: Devices: [Device]: TempProbes section. You can optionally add:<br><strong>DisplayName</strong>: Name to be used in logging.<br><strong>Colour</strong>: The colour to use when charting this probe.<br><strong>HideFromViewerApp</strong>: If True, ony log to the CSV file.</td>
+<td style="text-align: left;">A list of temp probe names, as defined in the SCSmartDevices: Devices: [Device]: TempProbes section. You can optionally add:<br><strong>DisplayName</strong>: Name to be used in logging.<br><strong>Colour</strong>: The colour to use when charting this probe.<br><strong>HideFromViewerApp</strong>: If True, ony log to the CSV file.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>LoggingInterval</strong></td>
@@ -1296,7 +1298,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.expand"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>

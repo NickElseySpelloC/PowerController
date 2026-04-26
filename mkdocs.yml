@@ -3,6 +3,8 @@ site_url: https://github.com/NickElseySpelloC/PowerController
 
 theme:
   name: material
+  features:
+    - navigation.expand
 
 extra_css:
   - stylesheets/extra.css
@@ -30,7 +32,7 @@ nav:
   - Getting Started:
     - Installation steps: installation/index.md
     - Prerequisite Software: installation/prerequisites.md
-    - Shelly Setup: installation/shelly_setup.md
+    - Device Setup: installation/device_setup.md
     - App Installation: installation/install_app.md
   - Configuration Guide: 
     - Configuration Overview: configuration/index.md
@@ -41,7 +43,7 @@ nav:
       - Email: configuration/sections/email.md
       - Website: configuration/sections/website.md
       - AmberAPI: configuration/sections/amber_api.md
-      - ShellyDevices: configuration/sections/shelly_devices.md
+      - Smart Devices: configuration/sections/devices.md
       - Outputs: configuration/sections/outputs.md
       - OperatingSchedules: configuration/sections/operating_schedules.md
       - OutputSequences: configuration/sections/output_sequences.md

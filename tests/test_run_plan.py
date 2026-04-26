@@ -13,7 +13,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from org_enums import RunPlanMode, RunPlanStatus
-from sc_utility import DateHelper
+from sc_foundation import DateHelper
 
 from local_enumerations import AmberChannel
 from run_plan import RunPlanner

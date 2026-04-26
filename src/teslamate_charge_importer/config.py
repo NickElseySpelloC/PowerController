@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from dotenv import load_dotenv
 
 if TYPE_CHECKING:
-    from sc_utility import SCConfigManager
+    from sc_foundation import SCConfigManager
 
 load_dotenv()
 

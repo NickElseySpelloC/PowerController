@@ -3,7 +3,7 @@ import datetime as dt
 import operator
 
 from org_enums import RunPlanMode, RunPlanStatus
-from sc_utility import DateHelper, SCLogger
+from sc_foundation import DateHelper, SCLogger
 
 # from external_services import ExternalServiceHelper
 from local_enumerations import AmberChannel

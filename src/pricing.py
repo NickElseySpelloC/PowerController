@@ -7,7 +7,7 @@ from pathlib import Path
 # from zoneinfo import ZoneInfo
 import requests
 from org_enums import RunPlanMode
-from sc_utility import (
+from sc_foundation import (
     CSVReader,
     DateHelper,
     JSONEncoder,

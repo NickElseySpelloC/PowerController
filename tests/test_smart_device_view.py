@@ -1,4 +1,4 @@
-"""Tests for ShellyView — the read-only facade over a ShellyStatus snapshot."""
+"""Tests for SmartDeviceView — the read-only facade over a SmartDeviceStatus snapshot."""
 
 import sys
 from pathlib import Path
@@ -9,8 +9,7 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from local_enumerations import ShellyStatus
-from shelly_view import ShellyView
+from sc_smart_device import SmartDeviceStatus, SmartDeviceView
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -22,7 +21,7 @@ def _build_view(
     device_online: bool = True,
     output_state: bool = False,
     temp_probe_temp: float | None = 22.5,
-) -> ShellyView:
+) -> SmartDeviceView:
     devices = [
         {"ID": i, "Name": f"Device {i}", "Online": device_online, "ExpectOffline": False, "Temperature": 40.0}
         for i in range(1, num_devices + 1)
@@ -42,15 +41,15 @@ def _build_view(
     temp_probes = [
         {"ID": 1, "Name": "Probe A", "DeviceID": 1, "Temperature": temp_probe_temp}
     ]
-    status = ShellyStatus(
+    status = SmartDeviceStatus(
         devices=devices, outputs=outputs, inputs=inputs,
         meters=meters, temp_probes=temp_probes,
     )
-    return ShellyView(snapshot=status)
+    return SmartDeviceView(snapshot=status)
 
 
-def _empty_view() -> ShellyView:
-    return ShellyView(snapshot=ShellyStatus(devices=[], outputs=[], inputs=[], meters=[], temp_probes=[]))
+def _empty_view() -> SmartDeviceView:
+    return SmartDeviceView(snapshot=SmartDeviceStatus(devices=[], outputs=[], inputs=[], meters=[], temp_probes=[]))
 
 
 # ---------------------------------------------------------------------------
@@ -131,14 +130,14 @@ class TestDeviceLookups:
         assert view.all_devices_online() is True
 
     def test_all_devices_online_one_down(self):
-        status = ShellyStatus(
+        status = SmartDeviceStatus(
             devices=[
                 {"ID": 1, "Name": "D1", "Online": True, "ExpectOffline": False, "Temperature": None},
                 {"ID": 2, "Name": "D2", "Online": False, "ExpectOffline": False, "Temperature": None},
             ],
             outputs=[], inputs=[], meters=[], temp_probes=[],
         )
-        view = ShellyView(snapshot=status)
+        view = SmartDeviceView(snapshot=status)
         assert view.all_devices_online() is False
 
 

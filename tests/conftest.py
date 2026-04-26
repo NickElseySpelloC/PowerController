@@ -14,13 +14,11 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from config_schemas import ConfigSchema
-from sc_utility import SCConfigManager, SCLogger
+from sc_foundation import SCConfigManager, SCLogger
 from scheduler import Scheduler
 from ups_integration import UPSIntegration
 
-from local_enumerations import ShellyStatus
-from shelly_view import ShellyView
-from shelly_worker import ShellyWorker
+from sc_smart_device import SmartDeviceStatus, SmartDeviceView, SmartDeviceWorker
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -67,29 +65,29 @@ def ups_integration(config, logger):
 
 
 # ---------------------------------------------------------------------------
-# Shelly simulation fixtures
+# Smart Device simulation fixtures
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
-def shelly_worker(config, logger) -> ShellyWorker:
-    """Return a ShellyWorker using simulated devices. Worker thread not started."""
+def smart_device_worker(config, logger) -> SmartDeviceWorker:
+    """Return a SmartDeviceWorker using simulated devices. Worker thread not started."""
     wake_event = threading.Event()
-    worker = ShellyWorker(config, logger, wake_event)
+    worker = SmartDeviceWorker(config, logger, wake_event)
     return worker
 
 
 @pytest.fixture(scope="session")
-def shelly_view(shelly_worker) -> ShellyView:
-    """Return a ShellyView built from the simulated worker's initial snapshot."""
-    status = shelly_worker.get_latest_status()
-    return ShellyView(snapshot=status)
+def smart_device_view(smart_device_worker) -> SmartDeviceView:
+    """Return a SmartDeviceView built from the simulated worker's initial snapshot."""
+    status = smart_device_worker.get_latest_status()
+    return SmartDeviceView(snapshot=status)
 
 
 # ---------------------------------------------------------------------------
-# Synthetic ShellyView builder (for unit tests that need full control)
+# Synthetic SmartDeviceView builder (for unit tests that need full control)
 # ---------------------------------------------------------------------------
 
-def make_shelly_status(
+def make_smart_device_status(
     device_online: bool = True,
     output_state: bool = False,
     device_id: int = 1,
@@ -98,9 +96,9 @@ def make_shelly_status(
     meter_id: int = 1,
     temp_probe_id: int = 1,
     temp_probe_temp: float | None = 25.0,
-) -> ShellyStatus:
-    """Build a minimal ShellyStatus for unit tests."""
-    return ShellyStatus(
+) -> SmartDeviceStatus:
+    """Build a minimal SmartDeviceStatus for unit tests."""
+    return SmartDeviceStatus(
         devices=[{
             "ID": device_id,
             "Name": "Test Device",
@@ -137,9 +135,9 @@ def make_shelly_status(
 
 
 @pytest.fixture
-def synthetic_view() -> ShellyView:
-    """Return a ShellyView built from minimal synthetic data (device online, output off)."""
-    return ShellyView(snapshot=make_shelly_status())
+def synthetic_view() -> SmartDeviceView:
+    """Return a SmartDeviceView built from minimal synthetic data (device online, output off)."""
+    return SmartDeviceView(snapshot=make_smart_device_status())
 
 
 # ---------------------------------------------------------------------------

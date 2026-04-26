@@ -21,7 +21,7 @@ The config file supports the following sections. Some of mandatory and some are 
 | [Email](sections/email.md) | If you want to be emailed when there's a critical error or excessive energy use | No |
 | [Website](sections/website.md) | Settings for the built-in web server that provides a web interface to view and control the outputs | No |
 | [AmberAPI](sections/amber_api.md) | Integration with the Amber Electric API to download real time energy prices for your home | No |
-| [ShellyDevices](sections/shelly_devices.md) | Describe the Shelly devices you want to control | Yes |
+| [SCSmartDevices](sections/devices.md) | Describe the smart devices you want to control | Yes |
 | [Outputs](sections/outputs.md) | Configure the behaviour of each outputs and/or meters that will control and monitor your electrical devices | Yes |
 | [OperatingSchedules](sections/operating_schedules.md) | Schedule used for switched outputs | Yes |
 | [OutputSequences](sections/output_sequences.md) | Define a sequence of actions to perform on outputs when turning On or off | No |

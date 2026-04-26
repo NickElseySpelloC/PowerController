@@ -26,7 +26,7 @@ class ConfigSchema:
                     "SavedStateFile": {"type": "string", "required": True},
                 },
             },
-            "ShellyDevices": {
+            "SCSmartDevices": {
                 "type": "dict",
                 "required": True,
                 "schema": {
@@ -143,7 +143,7 @@ class ConfigSchema:
                     "type": "dict",
                     "schema": {
                         "Name": {"type": "string", "required": True},
-                        "Type": {"type": "string", "required": False, "nullable": True, "allowed": ["shelly", "teslamate", "meter"]},
+                        "Type": {"type": "string", "required": False, "nullable": True, "allowed": ["smart_device", "teslamate", "meter"]},
                         "CarID": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 1000000},
                         "DeviceOutput": {"type": "string", "required": False, "nullable": True},
                         "Mode": {"type": "string", "required": False, "nullable": True, "allowed": ["Schedule", "BestPrice"]},

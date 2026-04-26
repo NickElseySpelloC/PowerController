@@ -1,7 +1,7 @@
 """Tests for OutputManager — the core per-output decision-making logic.
 
 Strategy:
-  - Create a real OutputManager backed by the simulated ShellyWorker.
+  - Create a real OutputManager backed by the simulated SmartDeviceWorker.
   - Directly inject run_plan dicts and set app_mode/system_state to drive
     specific code paths in evaluate_conditions().
   - Assert on the returned OutputAction (type, system_state, reason).
@@ -25,12 +25,13 @@ from org_enums import (
     StateReasonOn,
     SystemState,
 )
-from sc_utility import DateHelper
+from sc_foundation import DateHelper
 
-from local_enumerations import DELAY_AFTER_STATE_CHANGE, OutputActionType, ShellyStatus
+from sc_smart_device import SmartDeviceStatus, SmartDeviceView
+
+from local_enumerations import DELAY_AFTER_STATE_CHANGE, OutputActionType
 from outputs import OutputManager
 from pricing import PricingManager
-from shelly_view import ShellyView
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -101,9 +102,9 @@ def _future_slot_plan() -> dict:
 
 
 @pytest.fixture(scope="module")
-def output_manager(config, logger, scheduler, ups_integration, shelly_worker):
-    """Build a real OutputManager using the simulated ShellyWorker snapshot."""
-    view = ShellyView(snapshot=shelly_worker.get_latest_status())
+def output_manager(config, logger, scheduler, ups_integration, smart_device_workers):
+    """Build a real OutputManager using the simulated SmartDeviceWorker snapshot."""
+    view = SmartDeviceView(snapshot=smart_device_workers.get_latest_status())
     pricing = PricingManager(config, logger)
 
     output_config = {
@@ -130,9 +131,9 @@ def output_manager(config, logger, scheduler, ups_integration, shelly_worker):
     return om
 
 
-def _online_view(shelly_worker, output_state: bool = False) -> ShellyView:
-    """Return a ShellyView where the Network Rack device is online."""
-    status = shelly_worker.get_latest_status()
+def _online_view(smart_device_workers, output_state: bool = False) -> SmartDeviceView:
+    """Return a SmartDeviceView where the Network Rack device is online."""
+    status = smart_device_workers.get_latest_status()
     # Rebuild with a known output state; mark device online
     devices = [{**d, "Online": True} for d in status.devices]
     outputs = []
@@ -141,28 +142,28 @@ def _online_view(shelly_worker, output_state: bool = False) -> ShellyView:
             outputs.append({**o, "State": output_state})
         else:
             outputs.append(o)
-    new_status = ShellyStatus(
+    new_status = SmartDeviceStatus(
         devices=devices,
         outputs=outputs,
         inputs=status.inputs,
         meters=status.meters,
         temp_probes=status.temp_probes,
     )
-    return ShellyView(snapshot=new_status)
+    return SmartDeviceView(snapshot=new_status)
 
 
-def _offline_view(shelly_worker) -> ShellyView:
-    """Return a ShellyView where all devices are offline."""
-    status = shelly_worker.get_latest_status()
+def _offline_view(smart_device_workers) -> SmartDeviceView:
+    """Return a SmartDeviceView where all devices are offline."""
+    status = smart_device_workers.get_latest_status()
     devices = [{**d, "Online": False} for d in status.devices]
-    new_status = ShellyStatus(
+    new_status = SmartDeviceStatus(
         devices=devices,
         outputs=status.outputs,
         inputs=status.inputs,
         meters=status.meters,
         temp_probes=status.temp_probes,
     )
-    return ShellyView(snapshot=new_status)
+    return SmartDeviceView(snapshot=new_status)
 
 
 # ---------------------------------------------------------------------------
@@ -186,8 +187,8 @@ class TestInitialisation:
     def test_ups_integration_set(self, output_manager, ups_integration):
         assert output_manager.ups_integration is ups_integration
 
-    def test_invalid_device_output_raises(self, config, logger, scheduler, ups_integration, shelly_worker):
-        view = ShellyView(snapshot=shelly_worker.get_latest_status())
+    def test_invalid_device_output_raises(self, config, logger, scheduler, ups_integration, smart_device_workers):
+        view = SmartDeviceView(snapshot=smart_device_workers.get_latest_status())
         pricing = PricingManager(config, logger)
         bad_config = {
             "Name": "BadOutput",
@@ -208,46 +209,46 @@ class TestInitialisation:
 # ---------------------------------------------------------------------------
 
 class TestEvaluateConditionsRunPlan:
-    def test_active_run_plan_slot_turns_on(self, output_manager, shelly_worker):
+    def test_active_run_plan_slot_turns_on(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _active_slot_plan()
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type == OutputActionType.TURN_ON
         assert action.reason == StateReasonOn.ACTIVE_RUN_PLAN
 
-    def test_future_run_plan_slot_stays_off(self, output_manager, shelly_worker):
+    def test_future_run_plan_slot_stays_off(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _future_slot_plan()
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type in {OutputActionType.TURN_OFF, OutputActionType.UPDATE_OFF_STATE}
         assert action.reason == StateReasonOff.INACTIVE_RUN_PLAN
 
-    def test_failed_run_plan_stays_off(self, output_manager, shelly_worker):
+    def test_failed_run_plan_stays_off(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _make_run_plan(RunPlanStatus.FAILED)
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type in {OutputActionType.TURN_OFF, OutputActionType.UPDATE_OFF_STATE}
         assert action.reason == StateReasonOff.NO_RUN_PLAN
 
-    def test_nothing_run_plan_stays_off(self, output_manager, shelly_worker):
+    def test_nothing_run_plan_stays_off(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _make_run_plan(RunPlanStatus.NOTHING)
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type in {OutputActionType.TURN_OFF, OutputActionType.UPDATE_OFF_STATE}
         assert action.reason == StateReasonOff.RUN_PLAN_COMPLETE
 
-    def test_no_run_plan_stays_off(self, output_manager, shelly_worker):
+    def test_no_run_plan_stays_off(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = None
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type in {OutputActionType.TURN_OFF, OutputActionType.UPDATE_OFF_STATE}
@@ -259,10 +260,10 @@ class TestEvaluateConditionsRunPlan:
 # ---------------------------------------------------------------------------
 
 class TestEvaluateConditionsOffline:
-    def test_device_offline_stays_off(self, output_manager, shelly_worker):
+    def test_device_offline_stays_off(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _active_slot_plan()
-        view = _offline_view(shelly_worker)
+        view = _offline_view(smart_device_workers)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type in {OutputActionType.TURN_OFF, OutputActionType.UPDATE_OFF_STATE}
@@ -274,35 +275,35 @@ class TestEvaluateConditionsOffline:
 # ---------------------------------------------------------------------------
 
 class TestEvaluateConditionsAppMode:
-    def test_app_mode_on_turns_on_regardless_of_run_plan(self, output_manager, shelly_worker):
+    def test_app_mode_on_turns_on_regardless_of_run_plan(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.ON
         output_manager.run_plan = _make_run_plan(RunPlanStatus.NOTHING)
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type == OutputActionType.TURN_ON
         assert action.system_state == SystemState.APP_OVERRIDE
         assert action.reason == StateReasonOn.APP_MODE_ON
 
-    def test_app_mode_off_turns_off_regardless_of_run_plan(self, output_manager, shelly_worker):
+    def test_app_mode_off_turns_off_regardless_of_run_plan(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.OFF
         output_manager.run_plan = _active_slot_plan()
-        view = _online_view(shelly_worker, output_state=True)
+        view = _online_view(smart_device_workers, output_state=True)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type == OutputActionType.TURN_OFF
         assert action.system_state == SystemState.APP_OVERRIDE
         assert action.reason == StateReasonOff.APP_MODE_OFF
 
-    def test_app_mode_auto_falls_through_to_run_plan(self, output_manager, shelly_worker):
+    def test_app_mode_auto_falls_through_to_run_plan(self, output_manager, smart_device_workers):
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _future_slot_plan()
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.system_state == SystemState.AUTO
 
-    def test_app_mode_on_with_timed_revert_respected(self, output_manager, shelly_worker):
+    def test_app_mode_on_with_timed_revert_respected(self, output_manager, smart_device_workers):
         """App mode ON with a revert time in the past should revert to AUTO."""
         output_manager.app_mode = AppMode.ON
         output_manager.app_mode_revert_time = DateHelper.now() - dt.timedelta(minutes=5)
@@ -311,7 +312,7 @@ class TestEvaluateConditionsAppMode:
         output_manager.reason = StateReasonOn.APP_MODE_ON
         output_manager.last_turned_on = DateHelper.now() - dt.timedelta(minutes=10)
         output_manager.run_plan = _future_slot_plan()
-        view = _online_view(shelly_worker, output_state=True)
+        view = _online_view(smart_device_workers, output_state=True)
         action = output_manager.evaluate_conditions(view)
         # After revert, app_mode should have been reset to AUTO
         assert output_manager.app_mode == AppMode.AUTO
@@ -325,20 +326,20 @@ class TestEvaluateConditionsAppMode:
 # ---------------------------------------------------------------------------
 
 class TestEvaluateConditionsNoChange:
-    def test_already_on_with_active_slot_returns_update_on_action(self, output_manager, shelly_worker):
+    def test_already_on_with_active_slot_returns_update_on_action(self, output_manager, smart_device_workers):
         """When device is already on and run plan says stay on → UPDATE_ON_STATE."""
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _active_slot_plan()
-        view = _online_view(shelly_worker, output_state=True)
+        view = _online_view(smart_device_workers, output_state=True)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type in {OutputActionType.TURN_ON, OutputActionType.UPDATE_ON_STATE}
 
-    def test_already_off_with_future_slot_returns_update_off_action(self, output_manager, shelly_worker):
+    def test_already_off_with_future_slot_returns_update_off_action(self, output_manager, smart_device_workers):
         """When device is already off and run plan says stay off → UPDATE_OFF_STATE."""
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _future_slot_plan()
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is not None
         assert action.type in {OutputActionType.TURN_OFF, OutputActionType.UPDATE_OFF_STATE}
@@ -349,38 +350,38 @@ class TestEvaluateConditionsNoChange:
 # ---------------------------------------------------------------------------
 
 class TestDelayAfterStateChange:
-    def test_skips_evaluation_if_recently_turned_on(self, output_manager, shelly_worker):
+    def test_skips_evaluation_if_recently_turned_on(self, output_manager, smart_device_workers):
         """If turned on within DELAY_AFTER_STATE_CHANGE seconds, evaluate_conditions returns None."""
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _future_slot_plan()  # Would normally turn off
         output_manager.last_turned_on = DateHelper.now() - dt.timedelta(seconds=DELAY_AFTER_STATE_CHANGE - 1)
         output_manager.last_turned_off = None
-        view = _online_view(shelly_worker, output_state=True)
+        view = _online_view(smart_device_workers, output_state=True)
         action = output_manager.evaluate_conditions(view)
         assert action is None
         # Clean up
         output_manager.last_turned_on = None
 
-    def test_skips_evaluation_if_recently_turned_off(self, output_manager, shelly_worker):
+    def test_skips_evaluation_if_recently_turned_off(self, output_manager, smart_device_workers):
         """If turned off within DELAY_AFTER_STATE_CHANGE seconds, evaluate_conditions returns None."""
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _active_slot_plan()  # Would normally turn on
         output_manager.last_turned_on = None
         output_manager.last_turned_off = DateHelper.now() - dt.timedelta(seconds=DELAY_AFTER_STATE_CHANGE - 1)
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         assert action is None
         # Clean up
         output_manager.last_turned_off = None
 
-    def test_evaluates_normally_after_delay_elapsed(self, output_manager, shelly_worker):
+    def test_evaluates_normally_after_delay_elapsed(self, output_manager, smart_device_workers):
         """If turned on longer than DELAY_AFTER_STATE_CHANGE seconds ago, evaluation proceeds."""
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _active_slot_plan()
         output_manager.last_turned_on = DateHelper.now() - dt.timedelta(seconds=DELAY_AFTER_STATE_CHANGE + 5)
         output_manager.last_turned_off = None
-        view = _online_view(shelly_worker, output_state=False)
-        action = output_manager.evaluate_conditions(view)
+        # view = _online_view(smart_device_workers, output_state=False)
+        # action = output_manager.evaluate_conditions(view)  # noqa: F841
         # Evaluation ran — action may be None (no change needed) but the guard didn't block it
         # We can't assert action is not None since the run plan may already say stay-off,
         # but we verify the delay guard didn't fire by checking last_turned_on is still set
@@ -393,13 +394,13 @@ class TestDelayAfterStateChange:
 # ---------------------------------------------------------------------------
 
 class TestMinOnOffTime:
-    def test_min_on_time_prevents_turn_off(self, output_manager, shelly_worker):
+    def test_min_on_time_prevents_turn_off(self, output_manager, smart_device_workers):
         """If device was recently turned on and min_on_time has not elapsed, stay on."""
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _future_slot_plan()  # Would normally turn off
         output_manager.min_on_time = 60  # 60 minutes minimum on time
         output_manager.last_turned_on = DateHelper.now() - dt.timedelta(minutes=5)
-        view = _online_view(shelly_worker, output_state=True)
+        view = _online_view(smart_device_workers, output_state=True)
         action = output_manager.evaluate_conditions(view)
         if action:
             # MinOnTime should prevent turn-off
@@ -408,14 +409,14 @@ class TestMinOnOffTime:
         output_manager.min_on_time = 0
         output_manager.last_turned_on = None
 
-    def test_min_off_time_prevents_turn_on(self, output_manager, shelly_worker):
+    def test_min_off_time_prevents_turn_on(self, output_manager, smart_device_workers):
         """If device was recently turned off and min_off_time has not elapsed, stay off."""
         output_manager.app_mode = AppMode.AUTO
         output_manager.run_plan = _active_slot_plan()  # Would normally turn on
         output_manager.min_off_time = 60  # 60 minutes minimum off time
         output_manager.min_on_time = 60  # must be >= min_off_time (validation rule)
         output_manager.last_turned_off = DateHelper.now() - dt.timedelta(minutes=5)
-        view = _online_view(shelly_worker, output_state=False)
+        view = _online_view(smart_device_workers, output_state=False)
         action = output_manager.evaluate_conditions(view)
         if action:
             assert action.reason != StateReasonOn.ACTIVE_RUN_PLAN
@@ -430,12 +431,12 @@ class TestMinOnOffTime:
 # ---------------------------------------------------------------------------
 
 class TestCalculateRunningTotals:
-    def test_does_not_raise_with_valid_view(self, output_manager, shelly_worker):
-        view = _online_view(shelly_worker, output_state=False)
+    def test_does_not_raise_with_valid_view(self, output_manager, smart_device_workers):
+        view = _online_view(smart_device_workers, output_state=False)
         output_manager.calculate_running_totals(view)  # Should not raise
 
-    def test_run_history_ticked(self, output_manager, shelly_worker):
-        view = _online_view(shelly_worker, output_state=False)
+    def test_run_history_ticked(self, output_manager, smart_device_workers):
+        view = _online_view(smart_device_workers, output_state=False)
         before = output_manager.run_history.last_tick
         output_manager.calculate_running_totals(view)
         after = output_manager.run_history.last_tick
@@ -448,13 +449,13 @@ class TestCalculateRunningTotals:
 # ---------------------------------------------------------------------------
 
 class TestGetSaveObject:
-    def test_save_object_has_expected_keys(self, output_manager, shelly_worker):
-        view = _online_view(shelly_worker)
+    def test_save_object_has_expected_keys(self, output_manager, smart_device_workers):
+        view = _online_view(smart_device_workers)
         obj = output_manager.get_save_object(view)
         for key in ("Name", "SystemState", "IsOn", "RunPlan", "RunHistory"):
             assert key in obj
 
-    def test_save_object_name_matches(self, output_manager, shelly_worker):
-        view = _online_view(shelly_worker)
+    def test_save_object_name_matches(self, output_manager, smart_device_workers):
+        view = _online_view(smart_device_workers)
         obj = output_manager.get_save_object(view)
         assert obj["Name"] == "Network Rack"

@@ -132,4 +132,4 @@ source ~/.bashrc
 
 ---
 
-# Next Step >> [Setup your Shelly devices](shelly_setup.md)
+# Next Step >> [Setup your Smart devices](device_setup.md)

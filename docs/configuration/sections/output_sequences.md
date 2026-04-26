@@ -15,9 +15,9 @@ Each step entry in the sequence can include the following parameters:
 
 | Key | Description |
 |:--|:--|
-| **Type** | What type of step is this. One of:<br>**CHANGE_OUTPUT** - Change an output to On or Off.<br>**SLEEP** - Sleep for X seconds before the next step.<br>**GET_LOCATION** - Get the geo-location data from the specified Shelly device. <br>**REFRESH_STATUS** - Refresh the status of all Shelly devices. |
-| OutputIdentity | If the step type is **CHANGE_OUTPUT**, set the name of the output here. This must be an output named in the ShellyDevices: Devices: [Device]: Outputs section. |
-| DeviceIdentity | If the step type is Define a sequence of actions to perform on outputs when turning On or off, set the name of the Shelly device here. This must be a device named in the ShellyDevices: Devices section. |
+| **Type** | What type of step is this. One of:<br>**CHANGE_OUTPUT** - Change an output to On or Off.<br>**SLEEP** - Sleep for X seconds before the next step.<br>**GET_LOCATION** - Get the geo-location data from the specified Shelly device. <br>**REFRESH_STATUS** - Refresh the status of all smart devices. |
+| OutputIdentity | If the step type is **CHANGE_OUTPUT**, set the name of the output here. This must be an output named in the SCSmartDevices: Devices: [Device]: Outputs section. |
+| DeviceIdentity | If the step type is Define a sequence of actions to perform on outputs when turning On or off, set the name of the device here. This must be a device named in the SCSmartDevices: Devices section. |
 | Seconds | If the step type is Define a sequence of actions to perform on outputs when turning On or off, use this to specify the sleep time. |
 | State | If the step type is Define a sequence of actions to perform on outputs when turning On or off, set this to True to turn the output on, False to turn it off. |
 | Retries | How many retry attempts to make on this step before giving up. |

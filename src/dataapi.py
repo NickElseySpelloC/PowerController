@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 if TYPE_CHECKING:
     from threading import Event
 
-    from sc_utility import SCConfigManager, SCLogger
+    from sc_foundation import SCConfigManager, SCLogger
 
     from controller import PowerController
 

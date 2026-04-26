@@ -1,13 +1,13 @@
-"""Meter-only Shelly output implementation.
+"""Meter-only Smart Device output implementation.
 
 This module provides a read-only Output variant which derives ON/OFF state from
 an energy meter's instantaneous power reading, with hysteresis.
 
 Key goals:
-- Select a Shelly meter (DeviceMeter) and log energy usage/costs.
+- Select a Smart Device meter (DeviceMeter) and log energy usage/costs.
 - Treat the output as ON when power draw crosses configurable thresholds.
 - Use RunHistory to persist daily run history into system_state.
-- No run plan generation and no Shelly actions.
+- No run plan generation and no Smart Device actions.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import urllib.parse
 from typing import TYPE_CHECKING, Any
 
 from org_enums import AppMode, RunPlanMode, StateReasonOff, StateReasonOn, SystemState
-from sc_utility import DateHelper
+from sc_foundation import DateHelper
 
 from local_enumerations import DEFAULT_PRICE, AmberChannel, OutputStatusData
 from run_history import RunHistory
@@ -24,11 +24,11 @@ from run_history import RunHistory
 if TYPE_CHECKING:
     import datetime as dt
 
-    from sc_utility import SCConfigManager, SCLogger
+    from sc_foundation import SCConfigManager, SCLogger
 
 
 class MeterOutput:
-    """Read-only output backed by a Shelly energy meter."""
+    """Read-only output backed by a Smart Device energy meter."""
 
     def __init__(
         self,

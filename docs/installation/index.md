@@ -5,7 +5,7 @@ PowerController is primarily designed to be run on either a Linux system, A Rasp
 Installation comes in several phases: 
 
 1. Install the Prerequisites (Python, git, UV)
-2. Prepare your Shelly devices
+2. Prepare your Smart devices
 3. Install the PowerController application
 4. Configure the PowerController application
 

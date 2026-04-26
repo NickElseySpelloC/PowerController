@@ -11,7 +11,7 @@ from teslamate_charge_importer.db import TeslaMateDb
 from teslamate_charge_importer.importer import import_charging_buckets
 
 if TYPE_CHECKING:
-    from sc_utility import SCConfigManager
+    from sc_foundation import SCConfigManager
 
     from teslamate_charge_importer.models import TeslaImportResult
 

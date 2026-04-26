@@ -8,7 +8,7 @@ from org_enums import (
     StateReasonOn,
     SystemState,
 )
-from sc_utility import DateHelper, SCLogger
+from sc_foundation import DateHelper, SCLogger
 
 from local_enumerations import OutputStatusData
 

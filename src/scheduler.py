@@ -5,7 +5,7 @@ import operator
 import re
 
 from org_enums import RunPlanMode
-from sc_utility import DateHelper, SCConfigManager, SCLogger
+from sc_foundation import DateHelper, SCConfigManager, SCLogger
 
 from local_enumerations import DEFAULT_PRICE, WEEKDAY_ABBREVIATIONS
 from run_plan import RunPlanner
@@ -188,7 +188,7 @@ class Scheduler:
         """Accept the device location info dictionary from the controller and store it for use in dawn/dusk calculations.
 
         Args:
-            loc_info (dict): The location information dictionary. A dict of location data, keyed by Shelly device name.
+            loc_info (dict): The location information dictionary. A dict of location data, keyed by a Shelly device name.
         """
         self.dusk_dawn = self._get_dusk_dawn_times(loc_info)
 
@@ -317,16 +317,16 @@ class Scheduler:
         tz = lat = lon = None
 
         # See if we have a Shelly device specified to get the location from
-        shelly_device_name = loc_conf.get("UseShellyDevice")
-        if shelly_device_name:
-            # Get the tz, lat and long from the specified Shelly device
-            shelly_loc = loc_info.get(shelly_device_name, {}) if loc_info else None
-            if shelly_loc:
-                tz = shelly_loc.get("tz")
-                lat = shelly_loc.get("lat")
-                lon = shelly_loc.get("lon")
+        device_name = loc_conf.get("UseShellyDevice")
+        if device_name:
+            # Get the tz, lat and long from the specified device
+            loc = loc_info.get(device_name, {}) if loc_info else None
+            if loc:
+                tz = loc.get("tz")
+                lat = loc.get("lat")
+                lon = loc.get("lon")
 
-        # If we were unable to get the location from the Shelly device, see if we can extract it from the Google Maps url (if supplied)
+        # If we were unable to get the location from the device, see if we can extract it from the Google Maps url (if supplied)
         if tz is None:
             tz = loc_conf.get("Timezone")
             # Extract coordinates

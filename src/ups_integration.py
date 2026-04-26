@@ -6,7 +6,7 @@ import subprocess  # noqa: S404
 from pathlib import Path
 from typing import Any
 
-from sc_utility import CSVReader, DateHelper, SCCommon, SCConfigManager, SCLogger
+from sc_foundation import CSVReader, DateHelper, SCCommon, SCConfigManager, SCLogger
 
 from config_schemas import ConfigSchema
 

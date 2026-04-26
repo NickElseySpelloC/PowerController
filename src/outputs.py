@@ -13,7 +13,16 @@ from org_enums import (
     StateReasonOn,
     SystemState,
 )
-from sc_utility import DateHelper, SCConfigManager, SCLogger
+from sc_foundation import DateHelper, SCConfigManager, SCLogger
+
+from sc_smart_device import (
+    DeviceSequenceRequest,  
+    DeviceSequenceResult,   
+    DeviceStep,             
+    SmartDeviceView,        
+    StepKind,               
+)
+
 
 from local_enumerations import (
     FAILED_RUNPLAN_CHECK_INTERVAL,
@@ -24,26 +33,21 @@ from local_enumerations import (
     OutputAction,
     OutputActionType,
     OutputStatusData,
-    ShellySequenceRequest,
-    ShellySequenceResult,
-    ShellyStep,
-    StepKind,
     UPSMode,
 )
 from pricing import PricingManager
 from run_history import RunHistory
 from run_plan import RunPlanner
 from scheduler import Scheduler
-from shelly_view import ShellyView
 from ups_integration import UPSIntegration
 
 
 class OutputManager:  # noqa: PLR0904
-    """Manages the state of a single Shelly output device and associated resources."""
+    """Manages the state of a single Smart Device output device and associated resources."""
 
     # Public Functions ============================================================================
-    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, view: ShellyView, ups_integration: UPSIntegration, saved_state: dict | None = None):  # noqa: PLR0915
-        """Manages the state of a single Shelly output device.
+    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, view: SmartDeviceView, ups_integration: UPSIntegration, saved_state: dict | None = None):  # noqa: PLR0915
+        """Manages the state of a single Smart Device output device.
 
         Args:
             output_config (dict): The configuration for the output device - the config file's OutputConfiguration list entry.
@@ -51,7 +55,7 @@ class OutputManager:  # noqa: PLR0904
             logger (SCLogger): The logger for the system.
             scheduler (Scheduler): The scheduler for managing time-based operations.
             pricing (PricingManager): The pricing manager for handling pricing-related tasks.
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the Smart Device devices.
             ups_integration (UPSIntegration): The UPS integration manager for handling UPS-related tasks.
             saved_state (dict | None): The previously saved state of the output manager, if any.
         """
@@ -65,7 +69,7 @@ class OutputManager:  # noqa: PLR0904
             self.report_critical_errors_delay = None
         self.scheduler = scheduler
         self.pricing = pricing
-        self.type: str = "shelly"
+        self.type: str = "smart device"
 
         # Define the output attributes that we will initialise later
         self.system_state: SystemState = SystemState.AUTO  # The overall system state, to be updated
@@ -88,9 +92,9 @@ class OutputManager:  # noqa: PLR0904
         self.amber_channel = AmberChannel.GENERAL
         self.max_best_price = self.max_priority_price = 0
 
-        # Shelly Device components
-        self.device_id = 0   # The Shelly Device ID for the output's device
-        self.device_name = None  # The name of the Shelly Device
+        # Smart Device components
+        self.device_id = 0   # The Smart Device  ID for the output's device
+        self.device_name = None  # The name of the Device
 
         self.device_output_id = 0
         self.device_output_name = None
@@ -154,12 +158,12 @@ class OutputManager:  # noqa: PLR0904
         if saved_state and view.get_device_online(self.device_id) and view.get_output_state(self.device_output_id) != device_output_saved_state:
             self.logger.log_message(f"Output {self.name} saved state does not match actual device state. Saved: {'On' if device_output_saved_state else 'Off'}, Actual: {'On' if view.get_device_online(self.device_id) else 'Off'}. Output relay may have been changed by another application.", "warning")
 
-    def initialise(self, output_config: dict, view: ShellyView):  # noqa: PLR0912, PLR0915
+    def initialise(self, output_config: dict, view: SmartDeviceView):  # noqa: PLR0912, PLR0915
         """Initializes the output manager with the given configuration.
 
         Args:
             output_config (dict): The configuration for the output device.
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the Smart devices.
 
         Raises:
             RuntimeError: If the configuration is invalid.
@@ -178,7 +182,7 @@ class OutputManager:  # noqa: PLR0904
                 # self.id is url encoded version of name
                 self.id = urllib.parse.quote(self.name.lower().replace(" ", "_"))
 
-            # ShellyDeviceOutput
+            # SmartDeviceOutput
             self.device_output_name = output_config.get("DeviceOutput")
             if not self.device_output_name:
                 _validation_error(f"DeviceOutput is not set for output {self.name}.")
@@ -322,7 +326,7 @@ class OutputManager:  # noqa: PLR0904
         else:
             self.calculate_running_totals(view)   # Finally calculate all running totals
 
-    def get_save_object(self, view: ShellyView) -> dict:
+    def get_save_object(self, view: SmartDeviceView) -> dict:
         """Returns the representation of this output object that can be saved to disk.
 
         Returns:
@@ -362,11 +366,11 @@ class OutputManager:  # noqa: PLR0904
         }
         return output_dict
 
-    def get_webapp_data(self, view: ShellyView) -> dict:  # noqa: PLR0914
+    def get_webapp_data(self, view: SmartDeviceView) -> dict:  # noqa: PLR0914
         """Get the data for the web application.
 
         Args:
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
 
         Returns:
             dict: The web application data or an empty dist if the output is hidden.
@@ -443,7 +447,7 @@ class OutputManager:  # noqa: PLR0904
         data["average_price"] = f"{average_price:.2f} c/kWh" if average_price > 0 else "N/A"
         return data
 
-    def tell_device_status_updated(self, view: ShellyView):
+    def tell_device_status_updated(self, view: SmartDeviceView):
         """Notify this output that the device status may have changed."""
         if not self.device_id:
             return
@@ -462,11 +466,11 @@ class OutputManager:  # noqa: PLR0904
 
         self._last_device_online_status = new_online_status
 
-    def calculate_running_totals(self, view: ShellyView, is_new_day: bool = False):
+    def calculate_running_totals(self, view: SmartDeviceView, is_new_day: bool = False):
         """Update running totals in run_history object.
 
         Args:
-            view (ShellyView): The current ShellyView snapshot.
+            view (SmartDeviceView): The current SmartDeviceView snapshot.
             is_new_day (bool): Indicates if it's a new day.
         """
         data_block = self._get_status_data(view)
@@ -481,7 +485,7 @@ class OutputManager:  # noqa: PLR0904
         if self.run_plan:
             RunPlanner.tick(self.run_plan)  # Update the run plan's internal state
 
-    def review_run_plan(self, view: ShellyView) -> bool:
+    def review_run_plan(self, view: SmartDeviceView) -> bool:
         """Generate / update the run plan for this output if needed.
 
         Returns:
@@ -550,15 +554,15 @@ class OutputManager:  # noqa: PLR0904
         self.invalidate_run_plan = False
         return bool(self.run_plan)
 
-    def evaluate_conditions(self, view: ShellyView, output_sequences: dict[str, ShellySequenceRequest] | None = None, on_complete: Callable[[ShellySequenceResult], None] | None = None) -> OutputAction | None:  # noqa: PLR0912, PLR0915
+    def evaluate_conditions(self, view: SmartDeviceView, output_sequences: dict[str, DeviceSequenceRequest] | None = None, on_complete: Callable[[DeviceSequenceResult], None] | None = None) -> OutputAction | None:  # noqa: PLR0912, PLR0915
         """Evaluate the conditions for this output.
 
         Note: calculate_running_totals should be called before this method.
 
         Args:
-            view (ShellyView): The current view of the Shelly devices.
-            output_sequences (dict[str, ShellySequenceRequest] | None): Optional dictionary of the available output sequences.
-            on_complete (Callable[[ShellySequenceResult], None] | None): Optional callback to be called when the action is complete.
+            view (SmartDeviceView): The current view of the smart devices.
+            output_sequences (dict[str, DeviceSequenceRequest] | None): Optional dictionary of the available output sequences.
+            on_complete (Callable[[DeviceSequenceResult], None] | None): Optional callback to be called when the action is complete.
 
         Returns:
             OutputAction: The action to be taken for the output, or None if no action is needed.
@@ -753,12 +757,12 @@ class OutputManager:  # noqa: PLR0904
 
         self.parent_output = parent_output
 
-    def set_app_mode(self, new_mode: AppMode, view: ShellyView, revert_minutes: int | None = None):
+    def set_app_mode(self, new_mode: AppMode, view: SmartDeviceView, revert_minutes: int | None = None):
         """Sets the app mode for this output manager.
 
         Args:
             new_mode (AppMode): The new app mode.
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
             revert_minutes (int | None): Optional number of minutes after which to revert to AUTO mode.
         """
         if new_mode not in AppMode:
@@ -790,18 +794,18 @@ class OutputManager:  # noqa: PLR0904
                                   system_state: SystemState,
                                   reason: StateReasonOn | StateReasonOff,
                                   output_state: bool,
-                                  view: ShellyView,
-                                  output_sequences: dict[str, ShellySequenceRequest] | None = None,
-                                  on_complete: Callable[[ShellySequenceResult], None] | None = None) -> OutputAction:
+                                  view: SmartDeviceView,
+                                  output_sequences: dict[str, DeviceSequenceRequest] | None = None,
+                                  on_complete: Callable[[DeviceSequenceResult], None] | None = None) -> OutputAction:
         """Formulate the output action sequence to change the output state.
 
         Args:
             system_state (SystemState): The desired new system state.
             reason (StateReasonOn | StateReasonOff): The reason for the state change.
             output_state (bool): The desired new state of the output (True for ON, False for OFF).
-            view (ShellyView): The current view of the Shelly devices.
-            output_sequences (dict[str, ShellySequenceRequest] | None): Optional dictionary of the available output sequences.
-            on_complete (Callable[[ShellySequenceResult], None] | None): Optional callback to be called when the sequence is complete.
+            view (SmartDeviceView): The current view of the smart devices.
+            output_sequences (dict[str, DeviceSequenceRequest] | None): Optional dictionary of the available output sequences.
+            on_complete (Callable[[DeviceSequenceResult], None] | None): Optional callback to be called when the sequence is complete.
 
         Returns:
             OutputAction: The formulated output action.
@@ -820,10 +824,10 @@ class OutputManager:  # noqa: PLR0904
             sequence_request = output_sequences[sequence_key]
         else:   # Otherwise, create a simple change output step
             steps = [
-                ShellyStep(StepKind.CHANGE_OUTPUT, {"output_identity": self.device_output_id, "state": output_state}, retries=2, retry_backoff_s=1.0),
+                DeviceStep(StepKind.CHANGE_OUTPUT, {"output_identity": self.device_output_id, "state": output_state}, retries=2, retry_backoff_s=1.0),
             ]
             label = f"Change output {self.device_output_name} to {output_state}"
-            sequence_request = ShellySequenceRequest(
+            sequence_request = DeviceSequenceRequest(
                 steps=steps,
                 label=label,
                 timeout_s=10.0,
@@ -898,12 +902,12 @@ class OutputManager:  # noqa: PLR0904
         """Clears the requested output action."""
         self._output_action_request = None
 
-    def record_action_complete(self, action: OutputAction, view: ShellyView):
+    def record_action_complete(self, action: OutputAction, view: SmartDeviceView):
         """Records the completion of an output action.
 
         Args:
             action (OutputAction): The completed output action.
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
         """
         self.clear_action_request()
 
@@ -935,22 +939,22 @@ class OutputManager:  # noqa: PLR0904
 
             self.print_to_console(f"Output {self.name} OFF - {action.reason}")
 
-    def shutdown(self, view: ShellyView) -> bool:
+    def shutdown(self, view: SmartDeviceView) -> bool:
         """Shutdown the output manager.
 
         Args:
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
 
         Returns:
             bool: True if the output device needs to be turned off, False otherwise.
         """
         return bool(self.output_config.get("StopOnExit", False) and view.get_device_online(self.device_id) and view.get_output_state(self.device_output_id))
 
-    def get_info(self, view: ShellyView | None = None) -> str:
+    def get_info(self, view: SmartDeviceView | None = None) -> str:
         """Print the information of the output.
 
         Args:
-            view (ShellyView | None): The current view of the Shelly devices.
+            view (SmartDeviceView | None): The current view of the smart devices.
 
         Returns:
             str: The formatted output information.
@@ -1035,11 +1039,11 @@ class OutputManager:  # noqa: PLR0904
         """
         pass  # Currently no self tests defined
 
-    def get_api_data(self, view: ShellyView | None = None, display_name: str | None = None) -> dict:
+    def get_api_data(self, view: SmartDeviceView | None = None, display_name: str | None = None) -> dict:
         """Get the data for API output.
 
         Args:
-            view (ShellyView | None): Optional view of the Shelly devices.
+            view (SmartDeviceView | None): Optional view of the smart devices.
             display_name (str | None): Optional display name for the output.
 
         Returns:
@@ -1084,11 +1088,11 @@ class OutputManager:  # noqa: PLR0904
         }
 
     # Private Functions ===========================================================================
-    def _should_revert_app_override(self, view: ShellyView) -> bool:
+    def _should_revert_app_override(self, view: SmartDeviceView) -> bool:
         """Check if we should revert an app override based on device online status.
 
         Args:
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
 
         Returns:
             bool: True if we should revert the app override, False otherwise.
@@ -1116,12 +1120,12 @@ class OutputManager:  # noqa: PLR0904
 
         return False
 
-    def _should_respect_minimum_runtime(self, proposed_state: bool, view: ShellyView) -> bool:
+    def _should_respect_minimum_runtime(self, proposed_state: bool, view: SmartDeviceView) -> bool:
         """Check if we should delay state change due to minimum runtime constraints.
 
         Args:
             proposed_state (bool): The proposed new state of the output (True for ON, False for OFF).
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
 
         Returns:
             bool: True if we should delay the state change, False otherwise.
@@ -1166,11 +1170,11 @@ class OutputManager:  # noqa: PLR0904
 
         return False
 
-    def _should_respect_maximum_offtime(self, view: ShellyView) -> bool:
+    def _should_respect_maximum_offtime(self, view: SmartDeviceView) -> bool:
         """Check if we should turn an output back on due to maximum off time constraints.
 
         Args:
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
 
         Returns:
             bool: True if we should turn the output back on due to maximum off time constraints, False otherwise.
@@ -1207,11 +1211,11 @@ class OutputManager:  # noqa: PLR0904
                 return True
         return False
 
-    def _are_there_temp_probe_constraints(self, view: ShellyView, new_output_state: bool) -> tuple[bool, bool | None]:  # noqa: ARG002, PLR0912
+    def _are_there_temp_probe_constraints(self, view: SmartDeviceView, new_output_state: bool) -> tuple[bool, bool | None]:  # noqa: ARG002, PLR0912
         """Evaluate the temperature probe constraints to see if they require the output to be off.
 
         Args:
-            view (ShellyView): The current view of the Shelly devices.
+            view (SmartDeviceView): The current view of the smart devices.
             new_output_state (bool): The proposed new state of the output (True for ON, False for OFF).
 
         Returns:
@@ -1231,7 +1235,7 @@ class OutputManager:  # noqa: PLR0904
 
             probe_temp = view.get_temp_probe_temperature(probe_id)
 
-            self.logger.log_message(f"Checking constraint: output {self.name}; probe: {probe_name}; condition: {condition}; set temp: {set_temp}°C; fall back temp: {fall_back_temp}°C; probe reads: {probe_temp}", "debug")
+            self.logger.log_message(f"Checking constraint: output {self.name}; probe: {probe_name}; condition: {condition}; set temp: {set_temp}°C; fall back temp: {fall_back_temp}°C; probe reads: {probe_temp}", "all")
 
             if condition == "GreaterThan":
                 if probe_temp is None:
@@ -1242,7 +1246,7 @@ class OutputManager:  # noqa: PLR0904
                     continue  # No constaint for this condition
                 if fall_back_temp is None:  # No fall back range set for this condition
                     if probe_temp < set_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "debug")
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "all")
                         return True, False  # Less than set temp and fall back doesn't apply, must stay off
                 else:   # Fall back range has been set
                     fall_back_temp = float(fall_back_temp)
@@ -1254,7 +1258,7 @@ class OutputManager:  # noqa: PLR0904
                             self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "all")
                             return True, False  # Less than set temp and fall back doesn't apply, must stay off
                     if probe_temp < fall_back_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, less than the minimum temperature of {fall_back_temp}°C.", "debug")
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, less than the minimum temperature of {fall_back_temp}°C.", "all")
                         return True, False  # Less than set temp and fall back doesn't apply, must stay off
 
             if condition == "LessThan":
@@ -1266,7 +1270,7 @@ class OutputManager:  # noqa: PLR0904
                     continue  # No constaint for this condition
                 if fall_back_temp is None:  # No fall back range set for this condition
                     if probe_temp > set_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a minimum temperature of {set_temp}°C.", "debug")
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a minimum temperature of {set_temp}°C.", "all")
                         return True, False  # more than set temp and fall back doesn't apply, must stay off
                 else:
                     fall_back_temp = float(fall_back_temp)
@@ -1278,7 +1282,7 @@ class OutputManager:  # noqa: PLR0904
                             self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "all")
                             return True, False  # Less than set temp and fall back doesn't apply, must stay off
                     if probe_temp > fall_back_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, more than the maximum temperature of {fall_back_temp}°C.", "debug")
+                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, more than the maximum temperature of {fall_back_temp}°C.", "all")
                         return True, False  # Less than set temp and fall back doesn't apply, must stay off
 
         return False, None
@@ -1292,7 +1296,7 @@ class OutputManager:  # noqa: PLR0904
         """
         return threading.current_thread().name
 
-    def _new_runplan_needed(self, view: ShellyView) -> bool:
+    def _new_runplan_needed(self, view: SmartDeviceView) -> bool:
         """See if we need to regenerate the run plan.
 
         Returns:
@@ -1333,7 +1337,7 @@ class OutputManager:  # noqa: PLR0904
 
         return False
 
-    def _get_input_state(self, view: ShellyView) -> bool | None:
+    def _get_input_state(self, view: SmartDeviceView) -> bool | None:
         """Get the current state of the input device if it exists.
 
         Returns:
@@ -1387,7 +1391,7 @@ class OutputManager:  # noqa: PLR0904
             price = self.scheduler.get_current_price(self.schedule)  # pyright: ignore[reportArgumentType]
         return price
 
-    def _get_status_data(self, view: ShellyView) -> OutputStatusData:
+    def _get_status_data(self, view: SmartDeviceView) -> OutputStatusData:
         """Get the status data needed by RunHistory.
 
         Returns:
@@ -1399,7 +1403,7 @@ class OutputManager:  # noqa: PLR0904
             is_on=view.get_output_state(self.device_output_id),
             target_hours=self._get_target_hours(),
             current_price=self._get_current_price(),
-            output_type="shelly",
+            output_type="smart device",
             expect_offline=view.get_device_expect_offline(self.device_id)
         )
 

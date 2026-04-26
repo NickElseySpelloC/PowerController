@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from org_enums import RunPlanStatus
-from sc_utility import DateHelper
+from sc_foundation import DateHelper
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

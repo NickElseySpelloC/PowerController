@@ -6,7 +6,7 @@ The Power Controller is a Python-based automation tool that schedules and contro
 * Integrate with [Amber Electric](https://mates.amber.com.au/NXX7QGMC?utm_source=amber&utm_medium=app&utm_campaign=AE537_Multi_Traffic_Generic&utm_term=&utm_content=referral_share_link) so that you can run a device (e.g. a pool pump) at the lowest possible rates.
 * Supports switched outputs and meter only outputs.
 * Integration with multiple Tesla vehicles to report on charging costs.
-* Integrates with the majority of [Shelly](https://www.shelly.com) smart switches and energy meters to control and monitor you electrical devices.
+* Integrates with the majority of [Shelly](https://www.shelly.com) and Tasmota smart switches and energy meters to control and monitor you electrical devices.
 * Dynamic Scheduling: Adjusts device operation based on real-time electricity prices.
 * Normal scheduling: Turn devices on / off based on a time of day / day of week schedule, including support for dusk / dawn triggers. Schedule can be used for fall back if Amber pricing unavailable. Multiple schedules available.
 * Override the output state using the webapp or an input line on a Shelly device.

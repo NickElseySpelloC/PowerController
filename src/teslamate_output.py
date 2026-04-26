@@ -10,7 +10,7 @@ Key goals:
   and CSV consumption exports.
 - Split any charging activity that spans midnight into per-day entries.
 
-This output does not participate in run planning or Shelly actuation.
+This output does not participate in run planning or smart device actuation.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from org_enums import AppMode, RunPlanMode, StateReasonOff, StateReasonOn, SystemState
-from sc_utility import DateHelper, SCConfigManager, SCLogger
+from sc_foundation import DateHelper, SCConfigManager, SCLogger
 
 from local_enumerations import DEFAULT_PRICE, AmberChannel
 
@@ -85,7 +85,7 @@ class TeslaMateOutput:
     """Read-only output backed by TeslaMate charging data.
 
     The output builds RunHistory-style daily data from the controller's
-    ``TeslaChargeData`` section. This output does not generate a run plan and never posts Shelly actions.
+    ``TeslaChargeData`` section. This output does not generate a run plan and never posts smart device actions.
     """
 
     def __init__(

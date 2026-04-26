@@ -1,4 +1,4 @@
-"""Tests for ShellyWorker using simulated Shelly devices."""
+"""Tests for SmartDeviceWorker using simulated Smart devices."""
 
 import sys
 import threading
@@ -11,23 +11,28 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from local_enumerations import ShellySequenceRequest, ShellyStep, StepKind
-from shelly_view import ShellyView
+from sc_smart_device import (
+    DeviceSequenceRequest,  
+    DeviceStep,             
+    SmartDeviceView,        
+    StepKind,               
+)
+
 
 # ---------------------------------------------------------------------------
-# All tests use the session-scoped shelly_worker fixture from conftest.py
+# All tests use the session-scoped smart_device_workers fixture from conftest.py
 # We run the worker thread per-test (start/stop) to avoid cross-test state.
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-def running_worker(shelly_worker):
+def running_worker(smart_device_workers):
     """Start the worker thread; stop it after the test."""
-    shelly_worker.stop_event.clear()  # Reset so run() loop works after a prior stop()
-    t = threading.Thread(target=shelly_worker.run, daemon=True, name="shelly_worker")
+    smart_device_workers.stop_event.clear()  # Reset so run() loop works after a prior stop()
+    t = threading.Thread(target=smart_device_workers.run, daemon=True, name="smart_device_workers")
     t.start()
-    yield shelly_worker
-    shelly_worker.stop()
+    yield smart_device_workers
+    smart_device_workers.stop()
     t.join(timeout=5.0)
 
 
@@ -36,29 +41,29 @@ def running_worker(shelly_worker):
 # ---------------------------------------------------------------------------
 
 class TestInitialState:
-    def test_worker_has_latest_status_on_creation(self, shelly_worker):
-        status = shelly_worker.get_latest_status()
+    def test_worker_has_latest_status_on_creation(self, smart_device_workers):
+        status = smart_device_workers.get_latest_status()
         assert status is not None
 
-    def test_initial_status_has_network_rack_device(self, shelly_worker):
-        status = shelly_worker.get_latest_status()
+    def test_initial_status_has_network_rack_device(self, smart_device_workers):
+        status = smart_device_workers.get_latest_status()
         names = [d["Name"] for d in status.devices]
         assert "Network Rack" in names
 
-    def test_initial_status_has_expected_outputs(self, shelly_worker):
-        status = shelly_worker.get_latest_status()
+    def test_initial_status_has_expected_outputs(self, smart_device_workers):
+        status = smart_device_workers.get_latest_status()
         output_names = [o["Name"] for o in status.outputs]
         assert "Network Rack O1" in output_names
         assert "Network Rack O2" in output_names
 
-    def test_initial_status_has_temp_probe(self, shelly_worker):
-        status = shelly_worker.get_latest_status()
+    def test_initial_status_has_temp_probe(self, smart_device_workers):
+        status = smart_device_workers.get_latest_status()
         probe_names = [p["Name"] for p in status.temp_probes]
         assert "Network Rack" in probe_names
 
-    def test_shelly_view_wraps_status_correctly(self, shelly_worker):
-        status = shelly_worker.get_latest_status()
-        view = ShellyView(snapshot=status)
+    def test_smart_device_view_wraps_status_correctly(self, smart_device_workers):
+        status = smart_device_workers.get_latest_status()
+        view = SmartDeviceView(snapshot=status)
         assert view.get_device_id("Network Rack") != 0
         assert view.get_output_id("Network Rack O1") != 0
 
@@ -69,8 +74,8 @@ class TestInitialState:
 
 class TestRequestExecution:
     def test_submit_returns_request_id(self, running_worker):
-        req = ShellySequenceRequest(
-            steps=[ShellyStep(StepKind.REFRESH_STATUS)],
+        req = DeviceSequenceRequest(
+            steps=[DeviceStep(StepKind.REFRESH_STATUS)],
             label="test_refresh",
         )
         req_id = running_worker.submit(req)
@@ -78,8 +83,8 @@ class TestRequestExecution:
         assert len(req_id) > 0
 
     def test_wait_for_result_completes(self, running_worker):
-        req = ShellySequenceRequest(
-            steps=[ShellyStep(StepKind.REFRESH_STATUS)],
+        req = DeviceSequenceRequest(
+            steps=[DeviceStep(StepKind.REFRESH_STATUS)],
             label="test_wait",
         )
         req_id = running_worker.submit(req)
@@ -87,8 +92,8 @@ class TestRequestExecution:
         assert completed is True
 
     def test_result_is_ok_after_refresh(self, running_worker):
-        req = ShellySequenceRequest(
-            steps=[ShellyStep(StepKind.REFRESH_STATUS)],
+        req = DeviceSequenceRequest(
+            steps=[DeviceStep(StepKind.REFRESH_STATUS)],
             label="test_result_ok",
         )
         req_id = running_worker.submit(req)
@@ -107,8 +112,8 @@ class TestRequestExecution:
     def test_multiple_requests_all_complete(self, running_worker):
         ids = []
         for _ in range(3):
-            req = ShellySequenceRequest(
-                steps=[ShellyStep(StepKind.REFRESH_STATUS)],
+            req = DeviceSequenceRequest(
+                steps=[DeviceStep(StepKind.REFRESH_STATUS)],
                 label="multi_refresh",
             )
             ids.append(running_worker.submit(req))
@@ -122,8 +127,8 @@ class TestRequestExecution:
         def on_done(result):
             called_with.append(result)
 
-        req = ShellySequenceRequest(
-            steps=[ShellyStep(StepKind.REFRESH_STATUS)],
+        req = DeviceSequenceRequest(
+            steps=[DeviceStep(StepKind.REFRESH_STATUS)],
             label="callback_test",
             on_complete=on_done,
         )
@@ -140,8 +145,8 @@ class TestRequestExecution:
 # ---------------------------------------------------------------------------
 
 class TestLocationData:
-    def test_get_location_info_returns_dict(self, shelly_worker):
-        loc = shelly_worker.get_location_info()
+    def test_get_location_info_returns_dict(self, smart_device_workers):
+        loc = smart_device_workers.get_location_info()
         assert isinstance(loc, dict)
 
     def test_request_device_location_submits_and_completes(self, running_worker):
@@ -158,8 +163,8 @@ class TestLocationData:
 # ---------------------------------------------------------------------------
 
 class TestReinitialise:
-    def test_reinitialise_does_not_crash(self, shelly_worker):
+    def test_reinitialise_does_not_crash(self, smart_device_workers):
         """reinitialise_settings() should not raise with the test config."""
-        shelly_worker.reinitialise_settings()
-        status = shelly_worker.get_latest_status()
+        smart_device_workers.reinitialise_settings()
+        status = smart_device_workers.get_latest_status()
         assert status is not None

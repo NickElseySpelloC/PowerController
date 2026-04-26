@@ -4,15 +4,15 @@ This is wehre the action happens. This section configures your switched outputs 
 
 There are three fundametal types of Output device.
 
-1. **shelly**: This the default - a specific output relay of a Shelly Smart switch. shelly type of outputs are used to switch electrical devices on and off.
-2. **meter**: A Shelly energy meter. This is used to  monitor and log energy usage for a electrical circuit. 
+1. **smart device**: This the default - a specific output relay of a Shelly or Tasmota smart switch. 'smart device' type of outputs are used to switch electrical devices on and off.
+2. **meter**: An energy meter. This is used to  monitor and log energy usage for a electrical circuit. 
 3. **teslamate**: A special type of energy meter that imports Tesla vehicle charging data from using TeslaMate. Requires the [TeslaMate](teslamate.md) section to be properly configured.
 
 The Output device type is set via the Mode key. 
 
 There's a lot of keys in this section, but not all are applicable to all types:
 
-| Setting | shelly | meter | teslamate |
+| Setting | smart device | meter | teslamate |
 |:--|:--|:--|:--|
 | Name | ✓ | ✓ | ✓ |
 | Type | ✓ | ✓ | ✓ |
@@ -58,8 +58,8 @@ Note: Required keys are shown in **bold**.
 | Key | Description | 
 |:--|:--|
 | **Name** | A name for this output - used in the web interface. |
-| Type | Configures what type of output this is as decribed above:<br>**shelly**: A fully functional Shelly smart switch output. <br>**meter**: A Shelly energy meter. <br>**teslamate**: Imports Tesla charging data from using TeslaMate.  |
-| DeviceOutput | Specify the Shelly device output that controls this device - must match a Name in the ShellyDevices: Devices: Outputs section. |
+| Type | Configures what type of output this is as decribed above:<br>**smart device**: A fully functional smart switch output. <br>**meter**: An energy meter. <br>**teslamate**: Imports Tesla charging data from using TeslaMate.  |
+| DeviceOutput | Specify the device output that controls this device - must match a Name in the SCSmartDevices: Devices: Outputs section. |
 | Mode | Operating mode:<br>**BestPrice**: Run for target hours at best price<br>**Schedule**: Run according to schedule only. |
 | Schedule | The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section. |
 | ConstraintSchedule | An constraint schedule that limits when the output can run, even in BestPrice mode. |
@@ -74,9 +74,9 @@ Note: Required keys are shown in **bold**.
 | MaxBestPrice | The maximum price to run at when in BestPrice mode. |
 | MaxPriorityPrice | The maximum price to run when we haven't run for the minimum number of hours (MinHours) yet. |
 | DatesOff | Optional list of date ranges when the output should not run. A list of StartDate and EndDate pairs. Dates are in the format yyyy-mm-dd |
-| DeviceMeter | The Shelly device meter to use to track energy usage - must match a Name in the ShellyDevices: Devices: Meters section |
+| DeviceMeter | The device meter to use to track energy usage - must match a Name in the SCSmartDevices: Devices: Meters section |
 | MaxDailyEnergyUse | Maximum energy use expected in Wh per day. An email warning will be sent if this is exceeded. |
-| DeviceInput | The Shelly device input to used override the state of the output - must match a Name in the ShellyDevices: Devices: Inputs section |
+| DeviceInput | The Shelly device input to used override the state of the output - must match a Name in the SCSmartDevices: Devices: Inputs section |
 | DeviceInputMode | If a DeviceInput is specified, this controls how is is used. <br>**Ignore**: Ignore the state of the inputs.<br>**TurnOn**: Turn output on if input is off. <br>**TurnOff**: Turn output off if input is on. |
 | StopOnExit | If True, attempt to turn off the outputs when the application exits |
 | MinOnTime | Minimum minutes to stay on once turned on. |
@@ -93,6 +93,6 @@ Note: Required keys are shown in **bold**.
 | MinEnergyToLog | If a device run is logged with less than this number of Watts, the entry will be discarded. |
 | HideFromWebApp | If True, this output will not be shown in the built-in web app. |
 | HideFromViewerApp | If True, this output will not be shown in the PowerControllerViewer app. |
-| TempProbeConstraints | List of temperature probe constraints that must be met for the output to run. Each entry must include:<br>**TempProbe**: The name of the temperature probe that constrains this output. Must be defined in the ShellyDevices: Devices: TempProbes section.<br>**Condition**: Either _GreaterThan_ or _LessThan_<br>**Temperature**: The threshold temperature on degress C.<br>**FallBackTemp**: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C. |
+| TempProbeConstraints | List of temperature probe constraints that must be met for the output to run. Each entry must include:<br>**TempProbe**: The name of the temperature probe that constrains this output. Must be defined in the SCSmartDevices: Devices: TempProbes section.<br>**Condition**: Either _GreaterThan_ or _LessThan_<br>**Temperature**: The threshold temperature on degress C.<br>**FallBackTemp**: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C. |
 
 Take a look at the [example configuration file](../example_config.md) for some real world examples.

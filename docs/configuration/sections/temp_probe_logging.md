@@ -4,15 +4,15 @@ Log temperature probe readings to the system state JSON file and/or a CSV file.
 
 Temperature readings can be aquired from two sources:
 
-1. One or more ds18b20 digital temperature probes connected to a Shelly Addon device (see [Shelly Setup](../../installation/shelly_setup.md) for more information. )
-2. An internal temperature probe that's included in most modern Shelly smart switches.
+1. One or more ds18b20 digital temperature probes connected to a Shelly Addon device (see [Device Setup](../../installation/device_setup.md) for more information. )
+2. An internal temperature probe that's included in most modern smart switches.
 
 Note: The section is optionaly, but if you use it, the required keys below are shown in **bold**.
 
 | Key | Description |
 |:--|:--|
 | Enable | Set to True or False |
-| **Probes** | A list of temp probe names, as defined in the ShellyDevices: Devices: [Device]: TempProbes section. You can optionally add:<br>**DisplayName**: Name to be used in logging.<br>**Colour**: The colour to use when charting this probe.<br>**HideFromViewerApp**: If True, ony log to the CSV file.  |
+| **Probes** | A list of temp probe names, as defined in the SCSmartDevices: Devices: [Device]: TempProbes section. You can optionally add:<br>**DisplayName**: Name to be used in logging.<br>**Colour**: The colour to use when charting this probe.<br>**HideFromViewerApp**: If True, ony log to the CSV file.  |
 | **LoggingInterval** | Log temp probe readings every N minutes |
 | LastReadingWithinMinutes | Only log readings that have been updated within this number of minutes. 0 to disable. |
 | SavedStateFileMaxDays | Number of days to keep in the data in the system state file. Try to keep this as low as possible to reduce file size. 0 to disable. |

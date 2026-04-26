@@ -7,15 +7,17 @@ import signal
 import sys
 from pathlib import Path
 from threading import Event
+from mergedeep import merge
 
-from sc_utility import SCCommon, SCConfigManager, SCLogger
+from sc_foundation import SCCommon, SCConfigManager, SCLogger
+
+from sc_smart_device import SmartDeviceWorker, SCSmartDevice, smart_devices_validator
 
 from config_schemas import ConfigSchema
 from controller import PowerController
 from dataapi import create_asgi_app as create_data_api_app
 from dataapi import serve_asgi_blocking as serve_data_api_blocking
 from local_enumerations import CONFIG_FILE
-from shelly_worker import ShellyWorker
 from thread_manager import RestartPolicy, ThreadManager
 from webapp import create_asgi_app, serve_asgi_blocking
 
@@ -69,8 +71,8 @@ Examples:
             sys.exit(1)
         base_dir = homedir.resolve()
 
-        # Set the project root environment variable for use by SC_Utility and other components
-        os.environ["SC_UTILITY_PROJECT_ROOT"] = str(base_dir)
+        # Set the project root environment variable for use by sc-foundation and other components
+        os.environ["SC_FOUNDATION_PROJECT_ROOT"] = str(base_dir)
     else:
         base_dir = Path(SCCommon.get_project_root())
 
@@ -119,20 +121,26 @@ def main():  # noqa: PLR0915
     # Get our default schema, validation schema, and placeholders.
     schemas = ConfigSchema()
 
+    # Merge the SmartDevices validation schema with the default validation schema
+    merged_schema = merge(schemas.validation, smart_devices_validator)
+    assert isinstance(merged_schema, dict), "Merged schema should be type dict"
+
     # Initialize the SC_ConfigManager class
     try:
         config_file = cmd_args["config_file"]
         assert isinstance(config_file, str), "config_file must be a string"
         config = SCConfigManager(
             config_file=config_file,
-            validation_schema=schemas.validation,
+            validation_schema=merged_schema,
             placeholders=schemas.placeholders
         )
     except RuntimeError as e:
         print(f"Configuration file error: {e}", file=sys.stderr)
         return
+    else:
+        assert isinstance(config, SCConfigManager)
 
-    # Initialize the SC_Logger class
+    # Initialize the SCLogger class
     try:
         logger = SCLogger(config.get_logger_settings())
         # Setup email
@@ -141,6 +149,7 @@ def main():  # noqa: PLR0915
         print(f"Logger initialisation error: {e}", file=sys.stderr)
         return
     else:
+        assert isinstance(logger, SCLogger)
         logger.log_message("", "summary")
         logger.log_message("", "summary")
         logger.log_message("PowerController application starting.", "summary")
@@ -148,17 +157,31 @@ def main():  # noqa: PLR0915
             logger.log_message(f"Home directory: {cmd_args['homedir']}", "debug")
         logger.log_message(f"Configuration file: {cmd_args['config_file']}", "debug")
 
+    # Initialize the SCSmartDevice class
+    smart_switch_settings = config.get("SCSmartDevices")
+    if smart_switch_settings is None:
+        logger.log_fatal_error("No SmartDevices settings found in the configuration file.")
+        return
+
+    try:
+        smart_switch_control = SCSmartDevice(logger, smart_switch_settings, wake_event)
+    except RuntimeError as e:
+        error_msg = f"SCSmartDevice initialization error: {e}"
+        raise RuntimeError(error_msg) from e
+    logger.log_message(f"SCSmartDevice initialized successfully with {len(smart_switch_control.devices)} devices.", "summary")
+
+
     # Now create instances of the main worked classes
-    shelly_worker = None
+    smart_device_worker = None
     controller = None
     asgi_app = None
     data_api_app = None
     try:
-        # Create an instance of the ShellyWorker class
-        shelly_worker = ShellyWorker(config, logger, wake_event)
+        # Create an instance of the SmartDeviceWorker class
+        smart_device_worker = SmartDeviceWorker(smart_switch_control, logger, wake_event)
 
         # Create an instance of the main PowerController class which orchestrates the power control
-        controller = PowerController(config, logger, shelly_worker, wake_event)
+        controller = PowerController(config, logger, smart_device_worker, wake_event)
 
         asgi_app, web_notifier = create_asgi_app(controller, config, logger)
         controller.set_webapp_notifier(web_notifier.notify)
@@ -174,8 +197,8 @@ def main():  # noqa: PLR0915
     tm = ThreadManager(logger, global_stop=stop_event)
 
     tm.add(
-        name="shelly",
-        target=shelly_worker.run,
+        name="smart device",
+        target=smart_device_worker.run,
         restart=RestartPolicy(mode="on_crash", max_restarts=3, backoff_seconds=2.0),
         stop_event=stop_event,  # still used by ThreadManager for signaling
     )

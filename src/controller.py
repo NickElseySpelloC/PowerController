@@ -13,7 +13,7 @@ from threading import Event, RLock
 from typing import Any
 
 from org_enums import AppMode, StateReasonOff, SystemState
-from sc_utility import (
+from sc_foundation import (
     CSVReader,
     DateHelper,
     JSONEncoder,
@@ -22,27 +22,31 @@ from sc_utility import (
     SCLogger,
 )
 
+from sc_smart_device import (
+    DeviceSequenceRequest,  
+    DeviceSequenceResult,   
+    DeviceStep,             
+    SmartDeviceView,        
+    SmartDeviceWorker,      
+    StepKind,               
+    STEP_TYPE_MAP,          
+)
+
+
 from config_schemas import ConfigSchema
 from external_services import ExternalServiceHelper
 from local_enumerations import (
-    DUMP_SHELLY_SNAPSHOT,
+    DUMP_SMART_DEVICE_SNAPSHOT,
     SCHEMA_VERSION,
-    STEP_TYPE_MAP,
     AmberChannel,
     Command,
     OutputAction,
     OutputActionType,
-    ShellySequenceRequest,
-    ShellySequenceResult,
-    ShellyStep,
-    StepKind,
 )
 from meter_output import MeterOutput
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
-from shelly_view import ShellyView
-from shelly_worker import ShellyWorker
 from teslamate import (
     get_charging_data_as_dict,
     merge_bucket_dict_records,
@@ -69,13 +73,13 @@ class PowerController:
     """The PowerController class that orchestrates power management."""
 
     # Public Functions ============================================================================
-    def __init__(self, config: SCConfigManager, logger: SCLogger, shelly_worker: ShellyWorker, wake_event: Event):
+    def __init__(self, config: SCConfigManager, logger: SCLogger, smart_device_worker: SmartDeviceWorker, wake_event: Event):
         """Initializes the PowerController.
 
         Args:
             config (SCConfigManager): The configuration manager for the system.
             logger (SCLogger): The logger for the system.
-            shelly_worker: The ShellyWorker obeject that we use to interface to ShellyControl
+            smart_device_worker: The SmartDeviceWorker obeject that we use to interface to SCSmartDevice
             wake_event (Event): The event used to wake the controller.
         """
         self.config = config
@@ -85,7 +89,7 @@ class PowerController:
         self.external_service_helper = ExternalServiceHelper(config, logger)
         self.viewer_website_last_post = None
         self.wake_event = wake_event
-        self.shelly_worker: ShellyWorker = shelly_worker
+        self.smart_device_worker: SmartDeviceWorker = smart_device_worker
         self.cmd_q: queue.Queue[Command] = queue.Queue()    # Used to post commands into the controller's loop
         self.command_pending: bool = False
         self.report_critical_errors_delay = config.get("General", "ReportCriticalErrorsDelay", default=None)
@@ -98,7 +102,7 @@ class PowerController:
         self.outputs = []   # List of output state managers, each one a OutputStateManager object.
         self.poll_interval = 10.0
         self.last_tick_time = DateHelper.now()
-        self._shelly_sequence_requests: dict[str, ShellySequenceRequest] = {}
+        self._smart_device_sequence_requests: dict[str, DeviceSequenceRequest] = {}
 
         # Temp probe logging
         self.temp_probe_logging = {}
@@ -216,9 +220,9 @@ class PowerController:
         self.command_pending: bool = True
         self.wake_event.set()
 
-    def set_wake_event(self, seq_result: ShellySequenceResult) -> None:
+    def set_wake_event(self, seq_result: DeviceSequenceRequest) -> None:
         """Set the wake event to wake the controller loop."""
-        self.logger.log_message(f"Waking power controller loop - Shelly Sequence {seq_result.id} has finished.", "debug")
+        self.logger.log_message(f"Waking power controller loop - Smart Device Sequence {seq_result.id} has finished.", "debug")
         self.wake_event.set()
 
     def run(self, stop_event: Event):
@@ -309,42 +313,42 @@ class PowerController:
         return True
 
     # Helper to post a long-running sequence (for OutputManager to call)
-    def post_shelly_sequence(
+    def post_smart_device_sequence(
         self,
-        steps: list[ShellyStep],
+        steps: list[DeviceStep],
         label: str = "",
         timeout_s: float | None = None,
-        on_complete: Callable[[ShellySequenceResult], None] | None = None,
+        on_complete: Callable[[DeviceSequenceResult], None] | None = None,
     ) -> str | None:
-        if not self.shelly_worker:
-            self.logger.log_message("Shelly worker not available; cannot run sequence.", "error")
+        if not self.smart_device_worker:
+            self.logger.log_message("Smart Device worker not available; cannot run sequence.", "error")
             return None
 
         # Default callback posts a command back to the controller loop with the result.
-        def default_on_complete(res: ShellySequenceResult):
-            self.post_command(Command("shelly_sequence_completed", {
+        def default_on_complete(res: DeviceSequenceResult):
+            self.post_command(Command("post_smart_devicey_sequence", {
                 "sequence_id": res.id,
                 "label": label,
                 "ok": res.ok,
                 "error": res.error,
             }))
 
-        req = ShellySequenceRequest(
+        req = DeviceSequenceRequest(
             steps=steps,
             label=label,
             timeout_s=timeout_s,
             on_complete=on_complete or default_on_complete,
         )
-        return self.shelly_worker.submit(req)
+        return self.smart_device_worker.submit(req)
 
     # Example: schedule “turn on O1, wait 60s, turn on O2” and notify via Command when done
     def example_long_running_sequence(self):
         steps = [
-            ShellyStep(StepKind.CHANGE_OUTPUT, {"output_identity": "Sydney Dev A O1", "state": True}, retries=2, retry_backoff_s=1.0),
-            ShellyStep(StepKind.SLEEP, {"seconds": 60}),
-            ShellyStep(StepKind.REFRESH_STATUS, {"output_identity": "Sydney Dev A O2", "state": True}, retries=2, retry_backoff_s=1.0),
+            DeviceStep(StepKind.CHANGE_OUTPUT, {"output_identity": "Sydney Dev A O1", "state": True}, retries=2, retry_backoff_s=1.0),
+            DeviceStep(StepKind.SLEEP, {"seconds": 60}),
+            DeviceStep(StepKind.REFRESH_STATUS, {"output_identity": "Sydney Dev A O2", "state": True}, retries=2, retry_backoff_s=1.0),
         ]
-        job_id = self.post_shelly_sequence(steps, label="pool-seq", timeout_s=180)
+        job_id = self.post_smart_device_sequence(steps, label="pool-seq", timeout_s=180)
         self.logger.log_message(f"Submitted pool sequence job_id={job_id}", "debug")
 
     def get_api_data(self, entry: str | None = None) -> dict:
@@ -390,9 +394,14 @@ class PowerController:
 
         # Reinitialise if needed
         if not startup_mode:
-            # Reinitialise the Shelly controller and get the latest status
-            self.shelly_worker.reinitialise_settings()
-        # Get the latest ShellyStatus view
+            # Reinitialise the SCSmartDevices controller and get the latest status
+            smart_switch_settings = self.config.get("SCSmartDevices")
+            if smart_switch_settings is None:
+                self.logger.log_fatal_error("No SmartDevices settings found in the configuration file.")
+                return
+
+            self.smart_device_worker.reinitialise_settings(smart_switch_settings)
+        # Get the latest SmartDeviceView view
         view = self._get_latest_status_view()
 
         # Confirm that the configured output names are unique
@@ -414,9 +423,9 @@ class PowerController:
             self.tesla_charge_data["sessions"] = []
             self.tesla_charge_data["buckets"] = []
 
-        # Read the shelly output sequences from the config
+        # Read the smart device output sequences from the config
         try:
-            self._read_shelly_sequences_from_config(view)
+            self._read_smart_device_sequences_from_config(view)
         except RuntimeError as e:
             self.logger.log_fatal_error(f"Error reading OutputSequences from configuration file: {e}")
 
@@ -426,7 +435,7 @@ class PowerController:
         self.outputs.clear()    # Clear any existing outputs
         try:
             for output_cfg in outputs_config:
-                output_type = (output_cfg.get("Type") or "shelly").strip().lower() if isinstance(output_cfg.get("Type"), str) else (output_cfg.get("Type") or "shelly")
+                output_type = (output_cfg.get("Type") or "smart_device").strip().lower() if isinstance(output_cfg.get("Type"), str) else (output_cfg.get("Type") or "smart_device")
 
                 # Search for an existing output with the same name and update it if found
                 if any(o.name == output_cfg.get("Name") for o in self.outputs):
@@ -441,7 +450,7 @@ class PowerController:
 
                 # Create a new output manager
                 output_manager = None
-                if output_type == "shelly":
+                if output_type == "smart_device":
                     output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, self.ups_integration, output_state)
                 if output_type == "teslamate":
                     output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.tesla_charge_data, output_state)
@@ -476,7 +485,7 @@ class PowerController:
                         break
                     parent = parent.parent_output
 
-            # Make sure each Shelly output device is only used once
+            # Make sure each SmartDevice output device is only used once
             device_output_name = getattr(output, "device_output_name", None)
             if device_output_name:
                 list_output_devices = self._find_output(LookupMode.OUTPUT, device_output_name)
@@ -490,11 +499,11 @@ class PowerController:
                 if len(list_meter_devices) > 1:
                     self.logger.log_message(f"Meter device {device_meter_name} is used by {output.name} and at least one other output.", "warning")
 
-            # Validate that the output's OutputSequence exists (Shelly outputs only)
+            # Validate that the output's OutputSequence exists (SmartDevice outputs only)
             if isinstance(output_cfg, dict):
-                if output_cfg.get("TurnOnSequence") and output_cfg.get("TurnOnSequence") not in self._shelly_sequence_requests:
+                if output_cfg.get("TurnOnSequence") and output_cfg.get("TurnOnSequence") not in self._smart_device_sequence_requests:
                     self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOnSequence {output_cfg.get('TurnOnSequence')}.")
-                if output_cfg.get("TurnOffSequence") and output_cfg.get("TurnOffSequence") not in self._shelly_sequence_requests:
+                if output_cfg.get("TurnOffSequence") and output_cfg.get("TurnOffSequence") not in self._smart_device_sequence_requests:
                     self.logger.log_fatal_error(f"Output {output.name} has invalid TurnOffSequence {output_cfg.get('TurnOffSequence')}.")
 
             # Set max days of history for the Tesla charging data import
@@ -534,7 +543,7 @@ class PowerController:
         # Refresh the Amber price data if it's time to do so
         self.pricing.refresh_price_data_if_time(is_new_day)
 
-        # Get a snapshot of all Shelly devices.
+        # Get a snapshot of all smart devices.
         # If a sequence is already in-flight for any output, skip the blocking refresh and
         # use the last-known snapshot so the main loop keeps ticking. The sequence completion
         # callback (set_wake_event) will trigger a new iteration where a full refresh runs.
@@ -587,12 +596,12 @@ class PowerController:
 
         return commands_processed or state_change
 
-    def _configure_temp_probe_logging(self, saved_state: dict | None, view: ShellyView) -> dict:
+    def _configure_temp_probe_logging(self, saved_state: dict | None, view: SmartDeviceView) -> dict:
         """Configure the temp probes to log.
 
         Args:
             saved_state (dict): The system state restrieved from disk.
-            view (ShellyView): The current ShellyView snapshot.
+            view (SmartDeviceView): The current SmartDeviceView snapshot.
 
         Returns:
             dict: The temp probe logging configuration.
@@ -661,11 +670,11 @@ class PowerController:
             self.logger.log_message(f"Loaded system state from {system_state_path}", "debug")
             return state_data
 
-    def _save_system_state(self, view: ShellyView, force_post: bool = False):
+    def _save_system_state(self, view: SmartDeviceView, force_post: bool = False):
         """Saves the system state to disk.
 
         Args:
-            view (ShellyView): The current ShellyView snapshot.
+            view (SmartDeviceView): The current SmartDeviceView snapshot.
             force_post (bool): If True, force posting the state to the web viewer.
         """
         # Save the output consumption data if needed
@@ -706,34 +715,34 @@ class PowerController:
         # Post the state data to the PowerController Viewer web app if needed
         self._post_state_to_web_viewer(view, force_post)
 
-    def _refresh_device_statuses(self) -> ShellyView:
+    def _refresh_device_statuses(self) -> SmartDeviceView:
         """Refresh the status of all devices.
 
         Returns:
-            A ShellyView object
+            A SmartDeviceView object
         """
         # Post a refresh job and wait for it to complete (bounded wait)
-        req_id = self.shelly_worker.request_refresh_status()
+        req_id = self.smart_device_worker.request_refresh_status()
         # Give a long timeout as we may be blocked by a long running sequence
-        done = self.shelly_worker.wait_for_result(req_id, timeout=90.0)
+        done = self.smart_device_worker.wait_for_result(req_id, timeout=90.0)
         if done:
-            # self.logger.log_message("Completed Shelly refresh.", "debug")
+            # self.logger.log_message("Completed SmartDevice refresh.", "debug")
             pass
         else:
-            self.logger.log_message("Timed out waiting for Shelly refresh; using last snapshot.", "warning")
+            self.logger.log_message("Timed out waiting for SmartDevice refresh; using last snapshot.", "warning")
 
         view = self._get_latest_status_view()
 
-        if DUMP_SHELLY_SNAPSHOT:
+        if DUMP_SMART_DEVICE_SNAPSHOT:
             view_snapshot = view.get_json_snapshot()
             # Save the JSON snapshot to a file for debugging
-            debug_file_path = SCCommon.select_file_location("debug_shelly_view_snapshot.json")
+            debug_file_path = SCCommon.select_file_location("debug_smart_device_view_snapshot.json")
             if debug_file_path:
                 try:
                     JSONEncoder.save_to_file(view_snapshot, debug_file_path)
-                    self.logger.log_message(f"Saved Shelly view snapshot to {debug_file_path}", "debug")
+                    self.logger.log_message(f"Saved SmartDevice view snapshot to {debug_file_path}", "debug")
                 except (TypeError, ValueError, RuntimeError, OSError) as e:
-                    self.logger.log_message(f"Failed to save Shelly view snapshot: {e}", "warning")
+                    self.logger.log_message(f"Failed to save Smart Device view snapshot: {e}", "warning")
 
         # Tell outputs device status updated
         for output in self.outputs:
@@ -749,44 +758,44 @@ class PowerController:
                 if not device_name:
                     continue
 
-                req_id = self.shelly_worker.request_device_location(device_name)
-                done = self.shelly_worker.wait_for_result(req_id, timeout=4.0)
+                req_id = self.smart_device_worker.request_device_location(device_name)
+                done = self.smart_device_worker.wait_for_result(req_id, timeout=4.0)
                 if done:
-                    self.logger.log_message(f"Completed Shelly device {device_name} information retrieval.", "debug")
+                    self.logger.log_message(f"Completed smart device {device_name} information retrieval.", "debug")
                 else:
-                    self.logger.log_message(f"Timed out waiting for Shelly device {device_name} information.", "warning")
+                    self.logger.log_message(f"Timed out waiting for smart device {device_name} information.", "warning")
 
             # Now get the fully populated location data dict for all devices
-            loc_info = self.shelly_worker.get_location_info()
+            loc_info = self.smart_device_worker.get_location_info()
 
             # And save it to the Scheduler
             self.scheduler.save_device_location_info(loc_info)
 
             self.update_device_locations = False
 
-    def _get_latest_status_view(self) -> ShellyView:
-        """Get the latest ShellyView snapshot from the ShellyWorker.
+    def _get_latest_status_view(self) -> SmartDeviceView:
+        """Get the latest SmartDeviceView snapshot from the SmartDeviceWorker.
 
         Returns:
-            ShellyView: The latest ShellyView snapshot.
+            SmartDeviceView: The latest SmartDeviceView snapshot.
         """
-        # Get a deep copy of all the Shelly devices
-        snapshot = self.shelly_worker.get_latest_status()
+        # Get a deep copy of all the smart devices
+        snapshot = self.smart_device_worker.get_latest_status()
 
-        # And create a new ShellyView instance to reference this data
-        return ShellyView(snapshot)
+        # And create a new SmartDeviceView instance to reference this data
+        return snapshot
 
-    def _calculate_running_totals(self, view: ShellyView, is_new_day: bool = False):
+    def _calculate_running_totals(self, view: SmartDeviceView, is_new_day: bool = False):
         """Calculate the running totals for each output.
 
         Args:
-            view (ShellyView): The current ShellyView snapshot.
+            view (SmartDeviceView): The current SmartDeviceView snapshot.
             is_new_day (bool): Indicates if it's a new day.
         """
         for output in self.outputs:
             output.calculate_running_totals(view, is_new_day=is_new_day)
 
-    def _review_run_plans(self, view: ShellyView):
+    def _review_run_plans(self, view: SmartDeviceView):
         """Generate / refresh the run plan for each output."""
         for output in self.outputs:
             output.review_run_plan(view)
@@ -795,7 +804,7 @@ class PowerController:
         """Return True if any output currently has an in-flight action request."""
         return any(output.get_action_request() is not None for output in self.outputs)
 
-    def _evaluate_conditions(self, view: ShellyView) -> bool:
+    def _evaluate_conditions(self, view: SmartDeviceView) -> bool:
         """Evaluate the conditions for each output.
 
         Returns:
@@ -807,7 +816,7 @@ class PowerController:
             pending_action = output.get_action_request()
             if pending_action:
                 # See if the action has completed
-                request_result = self.shelly_worker.get_result(pending_action.worker_request_id)
+                request_result = self.smart_device_worker.get_result(pending_action.worker_request_id)
                 if not request_result:
                     # Still pending
                     self.logger.log_message(f"Action {pending_action.type} for output {output.device_output_name} still pending.", "debug")
@@ -823,7 +832,7 @@ class PowerController:
                     output.action_request_failed(request_result.error)
 
             # Now evaluate conditions
-            requested_action = output.evaluate_conditions(view=view, output_sequences=self._shelly_sequence_requests, on_complete=self.set_wake_event)
+            requested_action = output.evaluate_conditions(view=view, output_sequences=self._smart_device_sequence_requests, on_complete=self.set_wake_event)
 
             if requested_action:
                 state_change = True
@@ -831,8 +840,8 @@ class PowerController:
 
         return state_change
 
-    def _execute_action_on_output(self, output: OutputManager, requested_action: OutputAction, view: ShellyView):
-        # If the Output requests a change, post it to the ShellyWorker and wait for it to complete
+    def _execute_action_on_output(self, output: OutputManager, requested_action: OutputAction, view: SmartDeviceView):
+        # If the Output requests a change, post it to the SmartDeviceWorker and wait for it to complete
         if requested_action.type in {OutputActionType.TURN_ON, OutputActionType.TURN_OFF}:
             if not requested_action.request:
                 error_msg = f"No request defined for action {requested_action.type} on output {output.device_output_name}."
@@ -840,7 +849,7 @@ class PowerController:
                 raise RuntimeError(error_msg)
 
             # Queue the and get the request ID
-            requested_action.worker_request_id = self.shelly_worker.submit(requested_action.request)
+            requested_action.worker_request_id = self.smart_device_worker.submit(requested_action.request)
 
             # And record the pending action in the output
             output.record_action_request(requested_action)
@@ -848,7 +857,7 @@ class PowerController:
             # It's an action that we can deal with synchronously here
             output.record_action_complete(requested_action, view)
 
-    def _force_output_off(self, output: OutputManager, view: ShellyView):
+    def _force_output_off(self, output: OutputManager, view: SmartDeviceView):
         """Force an output off immediately."""
         is_device_online = view.get_device_online(output.device_id)
         is_device_output_on = view.get_output_state(output.device_output_id)
@@ -856,18 +865,18 @@ class PowerController:
         if not is_device_online or not is_device_output_on:
             # Device is offline or already off, nothing to do
             return
-        requested_action = output.formulate_output_sequence(system_state=SystemState.AUTO, reason=StateReasonOff.SHUTDOWN, output_state=False, output_sequences=self._shelly_sequence_requests, view=view)
+        requested_action = output.formulate_output_sequence(system_state=SystemState.AUTO, reason=StateReasonOff.SHUTDOWN, output_state=False, output_sequences=self._smart_device_sequence_requests, view=view)
 
-        requested_action.worker_request_id = self.shelly_worker.submit(requested_action.request)  # pyright: ignore[reportArgumentType]
+        requested_action.worker_request_id = self.smart_device_worker.submit(requested_action.request)  # pyright: ignore[reportArgumentType]
 
         # Make timeout configurable if you like; 3s is a reasonable default
-        done = self.shelly_worker.wait_for_result(requested_action.worker_request_id, timeout=3.0)
+        done = self.smart_device_worker.wait_for_result(requested_action.worker_request_id, timeout=3.0)
         if done:
             output.record_action_complete(requested_action, view)
         else:
             self.logger.log_message(f"Timed out waiting for force shutdown of output {output.device_output_name}.", "warning")
 
-    def _check_for_configuration_changes(self, view: ShellyView):
+    def _check_for_configuration_changes(self, view: SmartDeviceView):
         """Reload the configuration from disk if it has changed and apply downstream changes."""
         last_modified = self.config.check_for_config_changes(self.last_config_check)
         if last_modified:
@@ -892,15 +901,15 @@ class PowerController:
             # Set the new mode, the output will deal with it in the next tick
             # And evaluate the conditions immediately if the mode has changed
             output.set_app_mode(new_mode, view, revert_minutes=revert_time_mins)
-        elif cmd.kind == "shelly_sequence_completed":
+        elif cmd.kind == "post_smart_devicey_sequence":
             seq_id = cmd.payload.get("sequence_id")
             label = cmd.payload.get("label")
             ok = bool(cmd.payload.get("ok"))
             err = cmd.payload.get("error")
             if ok:
-                self.logger.log_message(f"Shelly sequence {label or seq_id} completed.", "detailed")
+                self.logger.log_message(f"Smart Device sequence {label or seq_id} completed.", "detailed")
             else:
-                self.logger.log_message(f"Shelly sequence {label or seq_id} failed: {err}", "error")
+                self.logger.log_message(f"Smart Device sequence {label or seq_id} failed: {err}", "error")
             # Optional: trigger a fast evaluation tick if needed
             # self._run_scheduler_tick()
 
@@ -1120,16 +1129,16 @@ class PowerController:
             return [o for o in self.outputs if getattr(o, "device_input_name", None) == identity]
         return []
 
-    def _read_shelly_sequences_from_config(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
-        """Read the OutputSequences from the configuration, validates and builds a list of ShellySequenceRequest objects.
+    def _read_smart_device_sequences_from_config(self, view: SmartDeviceView):  # noqa: PLR0912, PLR0914, PLR0915
+        """Read the OutputSequences from the configuration, validates and builds a list of DeviceSequenceRequest objects.
 
         Args:
-            view (ShellyView): The current ShellyView snapshot.
+            view (SmartDeviceView): The current SmartDeviceView snapshot.
 
         Raises:
             RuntimeError: If there is an error in the configuration.
         """
-        self._shelly_sequence_requests.clear()
+        self._smart_device_sequence_requests.clear()
 
         config_data = self.config.get("OutputSequences", default=[]) or []
         if not config_data or not isinstance(config_data, list):
@@ -1139,7 +1148,7 @@ class PowerController:
             error_msg = ""
             name = "Unknown"
             try:
-                # Get the basics for the ShellySequenceRequest object
+                # Get the basics for the DeviceSequenceRequest object
                 name = sequence.get("Name")
                 if not name:
                     error_msg = "Output sequence missing 'Name' field."
@@ -1152,7 +1161,7 @@ class PowerController:
                     raise RuntimeError(error_msg)
 
                 steps = []
-                # Loop through the steps and build the ShellyStep objects
+                # Loop through the steps and build the DeviceStep objects
                 for step_cfg in steps_config:
                     step_type_str = step_cfg.get("Type").upper()
                     if not step_type_str:
@@ -1199,30 +1208,30 @@ class PowerController:
                     retries = int(step_cfg.get("Retries", 0) or 0)  # pyright: ignore[reportArgumentType]
                     retry_backoff = float(step_cfg.get("RetryBackoffS", 0.0) or 0.0)  # pyright: ignore[reportArgumentType]
 
-                    shelly_step = ShellyStep(
+                    smart_device_step = DeviceStep(
                         kind=step_kind,
                         params=parameters,
                         retries=retries,
                         retry_backoff_s=retry_backoff,
                     )
-                    steps.append(shelly_step)
+                    steps.append(smart_device_step)
 
                 # Now build the final request object
-                shelly_sequence = ShellySequenceRequest(
+                smart_device_sequence = DeviceSequenceRequest(
                     steps=steps,
                     label=name,
                     timeout_s=timeout,
                 )
 
                 # And save it to our list
-                self.logger.log_message(f"Configured Shelly sequence {name}", "debug")
-                self._shelly_sequence_requests[name] = shelly_sequence
+                self.logger.log_message(f"Configured Smart Device sequence {name}", "debug")
+                self._smart_device_sequence_requests[name] = smart_device_sequence
 
             except KeyError as e:
                 error_msg = f"Output sequence '{name}' has invalid step type configuration."
                 raise RuntimeError(error_msg) from e
 
-    def _monitor_device_internal_temps(self, view: ShellyView):
+    def _monitor_device_internal_temps(self, view: SmartDeviceView):
         """Monitor the internal temperatures of devices and log if needed."""
         # Loop through all devices in the view
         device_id_list = view.get_device_id_list()
@@ -1231,24 +1240,24 @@ class PowerController:
             internal_temp = view.get_device_temperature(device_id)
 
             # See if we need to log a warning for this device
-            device_list = self.config.get("ShellyDevices", "Devices", default=[]) or []
+            device_list = self.config.get("SCSmartDevices", "Devices", default=[]) or []
             device_config = next((device for device in device_list if device.get("Name") == device_name), {})
             temp_threshold = device_config.get("DeviceAlertTemp") or 0
 
             if temp_threshold:
                 if internal_temp is not None and temp_threshold and internal_temp >= temp_threshold:
-                    self.logger.log_message(f"Shelly device {device_name} internal temperature is high: {internal_temp:.0f} °C", "warning")
+                    self.logger.log_message(f"Smart device {device_name} internal temperature is high: {internal_temp:.0f} °C", "warning")
                     if self.report_critical_errors_delay:
-                        self.logger.report_notifiable_issue(entity=f"Shelly device {device_name}", issue_type="Internal Temperature Exceeds Threshold", send_delay=self.report_critical_errors_delay * 60, message=f"Internal device temperature is {internal_temp} which exceeds the threshold of {temp_threshold}.")  # pyright: ignore[reportOperatorIssue, reportArgumentType]
+                        self.logger.report_notifiable_issue(entity=f"temp_threshold device {device_name}", issue_type="Internal Temperature Exceeds Threshold", send_delay=self.report_critical_errors_delay * 60, message=f"Internal device temperature is {internal_temp} which exceeds the threshold of {temp_threshold}.")  # pyright: ignore[reportOperatorIssue, reportArgumentType]
                 else:
-                    self.logger.clear_notifiable_issue(entity=f"Shelly device {device_name}", issue_type="Internal Temperature Exceeds Threshold")
+                    self.logger.clear_notifiable_issue(entity=f"temp_threshold device {device_name}", issue_type="Internal Temperature Exceeds Threshold")
 
-    def _post_state_to_web_viewer(self, view: ShellyView, force_post: bool = False):
+    def _post_state_to_web_viewer(self, view: SmartDeviceView, force_post: bool = False):
         """
         Post to the web server if needed.
 
         Args:
-            view (ShellyView): The current ShellyView snapshot.
+            view (SmartDeviceView): The current SmartDeviceView snapshot.
             force_post (bool): If True, force posting the state to the web viewer.
         """
         #
@@ -1380,7 +1389,7 @@ class PowerController:
             self.logger.log_message("Successfully imported TeslaMate charging data.", "debug")
             self.tesla_last_import_query = DateHelper.now()
 
-    def _log_temp_probes(self, view: ShellyView):  # noqa: PLR0912, PLR0914, PLR0915
+    def _log_temp_probes(self, view: SmartDeviceView):  # noqa: PLR0912, PLR0914, PLR0915
         """Log the temperature probes if enabled."""
         if not self.temp_probe_logging.get("enabled"):
             return
@@ -1496,7 +1505,7 @@ class PowerController:
             }
             self._data_api_next_refresh = DateHelper.now()
 
-    def _refresh_api_data_if_needed(self, view: ShellyView):  # noqa: PLR0914
+    def _refresh_api_data_if_needed(self, view: SmartDeviceView):  # noqa: PLR0914
         """Refresh the API data if needed based on the configured refresh intervals."""
         if not self._data_api_config.get("Enable", False):
             return  # Data API not enabled
@@ -1526,7 +1535,7 @@ class PowerController:
             new_output_data = output_obj.get_api_data(view, display_name)
             return_data["Outputs"].append(new_output_data)
 
-        # Get the Meter data - just read the current power draw directly from the Shelly view
+        # Get the Meter data - just read the current power draw directly from the Smart Device view
         for meter_cfg in self._data_api_config.get("Meters", []):
             name = meter_cfg.get("Name")
             display_name = meter_cfg.get("DisplayName") or name

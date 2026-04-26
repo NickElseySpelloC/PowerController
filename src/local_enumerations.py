@@ -1,9 +1,6 @@
 """Holds all the local enumerations used in the project."""
 
-import time
-import uuid
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -12,6 +9,8 @@ from org_enums import (
     StateReasonOn,
     SystemState,
 )
+
+from sc_smart_device import DeviceSequenceRequest
 
 SCHEMA_VERSION = 1  # Version of the system_state schema we expect
 CONFIG_FILE = "config.yaml"
@@ -23,8 +22,8 @@ PRICE_SLOT_INTERVAL = 5   # Length in minutes for each price slot
 RUNPLAN_CHECK_INTERVAL = 30  # Minutes between checking if we need to regenerate run plan
 FAILED_RUNPLAN_CHECK_INTERVAL = 10  # Minutes between checking if we need to regenerate run plan when then previous one failed or was incomplete
 USAGE_AGGREGATION_INTERVAL = 60  # Minutes between aggregating usage data
-DUMP_SHELLY_SNAPSHOT = False  # Save the JSON snapshot to a file for debugging
-DELAY_AFTER_STATE_CHANGE = 10  # Seconds to delay after changing state before refreshing status (to give Shelly time to update)
+DUMP_SMART_DEVICE_SNAPSHOT = False  # Save the JSON snapshot to a file for debugging
+DELAY_AFTER_STATE_CHANGE = 10  # Seconds to delay after changing state before refreshing status (to give Smart Device time to update)
 
 
 # Amber API enumerations ======================================================
@@ -55,63 +54,6 @@ class Command:
     payload: dict[str, Any]
 
 
-# Shelly Worker enumerations ==================================================
-class StepKind(StrEnum):
-    """Step kinds supported by the worker."""
-    CHANGE_OUTPUT = "Change Output State"
-    SLEEP = "Sleep"
-    REFRESH_STATUS = "Refresh Status"
-    GET_LOCATION = "Get Location"
-
-
-STEP_TYPE_MAP = {
-    "SLEEP": StepKind.SLEEP,
-    "DELAY": StepKind.SLEEP,
-    "CHANGE_OUTPUT": StepKind.CHANGE_OUTPUT,
-    "REFRESH_STATUS": StepKind.REFRESH_STATUS,
-    "GET_LOCATION": StepKind.GET_LOCATION,
-}
-
-
-@dataclass
-class ShellyStep:
-    kind: StepKind
-    # CHANGE_OUTPUT: {"output_identity": "Label", "state": True|False}
-    # SLEEP: {"seconds": float}
-    # REFRESH_STATUS: {}
-    # GET_LOCATION: {"device_identity": "Label"}
-    params: dict[str, Any] = field(default_factory=dict)
-    timeout_s: float | None = None
-    retries: int = 0
-    retry_backoff_s: float = 0.5
-
-
-@dataclass
-class ShellySequenceResult:
-    id: str
-    ok: bool
-    error: str | None = None
-    started_ts: float = field(default_factory=time.time)
-    finished_ts: float = 0.0
-
-
-@dataclass
-class ShellySequenceRequest:
-    steps: list[ShellyStep]
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    label: str = ""
-    timeout_s: float | None = None
-    on_complete: Callable[[ShellySequenceResult], None] | None = None  # optional callback
-
-
-@dataclass
-class ShellyStatus:
-    devices: list[dict]
-    outputs: list[dict]
-    inputs: list[dict]
-    meters: list[dict]
-    temp_probes: list[dict]
-
 
 # Input and Output control enumerations =======================================
 class InputMode(StrEnum):
@@ -129,7 +71,7 @@ class OutputStatusData:
     is_on: bool
     target_hours: float | None
     current_price: float
-    output_type: str = "shelly"  # One of "shelly", "teslamate", "meter"
+    output_type: str = "smart device"  # One of "smart device", "teslamate", "meter"
     expect_offline: bool = False  # Whether we expect the device to be offline (e.g. due to WiFi issues)
 
 
@@ -145,7 +87,7 @@ class OutputActionType(StrEnum):
 class OutputAction:
     """Define the structure for output actions."""
     worker_request_id: str | None
-    request: ShellySequenceRequest | None
+    request: DeviceSequenceRequest | None
     type: OutputActionType
     system_state: SystemState
     reason: StateReasonOn | StateReasonOff

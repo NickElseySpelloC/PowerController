@@ -29,7 +29,7 @@ from local_enumerations import Command
 if TYPE_CHECKING:
     from threading import Event
 
-    from sc_utility import SCConfigManager, SCLogger
+    from sc_foundation import SCConfigManager, SCLogger
 
     from controller import PowerController
 

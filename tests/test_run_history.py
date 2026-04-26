@@ -12,7 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from org_enums import RunPlanTargetHours, StateReasonOff, StateReasonOn, SystemState
-from sc_utility import DateHelper
+from sc_foundation import DateHelper
 
 from local_enumerations import OutputStatusData
 from run_history import RunHistory
@@ -39,7 +39,7 @@ def _basic_config(target_hours=-1, days_of_history=7, min_energy_to_log=0):
 
 
 def _status(meter_reading=0.0, power_draw=0.0, is_on=False, current_price=20.0,
-            target_hours=None, output_type="shelly", expect_offline=False) -> OutputStatusData:
+            target_hours=None, output_type="smart device", expect_offline=False) -> OutputStatusData:
     return OutputStatusData(
         meter_reading=meter_reading,
         power_draw=power_draw,
@@ -257,14 +257,14 @@ class TestMinEnergyToLog:
         assert day is not None
         assert len(day["DeviceRuns"]) == 1
 
-    def test_min_energy_filter_not_applied_for_shelly_type(self):
-        """MinEnergyToLog is only applied to meter-type outputs, not shelly."""
+    def test_min_energy_filter_not_applied_for_smart_device_type(self):
+        """MinEnergyToLog is only applied to meter-type outputs, not smart device."""
         cfg = _basic_config(min_energy_to_log=500)
         rh = RunHistory(_make_logger(), cfg)
-        st1 = _status(meter_reading=100.0, is_on=True, output_type="shelly")
+        st1 = _status(meter_reading=100.0, is_on=True, output_type="smart device")
         rh.start_run(SystemState.AUTO, StateReasonOn.ACTIVE_RUN_PLAN, st1)
-        # Only 10 Wh used, but output_type="shelly" so not filtered
-        st2 = _status(meter_reading=110.0, is_on=True, output_type="shelly")
+        # Only 10 Wh used, but output_type="smart device" so not filtered
+        st2 = _status(meter_reading=110.0, is_on=True, output_type="smart device")
         rh.stop_run(StateReasonOff.INACTIVE_RUN_PLAN, st2)
         day = rh.get_current_day()
         assert day is not None

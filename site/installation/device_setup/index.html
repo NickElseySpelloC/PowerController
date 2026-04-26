@@ -8,7 +8,7 @@
       
       
       
-        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/installation/shelly_setup/">
+        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/installation/device_setup/">
       
       
         <link rel="prev" href="../prerequisites/">
@@ -25,7 +25,7 @@
     
     
       
-        <title>Shelly Setup - PowerController Utility</title>
+        <title>Device Setup - PowerController Utility</title>
       
     
     
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#setup-your-shelly-devices" class="md-skip">
+        <a href="#setup-your-smart-devices" class="md-skip">
           Skip to content
         </a>
       
@@ -106,7 +106,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Shelly Setup
+              Device Setup
             
           </span>
         </div>
@@ -350,7 +350,7 @@
   <span class="md-ellipsis">
     
   
-    Shelly Setup
+    Device Setup
   
 
     
@@ -368,7 +368,7 @@
   <span class="md-ellipsis">
     
   
-    Shelly Setup
+    Device Setup
   
 
     
@@ -394,6 +394,18 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#setting-up-a-shelly-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up a Shelly device
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setting up a Shelly device">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#digital-temperature-probes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -403,12 +415,28 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#unsupported-device" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#unsupported-shelly-device" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Unsupported device
+        Unsupported Shelly device
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-a-tasmota-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up a Tasmota device
       
     </span>
   </a>
@@ -474,7 +502,9 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -577,7 +607,9 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
           <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
@@ -756,14 +788,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/sections/shelly_devices/" class="md-nav__link">
+      <a href="../../configuration/sections/devices/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    ShellyDevices
+    Smart Devices
   
 
     
@@ -1208,6 +1240,18 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#setting-up-a-shelly-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up a Shelly device
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setting up a Shelly device">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#digital-temperature-probes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1217,12 +1261,28 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#unsupported-device" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#unsupported-shelly-device" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Unsupported device
+        Unsupported Shelly device
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-a-tasmota-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up a Tasmota device
       
     </span>
   </a>
@@ -1246,8 +1306,10 @@
 
 
 
-<h1 id="setup-your-shelly-devices">Setup your Shelly devices</h1>
-<p>PowerController requires at least one <a href="https://www.shelly.com">Shelly</a> device to operate. You can run the application in simulation mode for testing, but to actually control and/or meter an electrical device, you'll need at least one Shelly device installed and configured. Shelly make a wide range of home automation products. PowerController supports the majority of Shelly's smart switches and energy meters that support WiFi or Ethernet connectivity.</p>
+<h1 id="setup-your-smart-devices">Setup your Smart Devices</h1>
+<p>PowerController requires at least one <a href="https://www.shelly.com">Shelly</a> or <a href="https://tasmota.github.io/docs/Getting-Started/">Tasmota ESP32</a> device to operate. You can run the application in simulation mode for testing, but to actually control and/or meter an electrical device, you'll need at least one smart device installed and configured. </p>
+<h2 id="setting-up-a-shelly-device">Setting up a Shelly device</h2>
+<p>Shelly make a wide range of home automation products. PowerController supports the majority of Shelly's smart switches and energy meters that support WiFi or Ethernet connectivity.</p>
 <ol>
 <li>Install your device(s) according to Shelly's installation instructions. <ul>
 <li>Get help from a licensed electrician if you're uncomfortable doing this work yourself. </li>
@@ -1261,7 +1323,7 @@
 <li>Device Type (e.g. Shelly Plus 2 PM)</li>
 </ul>
 </li>
-<li>Lookup the device type in <a href="https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list/">models library</a> and make a note of the model identifier (e.g. ShellyPlus2PM). Here's the entry for our example:</li>
+<li>Lookup the device type in <a href="https://nickelseyspelloc.github.io/sc-smart-device/shelly_models_list/">models library</a> and make a note of the model identifier (e.g. ShellyPlus2PM). Here's the entry for our example:</li>
 </ol>
 <pre><code class="language-json">    {
       &quot;model&quot;: &quot;ShellyPlus2PM&quot;,
@@ -1276,41 +1338,12 @@
       &quot;temperature_monitoring&quot;: true
     },
 </code></pre>
-<h2 id="digital-temperature-probes">Digital Temperature Probes</h2>
-<p>If you have a <a href="https://shelly-api-docs.shelly.cloud/gen2/Addons/ShellySensorAddon">Shelly Add-on</a> installed on your Shelly switch, then you can connect up to 5 ds18b20 probes to the add-on. You must setup the probe(s) as follows before adding the probe's name to the ShellyDevices:Device:TempProbes section of your config file:</p>
-<p>Once you have connected the Shelly Add-on to your Shelly smart switch and connected your DS18B20 temperature probes to the add on, you need to configure the probes in the mobile app:</p>
-<ol>
-<li>Go to the Shelly device you have installed the Add-on to and configure the add-on<ul>
-<li>Click Add-on peripherals section</li>
-<li>Change to Sensor Addon and then reboot if prompted</li>
-</ul>
-</li>
-<li>After reboot, go back to same tab and click Add Add-on Peripheral<ul>
-<li>Select Temperature (DS18B20)</li>
-<li>Select a probe listed from the automatic scan and click Add Peripheral</li>
-<li>Reboot when prompted</li>
-</ul>
-</li>
-<li>After reboot, go back to same tab and click the settings gear icon next to the newly added probe<ul>
-<li>Give the probe a name (important) - for example "Roof Temp"</li>
-<li>Optionally enable the 'extract peripheral as device' option (if you want it to appear as a seperate device on your dashboard</li>
-</ul>
-</li>
-<li>Repeat steps 2 and 3 for any other connected probes</li>
-</ol>
-<p>Now add these probe(s) to ShellyDevices:Device:TempProbes section of your config file, being sure to use exactly the same names as you used in the Shelly app.</p>
-<pre><code class="language-yaml">ShellyDevices:
-  ...
-  Devices:
-    - Name: Downstairs Lights
-      Model: Shelly2PMG3
-      Hostname: 192.168.1.23
-      ...
-      TempProbes:
-        - Name: &quot;Roof Temp&quot;
-</code></pre>
-<h2 id="unsupported-device">Unsupported device</h2>
-<p>If you've bought a Shelly smart switch or energy meter and are having problems getting it to work, you can try modifying the <a href="https://nickelseyspelloc.github.io/sc_utility/guide/shelly_models_list/">shelly_models.json</a> file included with the sc_utility library to add or update your devie. Alternatively, please contact <a href="https://www.spelloconsulting.com/contact-nick-elsey">Nick Elsey</a> for support.</p>
+<h3 id="digital-temperature-probes">Digital Temperature Probes</h3>
+<p>See the <a href="https://nickelseyspelloc.github.io/sc-smart-device/shelly_temp_probes/">Shelly Temperature Probes page</a></p>
+<h3 id="unsupported-shelly-device">Unsupported Shelly device</h3>
+<p>If you've bought a Shelly smart switch or energy meter and are having problems getting it to work, you can try modifying the <a href="https://nickelseyspelloc.github.io/sc-smart-device/shelly_models_list/">shelly_models.json</a> file included with the sc_utility library to add or update your devie. Alternatively, please contact <a href="https://www.spelloconsulting.com/contact-nick-elsey">Nick Elsey</a> for support.</p>
+<h2 id="setting-up-a-tasmota-device">Setting up a Tasmota device</h2>
+<p>The Tasmota API supports a <a href="https://templates.blakadder.com/">wide range of devices </a>. Currently, this application only supports simple smart <em>switches</em> that might include an energy meter. Testing was done using a <a href="https://www.athom.tech/blank-1/tasmota-esp32-c3-au-plug-v3">Athom Tasmota ESP32-C3 AU Plug V3</a>.</p>
 <h1 id="next-step-install-powercontroller">Next Step &gt;&gt; <a href="../install_app/">Install PowerController</a></h1>
 
 
@@ -1361,7 +1394,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.expand"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
