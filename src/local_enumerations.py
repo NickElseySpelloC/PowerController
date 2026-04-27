@@ -73,6 +73,8 @@ class OutputStatusData:
     current_price: float
     output_type: str = "smart device"  # One of "smart device", "teslamate", "meter"
     expect_offline: bool = False  # Whether we expect the device to be offline (e.g. due to WiFi issues)
+    min_hours: float | None = None
+    send_min_hours_alerts: bool = False
 
 
 class OutputActionType(StrEnum):

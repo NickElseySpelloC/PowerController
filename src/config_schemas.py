@@ -155,6 +155,7 @@ class ConfigSchema:
                         "MonthlyTargetHours": {"type": "dict", "required": False, "nullable": True},
                         "MinHours": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 20},
                         "MaxHours": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 24},
+                        "MinHoursAlert": {"type": "boolean", "required": False, "nullable": True},
                         "MaxShortfallHours": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 24},
                         "MaxBestPrice": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 1000},
                         "MaxPriorityPrice": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 1000},

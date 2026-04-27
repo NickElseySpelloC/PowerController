@@ -1404,7 +1404,9 @@ class OutputManager:  # noqa: PLR0904
             target_hours=self._get_target_hours(),
             current_price=self._get_current_price(),
             output_type="smart device",
-            expect_offline=view.get_device_expect_offline(self.device_id)
+            expect_offline=view.get_device_expect_offline(self.device_id),
+            min_hours=self.min_hours,
+            send_min_hours_alerts = self.output_config.get("MinHoursAlert") or False
         )
 
         return status_data

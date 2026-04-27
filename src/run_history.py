@@ -670,6 +670,8 @@ class RunHistory:
 
     def _handle_open_run_day_rollover(self, last_day: dict, status_data: OutputStatusData) -> None:
         """Close an open run at day end, and start a new run at day start if the device is still on."""
+        if status_data.send_min_hours_alerts:
+            self._check_min_hours_alerts(last_day, status_data)
         if not last_day.get("DeviceRuns"):
             return
         if last_day["DeviceRuns"][-1].get("EndTime") is not None:
@@ -721,3 +723,28 @@ class RunHistory:
 
         if not status_data.is_on:
             self.stop_run(StateReasonOff.STATUS_CHANGE, status_data, current_time)
+
+    def _check_min_hours_alerts(self, last_day: dict, status_data: OutputStatusData):   # Issue 86
+        """Send an email alert if the minimum hours we not met.
+
+        Look at the ActualHours value for the run history day passed. If it's 
+        less than the status_data.min_hours and we haven't already sent an alert, send 
+        one. 
+
+        Record the alert sent by adding a 'MinHoursAlertSent' key to the last_day dict.
+        
+        Args:
+            last_day (dict): The last day that was just completed.
+        """
+        alert_recorded = last_day.get("MinHoursAlertSent", False) or False
+        last_day_hours = last_day.get("ActualHours", 0) or 0
+        if last_day_hours < status_data.min_hours and status_data.send_min_hours_alerts and not alert_recorded:  # pyright: ignore[reportOperatorIssue]
+            # We were less than min hours and alert is required but not yet sent
+            output_name = self.output_config.get("Name", "Unknown")
+            subject = f"Minimum hours not achieved for output {output_name}"
+            last_day_date_str = DateHelper.format(last_day.get("Date"), "%d/%m/%Y") # pyright: ignore[reportArgumentType]
+            body = f"Output {output_name} run for a total of {last_day_hours:.2f} hours on {last_day_date_str} which less less than the minimum of {status_data.min_hours:.2f} hours"
+            self.logger.send_email(subject = subject, body=body )
+
+            # record that we have sent
+            last_day["MinHoursAlertSent"] = True

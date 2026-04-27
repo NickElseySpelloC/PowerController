@@ -24,6 +24,7 @@ There's a lot of keys in this section, but not all are applicable to all types:
 | CarID |   |   | ✓ |
 | DaysOfHistory | ✓ | ✓ | ✓ |
 | MinHours | ✓ |   |   |
+| MinHoursAlert | ✓ |   |   |
 | MaxHours | ✓ |   |   |
 | TargetHours | ✓ |   |   |
 | MonthlyTargetHours | ✓ |   |   |
@@ -67,6 +68,7 @@ Note: Required keys are shown in **bold**.
 | CarID | The numeric ID of the Tesla you want to import data for. Leave blank to get data for all vehicles. You can get the CarID from the URL parameter car_id= in the TeslaMate "charges" dashboard. |
 | DaysOfHistory | How many days of history to keep for this device |
 | MinHours | Minimum number of hours to run each day |
+| MinHoursAlert | If True, an email notification will be sent at the start of the day if the prior day's minimum hours condition was not met. |
 | MaxHours | Maximum number of hours to run each day |
 | TargetHours | Target number of hours to run each day. Set to -1 to run for all hours comply with the price and/or schedule constaints. |
 | MonthlyTargetHours | Override the TargetHours for a specific month of the year |
