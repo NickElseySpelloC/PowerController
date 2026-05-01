@@ -9,7 +9,7 @@ from pathlib import Path
 from threading import Event
 from mergedeep import merge
 
-from sc_foundation import SCCommon, SCConfigManager, SCLogger
+from sc_foundation import SCCommon, SCConfigManager, SCLogger, RestartPolicy, ThreadManager
 
 from sc_smart_device import SmartDeviceWorker, SCSmartDevice, smart_devices_validator
 
@@ -18,7 +18,6 @@ from controller import PowerController
 from dataapi import create_asgi_app as create_data_api_app
 from dataapi import serve_asgi_blocking as serve_data_api_blocking
 from local_enumerations import CONFIG_FILE
-from thread_manager import RestartPolicy, ThreadManager
 from webapp import create_asgi_app, serve_asgi_blocking
 
 

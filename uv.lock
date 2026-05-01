@@ -639,7 +639,7 @@ wheels = [
 
 [[package]]
 name = "powercontroller"
-version = "1.9.1"
+version = "2.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
@@ -690,7 +690,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.15.1" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
-    { name = "sc-foundation-services", specifier = ">=3.0.3" },
+    { name = "sc-foundation-services", specifier = ">=3.1.1" },
     { name = "sc-smart-device", specifier = ">=3.2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
     { name = "werkzeug", specifier = ">=3.1.3" },
@@ -985,7 +985,7 @@ wheels = [
 
 [[package]]
 name = "sc-foundation-services"
-version = "3.0.3"
+version = "3.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "astral" },
@@ -999,9 +999,9 @@ dependencies = [
     { name = "tzfpy" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cd/d1/d62bf2269156359a30f710ff8defccbe4bd12885844a843274b259db7173/sc_foundation_services-3.0.3.tar.gz", hash = "sha256:f3918498cc65706e7a30daf7ae80b32915e7d117fb37ccedd2ef06b67f351815", size = 35337, upload-time = "2026-04-20T04:36:31.387Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/3a/5765d8231cd5227f758f9b2900b0eda8f75178771fc34ad41bad681d1623/sc_foundation_services-3.1.1.tar.gz", hash = "sha256:b84c1f01ffb310b654fe7d2dc6672cb42f1480fc21a36a932e69c4b6a7fb8c4f", size = 39538, upload-time = "2026-05-01T07:34:30.575Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/45/f95323cb58d390242740b14f156cfd78b5b7abc6560a82893b4a08107909/sc_foundation_services-3.0.3-py3-none-any.whl", hash = "sha256:c808699a7077a48e61153f948d92fce683cfccece170df24924dd45d9f296a01", size = 30564, upload-time = "2026-04-20T04:36:29.945Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/8e/b06830ff1bd0db242aed0edd7b5242f6fbb6741fab15f06fb381316a1451/sc_foundation_services-3.1.1-py3-none-any.whl", hash = "sha256:dde3c56b4771ad7f1eda2f3a4d5eb4f5fa760321ef5d53c5eca29a9b188cfc4f", size = 33125, upload-time = "2026-05-01T07:34:29.36Z" },
 ]
 
 [[package]]

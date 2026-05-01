@@ -1,207 +1,229 @@
-/* ========================================
-   BASE STYLES
-   ======================================== */
+/* PowerController webapp styles */
 
-body {
-  font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif;
-  margin: 16px;
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-/* ========================================
-   LAYOUT COMPONENTS
-   ======================================== */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+  margin: 0;
+  padding: 0 0 2rem;
+}
+
+header {
+  background: #16213e;
+  color: #e0e0e0;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+#clock {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: #b6c6de;
+  letter-spacing: 0.05em;
+}
+
+#page-footer {
+  margin: 1.5rem 1rem 0.5rem;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
 
 .card {
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 12px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+  margin: 0.75rem 1rem;
+  overflow: hidden;
 }
 
 .card-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f8f9fb;
+  border-bottom: 1px solid #e8eaed;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
-
-.card-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-/* ========================================
-   OUTPUT COMPONENTS
-   ======================================== */
 
 .output-info {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.25rem;
   flex: 1;
   min-width: 150px;
 }
 
 .output-title {
+  font-size: 1rem;
   font-weight: 600;
+  color: #16213e;
 }
 
 .output-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  opacity: 0.7;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #555;
   flex-wrap: wrap;
+}
+
+.mode-display {
+  font-weight: 600;
+  color: #16213e;
 }
 
 .output-reason {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
+  gap: 0.4rem;
 }
 
+.card-content {
+  padding: 0.5rem 1rem 0.75rem;
+  overflow-x: auto;
+}
+
+/* ── Status badge ──────────────────────────────────────────────────────────── */
+
+.status-badge {
+  display: inline-block;
+  padding: 0.1em 0.45em;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.status-badge.on  { background: #e6f9ee; color: #007a33; }
+.status-badge.off { background: #fde8e8; color: #c0392b; }
+
+/* ── Mode buttons ──────────────────────────────────────────────────────────── */
+
+.button-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.mode-button {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid #c8cdd5;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.mode-button:hover {
+  background: #e8eaf0;
+  border-color: #aab;
+}
+
+.mode-button.active {
+  background: #16213e;
+  color: #fff;
+  border-color: #16213e;
+}
+
+/* ── Reason text ───────────────────────────────────────────────────────────── */
+
 .reason-text {
+  font-size: 0.78rem;
+  color: #777;
+  font-style: italic;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 
-/* ========================================
-   BUTTONS & CONTROLS
-   ======================================== */
-
-.button-group {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-button {
-  padding: 8px 10px;
-  border: none;
-  border-radius: 999px;
-  background: #eee;
-  cursor: pointer;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-.mode-button {
-  /* Inherits from button */
-}
-
-.mode-button.active {
-  background: #2ecc71;
-  color: #fff;
-}
-
-/* ========================================
-   STATUS INDICATORS
-   ======================================== */
-
-.status-badge {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #eee;
-  font-size: 12px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.status-badge.on {
-  background: #2ecc71;
-  color: #fff;
-}
-
-.status-badge.off {
-  background: #e74c3c;
-  color: #fff;
-}
-
-/* ========================================
-   DATA TABLES
-   ======================================== */
+/* ── Data tables ───────────────────────────────────────────────────────────── */
 
 .data-table {
   border-collapse: separate;
-  border-spacing: 0 3px;
-  margin-top: 12px;
+  border-spacing: 0 2px;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
 }
 
 .data-table-label {
   text-align: left;
-  padding-right: 4px;
-  font-size: 12px;
-  opacity: 0.7;
+  padding: 0.18rem 0.4rem 0.18rem 0;
+  color: #777;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .data-table-value {
-  padding-left: 0;
-  padding-right: 30px;
-  font-size: 13px;
-  opacity: 0.9;
+  padding: 0.18rem 1.5rem 0.18rem 0;
+  font-size: 0.85rem;
+  color: #1a1a2e;
+  white-space: nowrap;
 }
 
-/* Table variants */
-.data-table.full {
-  display: table;
-}
+.data-table.full   { display: table; }
+.data-table.compact { display: none; }
 
-.data-table.compact {
-  display: none;
-}
+/* ── Responsive ────────────────────────────────────────────────────────────── */
 
-/* ========================================
-   RESPONSIVE DESIGN - MOBILE
-   ======================================== */
+@media (max-width: 600px) {
+  .card {
+    margin: 0.5rem 0.5rem;
+    border-radius: 6px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .button-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
 
 @media (max-width: 480px) {
   .output-info {
     min-width: 120px;
   }
 
-  .button-group {
-    gap: 4px;
-  }
-
-  button {
-    padding: 8px 8px;
-    font-size: 13px;
-  }
-
   .output-status {
-    font-size: 11px;
+    font-size: 0.75rem;
   }
 
-  .data-table-value {
-    padding-right: 15px;
+  .mode-button {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.78rem;
   }
 
-  /* Show compact table on mobile */
-  .data-table.full {
-    display: none;
-  }
-
-  .data-table.compact {
-    display: table;
-  }
+  .data-table.full    { display: none; }
+  .data-table.compact { display: table; }
 }
 
-/* ========================================
-   RESPONSIVE DESIGN - DESKTOP
-   ======================================== */
-
 @media (min-width: 481px) {
-  .data-table.compact {
-    display: none;
-  }
-
-  .data-table.full {
-    display: table;
-  }
+  .data-table.compact { display: none; }
+  .data-table.full    { display: table; }
 }
