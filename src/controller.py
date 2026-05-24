@@ -47,13 +47,19 @@ from meter_output import MeterOutput
 from outputs import OutputManager
 from pricing import PricingManager
 from scheduler import Scheduler
-from teslamate import (
-    get_charging_data_as_dict,
-    merge_bucket_dict_records,
-    merge_session_dict_records,
-    # print_charging_data,
-)
-from teslamate_output import TeslaMateOutput
+try:
+    from teslamate import (
+        TESLAMATE_AVAILABLE,
+        get_charging_data_as_dict,
+        merge_bucket_dict_records,
+        merge_session_dict_records,
+    )
+    from teslamate_output import TeslaMateOutput # pyright: ignore[reportAssignmentType]
+except ImportError:
+    TESLAMATE_AVAILABLE = False
+
+    class TeslaMateOutput:  # type: ignore[no-redef]
+        """Stub used when the teslamate optional dependency is not installed."""
 from ups_integration import UPSIntegration
 
 
@@ -411,10 +417,12 @@ class PowerController:
             return
 
         # Initialise the TeslaMate import settings
-        self.tesla_import_enabled = bool(self.config.get("TeslaMate", "Enable", default=False))
-        self.save_tesla_raw_data: bool = bool(self.config.get("TeslaMate", "SaveRawData", default=False))
+        self.save_tesla_raw_data = False
+        self.tesla_import_enabled = TESLAMATE_AVAILABLE and bool(self.config.get("TeslaMate", "Enable", default=False))
+        if self.tesla_import_enabled:
+            self.save_tesla_raw_data: bool = bool(self.config.get("Failed to import TeslaMate charging", "SaveRawData", default=False))
         # Get tesla data from saved state
-        if saved_state and saved_state.get("TeslaChargeData", {}) is not None:
+        if self.tesla_import_enabled and saved_state and saved_state.get("TeslaChargeData", {}) is not None:
             self.tesla_charge_data["last_import"] = saved_state.get("TeslaChargeData", {}).get("last_import", None)
             self.tesla_charge_data["sessions"] = saved_state.get("TeslaChargeData", {}).get("sessions", [])
             self.tesla_charge_data["buckets"] = saved_state.get("TeslaChargeData", {}).get("buckets", [])
@@ -453,7 +461,7 @@ class PowerController:
                 if output_type == "smart_device":
                     output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, self.ups_integration, output_state)
                 if output_type == "teslamate":
-                    output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.tesla_charge_data, output_state)
+                    output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.tesla_charge_data, output_state) # pyright: ignore[reportCallIssue]
                 if output_type == "meter":
                     output_manager = MeterOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, output_state)
                 if output_manager:
@@ -508,7 +516,7 @@ class PowerController:
 
             # Set max days of history for the Tesla charging data import
             if isinstance(output, TeslaMateOutput):
-                num_days = output.get_days_of_history()
+                num_days = output.get_days_of_history() # pyright: ignore[reportAttributeAccessIssue]
                 self.tesla_charge_data_days_of_history = max(self.tesla_charge_data_days_of_history, num_days)
 
         # Sort outputs so parents are evaluated first

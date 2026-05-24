@@ -2,6 +2,12 @@
 
 This can be used to import Tesla charging data from a local network instance of [TeslaMate ](https://docs.teslamate.org/docs/installation/docker).  
 
+To use this feature, you must enable the optional teslamate package:
+`uv sync --extra teslamate`
+
+or pass the same option to the launch.sh script:
+`launch.sh --uvextra teslamate`
+
 If you want to limit data imports to home charging, first set a geofence name in the TeslaMaste dashboard (Home > Dashboards > TeslaMate > Charges) and then set this geofence name in the GeofenceName config parameter.
 
 | Key | Description | 

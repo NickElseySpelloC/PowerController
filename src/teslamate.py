@@ -6,9 +6,13 @@ import json
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
-from teslamate_charge_importer.config import DbConfig
-from teslamate_charge_importer.db import TeslaMateDb
-from teslamate_charge_importer.importer import import_charging_buckets
+try:
+    from teslamate_charge_importer.config import DbConfig
+    from teslamate_charge_importer.db import TeslaMateDb
+    from teslamate_charge_importer.importer import import_charging_buckets
+    TESLAMATE_AVAILABLE = True
+except ImportError:
+    TESLAMATE_AVAILABLE = False
 
 if TYPE_CHECKING:
     from sc_foundation import SCConfigManager
@@ -26,6 +30,8 @@ def print_charging_data(config: SCConfigManager, start_date: dt.date) -> None:
     Raises:
         ConnectionError: If unable to connect to the TeslaMate database.
     """
+    if not TESLAMATE_AVAILABLE:
+        return
     cfg = DbConfig(config)
     if not cfg.enabled:
         return  # Skip if not enabled
@@ -92,6 +98,8 @@ def get_charging_data(config: SCConfigManager, start_date: dt.date, convert_to_l
     Returns:
         TeslaImportResult | None: The imported charging data, or None if not enabled.
     """
+    if not TESLAMATE_AVAILABLE:
+        return None
     cfg = DbConfig(config)
     if not cfg.enabled:
         return None  # Skip if not enabled

@@ -11,17 +11,38 @@ Requires Python and UV to be installed
 
 PYPROJECT="pyproject.toml"
 
-# Parse --homedir argument from any position, default to this script's directory
+# Parse --homedir and --uvextra arguments from any position
 HomeDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UVExtra=""
 for ((i=1; i<=$#; i++)); do
   if [ "${!i}" = "--homedir" ]; then
     j=$((i+1))
     if [ $j -le $# ]; then
       HomeDir="${!j}"
-      break
+    fi
+  elif [ "${!i}" = "--uvextra" ]; then
+    j=$((i+1))
+    if [ $j -le $# ]; then
+      UVExtra="${!j}"
     fi
   fi
 done
+
+# Rebuild $@ without --uvextra and its value
+FilteredArgs=()
+SkipNext=false
+for arg in "$@"; do
+  if $SkipNext; then
+    SkipNext=false
+    continue
+  fi
+  if [ "$arg" = "--uvextra" ]; then
+    SkipNext=true
+    continue
+  fi
+  FilteredArgs+=("$arg")
+done
+set -- "${FilteredArgs[@]}"
 
 # make sure HomeDir is an absolute path
 HomeDir="$(cd "$HomeDir" && pwd)"
@@ -75,9 +96,16 @@ if [[ $(uname -m) == "armv7l" || $(uname -m) == "aarch64" ]]; then
 fi
 
 # Make sure deps are synced before starting
-if ! "$UVCmd" sync; then
-  echo "[launcher] uv sync failed — not starting app." >&2
-  exit 2
+if [ -n "$UVExtra" ]; then
+  if ! "$UVCmd" sync --extra "$UVExtra"; then
+    echo "[launcher] uv sync failed — not starting app." >&2
+    exit 2
+  fi
+else
+  if ! "$UVCmd" sync; then
+    echo "[launcher] uv sync failed — not starting app." >&2
+    exit 2
+  fi
 fi
 
 # Treat Ctrl-C or systemd stop (SIGTERM) as a clean, intentional shutdown
