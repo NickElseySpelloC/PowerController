@@ -103,7 +103,6 @@ class PricingManager:
         """
         time_now = DateHelper.now()
         if time_now >= self.next_refresh or is_new_day:
-            self.logger.log_message(f"Starting refresh of Amber pricing - {'New day' if is_new_day else 'refresh interval has elapsed'}", "debug")
             self._refresh_price_data()
             self._save_usage_data()
             return True
@@ -449,6 +448,8 @@ class PricingManager:
         if not self._get_amber_prices(load_from_file):
             return False
         assert isinstance(self.raw_price_data, list)
+
+        self.logger.log_message("Starting refresh of Amber pricing", "debug")
 
         # Now build the self.today_forecast_data list into 5 minute increments for today
         today = DateHelper.today()
