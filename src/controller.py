@@ -594,7 +594,7 @@ class PowerController:
         self._refresh_api_data_if_needed(view)
 
         # Ping the heartbeat monitor - this function takes care of frequency checks
-        self.external_service_helper.ping_heatbeat()
+        self.logger.ping_heartbeat()
 
         # Check for fatal error recovery
         self._check_fatal_error_recovery()

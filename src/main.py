@@ -141,7 +141,8 @@ def main():  # noqa: PLR0915
 
     # Initialize the SCLogger class
     try:
-        logger = SCLogger(config.get_logger_settings())
+        heartbeat_config = config.get("HeartbeatMonitor")
+        logger = SCLogger(config.get_logger_settings(), heartbeat_config=heartbeat_config)
         # Setup email
         logger.register_email_settings(config.get_email_settings())
     except (RuntimeError, TypeError, ValueError) as e:
