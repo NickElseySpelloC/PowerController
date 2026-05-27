@@ -5,7 +5,7 @@ import json
 import os
 
 import requests
-from sc_foundation import DateHelper, JSONEncoder, SCCommon, SCConfigManager, SCLogger
+from sc_foundation import JSONEncoder, SCCommon, SCConfigManager, SCLogger
 
 HTTP_STATUS_FORBIDDEN = 403
 
@@ -23,47 +23,6 @@ class ExternalServiceHelper:
         self.config = config
         self.logger = logger
         self.heartbeat_last_post = None
-
-    def ping_heatbeat(self, is_fail: bool | None = None) -> bool:
-        """Ping the heartbeat URL to check if the service is available.
-
-        Args:
-            is_fail (bool, optional): If True, the heartbeat will be considered a failure.
-
-        Returns:
-            bool: True if the heartbeat URL is reachable, False otherwise.
-        """
-        is_enabled = self.config.get("HeartbeatMonitor", "Enable", default=False)
-        heartbeat_url = self.config.get("HeartbeatMonitor", "WebsiteURL")
-        timeout = self.config.get("HeartbeatMonitor", "HeartbeatTimeout", default=10)
-        frequency = self.config.get("HeartbeatMonitor", "Frequency", default=30)
-
-        if not is_enabled or heartbeat_url is None:
-            return True
-        assert isinstance(heartbeat_url, str), "Heartbeat URL must be a string"
-
-        if self.heartbeat_last_post is not None:
-            time_since_last_post = (DateHelper.now() - self.heartbeat_last_post).total_seconds()
-            if time_since_last_post < frequency:  # pyright: ignore[reportOperatorIssue]
-                return True
-
-        if is_fail:
-            heartbeat_url += "/fail"
-
-        try:
-            response = requests.get(heartbeat_url, timeout=timeout)  # type: ignore[call-arg]
-        except requests.exceptions.Timeout as e:
-            self.logger.log_message(f"Timeout making Heartbeat ping: {e}", "error")
-            return False
-        except requests.RequestException as e:
-            self.logger.log_message(f"Heartbeat ping failed: {e}", "error")
-            return False
-        else:
-            if response.status_code == 200:
-                # self.logger.log_message(f"Heartbeat ping posted to {heartbeat_url}", "debug")
-                return True
-            self.logger.log_message(f"Heartbeat ping failed with status code: {response.status_code}", "error")
-            return False
 
     def post_state_to_web_viewer(self, system_state: dict) -> None:
         """Post the state to the web server if WebsiteBaseURL is set in config.
