@@ -189,6 +189,7 @@ class ConfigSchema:
                         "TurnOffSequence": {"type": "string", "required": False, "nullable": True},
                         "HideFromWebApp": {"type": "boolean", "required": False, "nullable": True},
                         "HideFromViewerApp": {"type": "boolean", "required": False, "nullable": True},
+                        "HideFromTempProbesSummary": {"type": "boolean", "required": False, "nullable": True},
                         "TempProbeConstraints": {
                             "type": "list",
                             "required": False,

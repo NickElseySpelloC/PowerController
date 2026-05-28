@@ -337,6 +337,7 @@ class OutputManager:  # noqa: PLR0904
             "SystemState": self.system_state,
             "IsOn": view.get_output_state(self.device_output_id),
             "Type": self.type,
+            "HideFromTempProbesSummary": self.output_config.get("HideFromTempProbesSummary", False) or False,
             "LastChanged": self.last_changed,
             "Reason": self.reason,
             "AppMode": self.app_mode,

@@ -16,6 +16,7 @@ There's a lot of keys in this section, but not all are applicable to all types:
 |:--|:--|:--|:--|
 | Name | ✓ | ✓ | ✓ |
 | Type | ✓ | ✓ | ✓ |
+| HideFromTempProbesSummary | ✓ |   |   |
 | DeviceOutput | ✓ | ✓ |  |
 | Mode | ✓ | ✓ | ✓ |
 | Schedule | ✓ | ✓ | ✓ |
@@ -60,6 +61,7 @@ Note: Required keys are shown in **bold**.
 |:--|:--|
 | **Name** | A name for this output - used in the web interface. |
 | Type | Configures what type of output this is as decribed above:<br>**smart device**: A fully functional smart switch output. <br>**meter**: An energy meter. <br>**teslamate**: Imports Tesla charging data from using TeslaMate.  |
+| HideFromTempProbesSummary | If included and set to True, this output will be hidden from the "Smart Devices" section of the TempProbes page in the PowerControllerViewer app. |
 | DeviceOutput | Specify the device output that controls this device - must match a Name in the SCSmartDevices: Devices: Outputs section. |
 | Mode | Operating mode:<br>**BestPrice**: Run for target hours at best price<br>**Schedule**: Run according to schedule only. |
 | Schedule | The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section. |
