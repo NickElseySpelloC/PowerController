@@ -1177,6 +1177,10 @@
 <td style="text-align: left;">A name for this schedule - used in the Outputs section.</td>
 </tr>
 <tr>
+<td style="text-align: left;"><strong>UsePowerTariff</strong></td>
+<td style="text-align: left;">Set to True to use the defined power tariff rates for this schedule (see <a href="../power_tariff/">PowerTariff</a>)</td>
+</tr>
+<tr>
 <td style="text-align: left;"><strong>Windows</strong></td>
 <td style="text-align: left;">A list of one or more StartTime / StopTime events for this schedule. Each window can have the following elements....</td>
 </tr>
@@ -1204,7 +1208,7 @@
 </tr>
 <tr>
 <td style="text-align: left;">Price</td>
-<td style="text-align: left;">The average eletricity price in c/kWh for energy during this window. Used to forecast costs when running on a schedule rather than Amber prices.</td>
+<td style="text-align: left;">The average eletricity price in c/kWh for energy during this window. Used to forecast costs when running on a schedule rather than Amber prices. Note: If UsePowerTariff is set to True for this schedule, then this price will only be used when there is no applicable power tariff rate for a certain time of day.</td>
 </tr>
 </tbody>
 </table>

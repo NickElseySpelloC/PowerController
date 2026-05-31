@@ -8,13 +8,9 @@
       
       
       
-        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/configuration/sections/general/">
+        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/configuration/sections/power_tariff/">
       
       
-        <link rel="prev" href="../../example_config/">
-      
-      
-        <link rel="next" href="../files/">
       
       
         
@@ -25,7 +21,7 @@
     
     
       
-        <title>General - PowerController Utility</title>
+        <title>Configuration file - PowerTariff section - PowerController Utility</title>
       
     
     
@@ -70,7 +66,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-general-section" class="md-skip">
+        <a href="#configuration-file-powertariff-section" class="md-skip">
           Skip to content
         </a>
       
@@ -106,7 +102,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              General
+              Configuration file - PowerTariff section
             
           </span>
         </div>
@@ -394,20 +390,20 @@
       
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -428,7 +424,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -499,20 +495,20 @@
                 
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
           <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
@@ -533,7 +529,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -548,19 +544,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../general/" class="md-nav__link">
         
   
   
@@ -576,7 +563,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -1161,46 +1147,55 @@
 
 
 
-<h1 id="configuration-file-general-section">Configuration file - General section</h1>
-<p>General settings for the Power Controller application.</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">Key</th>
-<th style="text-align: left;">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">Label</td>
-<td style="text-align: left;">The label (name) that your installation. Used in the email subject and web viewer app</td>
-</tr>
-<tr>
-<td style="text-align: left;">PollingInterval</td>
-<td style="text-align: left;">Number of seconds to sleep between each check of the run plan and possible changes to outputs. Recommended 30 seconds or more.</td>
-</tr>
-<tr>
-<td style="text-align: left;">ReportCriticalErrorsDelay</td>
-<td style="text-align: left;">Some critical errors can trigger email notifications - for example the AmberAPI not responding. This is the time in minutes for an issue to persist before we send an email notification. Leave blank to disable.</td>
-</tr>
-<tr>
-<td style="text-align: left;">PrintToConsole</td>
-<td style="text-align: left;">Print some basic information to the console during startup and operation</td>
-</tr>
-<tr>
-<td style="text-align: left;">DefaultPrice</td>
-<td style="text-align: left;">A default price to use if the Amber API is not available and there is no schedule price defined</td>
-</tr>
-<tr>
-<td style="text-align: left;">CurrencySymbol</td>
-<td style="text-align: left;">The character to use for the "major" denomination of your currency, for example "$"</td>
-</tr>
-<tr>
-<td style="text-align: left;">SubunitSymbol</td>
-<td style="text-align: left;">The character to use for the "minor" denomination of your currency (i.e. 1/100th of the major unit), for example "¢"</td>
-</tr>
-</tbody>
-</table>
+<h1 id="configuration-file-powertariff-section">Configuration file - PowerTariff section</h1>
+<p>Optionally, a PowerTariff can be defined that sets out the electricty rates charges by your energy provider. You would use this when Amber Electric isn't in use. Here's an example:</p>
+<pre><code class="language-yaml">PowerTariff:
+  - Name: Peak
+    Price: 0.266
+    StartTime: &quot;08:00&quot;
+    EndTime: &quot;19:00&quot;
+    DaysOfWeek: Mon, Tue, Wed, Thu, Fri
+
+  - Name: Shoulder
+    StartTime: &quot;07:00&quot;
+    EndTime: &quot;08:00&quot;
+    DaysOfWeek: Mon, Tue, Wed, Thu, Fri
+    Price: 0.279
+
+  - Name: Shoulder
+    StartTime: &quot;19:00&quot;
+    EndTime: &quot;23:00&quot;
+    DaysOfWeek: Mon, Tue, Wed, Thu, Fri
+    Price: 0.279
+
+  - Name: Shoulder
+    StartTime: &quot;07:00&quot;
+    EndTime: &quot;23:00&quot;
+    DaysOfWeek: Sat
+    Price: 0.279
+
+  - Name: Off-Peak
+    StartTime: &quot;23:00&quot;
+    EndTime: &quot;07:00&quot;
+    DaysOfWeek: All
+    Price: 0.260
+
+  - Name: Off-Peak
+    StartTime: &quot;00:00&quot;
+    EndTime: &quot;00:00&quot;
+    DaysOfWeek: Sun
+    Price: 0.260
+</code></pre>
+<p>You must also set <strong>UsePowerTariff</strong> to True for the relevant operating schedule to tell it to use this tariff.</p>
+<p>This PowerTariff section provides the following features:</p>
+<ul>
+<li>Multiple day &amp; time slots can be defined for a given tarrif band (for example, there are three distinct time slots for the Shoulder tarrif)</li>
+<li>If the end time is earlier or equal to the start time, then the end time is taken to be the next day.</li>
+<li>When determining whether DaysOfWeek applies to the current day, treat the day as applicable to the start time. For example, if StartTime = 22:00, EndTime = 07:00, DaysOfWeek = Sat and it's currently 23:10 on Sat night, then this entry would be a match.</li>
+<li>If two PowerTariff slots overlap for a given day and time, the first one in the list wins.</li>
+<li>The PowerTariff will be used by an OperatingSchedule if the UsePowerTariff key is set to True in the schedule</li>
+<li>If there are times during the week that have no PowerTariff price defined, a warning will be logged in the log file. For these "gap" times, the system will fall back to using the Price defined in the relwvant schedule window.</li>
+</ul>
 
 
 
