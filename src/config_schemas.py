@@ -141,8 +141,8 @@ class ConfigSchema:
 
             "PowerTariff": {
                 "type": "list",
-                "required": True,
-                "nullable": False,
+                "required": False,
+                "nullable": True,
                 "schema": {
                     "type": "dict",
                     "schema": {
