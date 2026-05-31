@@ -80,3 +80,53 @@ OperatingSchedules:
         EndTime: "17:00"
         DaysOfWeek: "Mon, Tue, Wed, Thu, Fri"
         Price: 25.00
+  - Name: TariffSchedule
+    UsePowerTariff: True
+    Windows:
+      - StartTime: "00:00"
+        EndTime: "23:59"
+        DaysOfWeek: All
+        Price: 99.00
+  - Name: TariffScheduleGap
+    UsePowerTariff: True
+    Windows:
+      - StartTime: "08:00"
+        EndTime: "16:00"
+        DaysOfWeek: All
+        Price: 99.00
+  - Name: TariffMidnightSpan
+    UsePowerTariff: True
+    Windows:
+      - StartTime: "00:00"
+        EndTime: "08:00"
+        DaysOfWeek: All
+        Price: 99.00
+  - Name: FullDay
+    Windows:
+      - StartTime: "00:00"
+        EndTime: "00:00"
+        DaysOfWeek: All
+        Price: 15.00
+  - Name: Overnight
+    Windows:
+      - StartTime: "20:00"
+        EndTime: "07:00"
+        DaysOfWeek: All
+        Price: 12.00
+
+PowerTariff:
+  - Name: Overnight
+    StartTime: "23:00"
+    EndTime: "07:00"
+    Price: 10.00
+    DaysOfWeek: All
+  - Name: Peak
+    StartTime: "07:00"
+    EndTime: "14:00"
+    Price: 30.00
+    DaysOfWeek: All
+  - Name: Shoulder
+    StartTime: "14:00"
+    EndTime: "23:00"
+    Price: 20.00
+    DaysOfWeek: All

@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 from org_enums import AppMode, RunPlanMode, StateReasonOff, StateReasonOn, SystemState
 from sc_foundation import DateHelper, SCConfigManager, SCLogger
 
+from helpers import get_currency_symbols
 from local_enumerations import DEFAULT_PRICE, AmberChannel
 
 if TYPE_CHECKING:
@@ -128,6 +129,7 @@ class TeslaMateOutput:
         self.schedule = None
         self.device_mode: RunPlanMode = RunPlanMode.BEST_PRICE
         self.default_price: float = self.config.get("General", "DefaultPrice", default=DEFAULT_PRICE) or DEFAULT_PRICE  # pyright: ignore[reportAttributeAccessIssue]
+        self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(config)
 
         self.system_state: SystemState = SystemState.EXTERNAL_CONTROL
         self.app_mode: AppMode = AppMode.AUTO
@@ -190,6 +192,7 @@ class TeslaMateOutput:
             self.device_mode = mode
             if self.device_mode not in RunPlanMode:
                 _validation_error(f"A valid Mode has not been set for meter output {self.name}.")
+            self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(self.config)
 
             # Schedule (required if using schedule pricing)
             self.schedule_name = output_config.get("Schedule")
@@ -274,10 +277,10 @@ class TeslaMateOutput:
         time_now = DateHelper.now()
 
         as_at_time = DateHelper.add_datetime(time_now, hours=-12)
-        print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} c/kWh")
+        print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} {self.currency_minor_symbol}/kWh")
 
         as_at_time = DateHelper.add_datetime(time_now, days=4)
-        print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} c/kWh")
+        print(f"  - Price at {as_at_time.isoformat()}: {self._get_price(as_at_time):.2f} {self.currency_minor_symbol}/kWh")
 
     # --- State / UI / CSV ---
     def get_save_object(self, view: Any) -> dict[str, Any]:  # noqa: ARG002
@@ -378,12 +381,12 @@ class TeslaMateOutput:
             "required_hours": "0.0",
             "planned_hours": "0.0",
             "actual_energy_used": f"{energy_wh / 1000.0:.3f}kWh",
-            "actual_cost": f"${total_cost:.2f}",
+            "actual_cost": f"{self.currency_major_symbol}{total_cost:.2f}",
             "forecast_energy_used": "0.000kWh",
-            "forecast_cost": "$0.00",
+            "forecast_cost": f"{self.currency_major_symbol}0.00",
             "forecast_price": "N/A",
             "total_energy_used": f"{energy_wh / 1000.0:.3f}kWh",
-            "total_cost": f"${total_cost:.2f}",
+            "total_cost": f"{self.currency_major_symbol}{total_cost:.2f}",
             "average_price": "N/A",
             "next_start_time": None,
             "stopping_at": None,

@@ -35,6 +35,7 @@ from sc_smart_device import (
 
 from config_schemas import ConfigSchema
 from external_services import ExternalServiceHelper
+from helpers import get_currency_symbols
 from local_enumerations import (
     DUMP_SMART_DEVICE_SNAPSHOT,
     SCHEMA_VERSION,
@@ -140,6 +141,7 @@ class PowerController:
         # Create the two run_planner types
         self.scheduler = Scheduler(self.config, self.logger)
         self.pricing = PricingManager(self.config, self.logger)
+        self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(config)
 
         self._io_shutdown_lock = RLock()  # Serialize state/CSV writes during shutdown
 
@@ -397,6 +399,7 @@ class PowerController:
         self.poll_interval = int(self.config.get("General", "PollingInterval", default=30) or 30)  # pyright: ignore[reportArgumentType]
         self.webapp_refresh = int(self.config.get("Website", "PageAutoRefresh", default=10) or 10)  # pyright: ignore[reportArgumentType]
         self.app_label = self.config.get("General", "Label", default="PowerController")
+        self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(self.config)
 
         # Reinitialise if needed
         if not startup_mode:
@@ -698,6 +701,8 @@ class PowerController:
                 "StateFileType": "PowerController",
                 "DeviceName": self.app_label,
                 "SaveTime": DateHelper.now(),
+                "MajorCurrencySymbol": self.currency_major_symbol,
+                "MinorCurrencySymbol": self.currency_minor_symbol,
                 "Outputs": [],
                 "Scheduler": self.scheduler.get_save_object(),
                 "TempProbeLogging": self.temp_probe_logging,
@@ -1290,6 +1295,8 @@ class PowerController:
                         "StateFileType": "PowerController",
                         "DeviceName": f"{self.app_label} - {output.name}",
                         "SaveTime": DateHelper.now(),
+                        "MajorCurrencySymbol": self.currency_major_symbol,
+                        "MinorCurrencySymbol": self.currency_minor_symbol,
                         "Output": save_object,
                         "Scheduler": self.scheduler.get_save_object(output.get_schedule()) if output.get_schedule() else {},
                     }
@@ -1306,6 +1313,8 @@ class PowerController:
                         "StateFileType": "TempProbes",
                         "DeviceName": f"{self.app_label} - TempProbes",
                         "SaveTime": DateHelper.now(),
+                        "MajorCurrencySymbol": self.currency_major_symbol,
+                        "MinorCurrencySymbol": self.currency_minor_symbol,
                         "Charting": self.config.get("TempProbeLogging", "Charting"),
                         "TempProbeLogging": probe_data,
                     }
@@ -1318,6 +1327,8 @@ class PowerController:
                         "StateFileType": "OutputMetering",
                         "DeviceName": f"{self.app_label} - OutputMetering",
                         "SaveTime": DateHelper.now(),
+                        "MajorCurrencySymbol": self.currency_major_symbol,
+                        "MinorCurrencySymbol": self.currency_minor_symbol,
                         "Summary": self.output_metering.get("Summary", []),
                         "Totals": self.output_metering.get("Totals", []),
                         "Meters": self.output_metering.get("Meters", []),

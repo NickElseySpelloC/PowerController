@@ -9,3 +9,5 @@ General settings for the Power Controller application.
 | ReportCriticalErrorsDelay | Some critical errors can trigger email notifications - for example the AmberAPI not responding. This is the time in minutes for an issue to persist before we send an email notification. Leave blank to disable. |
 | PrintToConsole | Print some basic information to the console during startup and operation |
 | DefaultPrice | A default price to use if the Amber API is not available and there is no schedule price defined |
+| CurrencySymbol | The character to use for the "major" denomination of your currency, for example "$" |
+| SubunitSymbol | The character to use for the "minor" denomination of your currency (i.e. 1/100th of the major unit), for example "¢" |

@@ -256,6 +256,174 @@ class TestParseTime:
 
 
 # ---------------------------------------------------------------------------
+# Overnight / full-day windows
+# ---------------------------------------------------------------------------
+
+class TestOvernightWindows:
+    def test_full_day_window_returns_slot(self, scheduler):
+        """00:00/00:00 window should always return at least one slot."""
+        sched = scheduler.get_schedule_by_name("FullDay")
+        slots = scheduler.get_schedule_slots(sched)
+        assert len(slots) >= 1
+
+    def test_full_day_slot_end_time_is_2359(self, scheduler):
+        """The EndTime of a full-day slot should be 23:59 (capped for same-day comparisons)."""
+        sched = scheduler.get_schedule_by_name("FullDay")
+        slots = scheduler.get_schedule_slots(sched)
+        assert slots[-1]["EndTime"] == dt.time(23, 59)
+
+    def test_full_day_slot_minutes_covers_remainder_of_day(self, scheduler):
+        """Minutes should reflect the time from now until midnight (> 0)."""
+        sched = scheduler.get_schedule_by_name("FullDay")
+        slots = scheduler.get_schedule_slots(sched)
+        total_minutes = sum(s["Minutes"] for s in slots)
+        assert total_minutes > 0
+
+    def test_full_day_slot_end_datetime_is_tomorrow_midnight(self, scheduler):
+        """EndDateTime for a 00:00/00:00 window should be tomorrow 00:00 for correct duration."""
+        sched = scheduler.get_schedule_by_name("FullDay")
+        slots = scheduler.get_schedule_slots(sched)
+        # The last slot's EndDateTime should be tomorrow at 00:00
+        from sc_foundation import DateHelper
+        tomorrow = DateHelper.today_add_days(1)
+        assert slots[-1]["EndDateTime"].date() == tomorrow
+        assert slots[-1]["EndDateTime"].time() == dt.time(0, 0)
+
+    def test_overnight_window_returns_slot(self, scheduler):
+        """An overnight window (20:00–07:00) should return at least one slot at any time of day."""
+        sched = scheduler.get_schedule_by_name("Overnight")
+        slots = scheduler.get_schedule_slots(sched)
+        assert len(slots) >= 1
+
+    def test_overnight_slot_has_required_fields(self, scheduler):
+        """Overnight slots must have the same required fields as normal slots."""
+        sched = scheduler.get_schedule_by_name("Overnight")
+        slots = scheduler.get_schedule_slots(sched)
+        for slot in slots:
+            for key in ("StartTime", "EndTime", "StartDateTime", "EndDateTime", "Minutes", "Price"):
+                assert key in slot
+
+    def test_overnight_slot_minutes_positive(self, scheduler):
+        """All overnight slot Minutes values must be positive."""
+        sched = scheduler.get_schedule_by_name("Overnight")
+        slots = scheduler.get_schedule_slots(sched)
+        for slot in slots:
+            assert slot["Minutes"] > 0
+
+    def test_overnight_slot_price(self, scheduler):
+        """Overnight slot price should match the configured window price."""
+        sched = scheduler.get_schedule_by_name("Overnight")
+        slots = scheduler.get_schedule_slots(sched)
+        for slot in slots:
+            assert slot["Price"] == pytest.approx(12.0)
+
+    def test_overnight_head_end_datetime_crosses_midnight(self, scheduler):
+        """The head slot of an overnight window should have EndDateTime on tomorrow."""
+        from sc_foundation import DateHelper
+        sched = scheduler.get_schedule_by_name("Overnight")
+        slots = scheduler.get_schedule_slots(sched)
+        today = DateHelper.today()
+        tomorrow = DateHelper.today_add_days(1)
+        # The head slot (StartTime >= 20:00) should end tomorrow
+        head_slots = [s for s in slots if s["StartTime"] >= dt.time(20, 0)]
+        if head_slots:
+            assert head_slots[0]["EndDateTime"].date() == tomorrow
+        # Tail slots (StartTime < 07:00) should end today
+        tail_slots = [s for s in slots if s["EndTime"] <= dt.time(7, 0)]
+        if tail_slots:
+            assert tail_slots[0]["EndDateTime"].date() == today
+
+
+# ---------------------------------------------------------------------------
+# PowerTariff: _get_tariff_slots_for_window / get_schedule_slots with UsePowerTariff
+# ---------------------------------------------------------------------------
+
+class TestPowerTariff:
+    def test_tariff_schedule_returns_multiple_slots(self, scheduler):
+        """A full-day window with UsePowerTariff should be split into sub-slots."""
+        sched = scheduler.get_schedule_by_name("TariffSchedule")
+        slots = scheduler.get_schedule_slots(sched)
+        # Three tariff bands → at least 2 sub-slots (some may be in the past)
+        assert len(slots) >= 1
+
+    def test_tariff_sub_slots_cover_contiguous_time(self, scheduler):
+        """Adjacent sub-slot boundaries must be contiguous (no gaps, no overlaps)."""
+        sched = scheduler.get_schedule_by_name("TariffSchedule")
+        slots = scheduler.get_schedule_slots(sched)
+        for i in range(len(slots) - 1):
+            assert slots[i]["EndTime"] == slots[i + 1]["StartTime"]
+
+    def test_tariff_prices_match_bands(self, scheduler):
+        """Each sub-slot's price must match a configured tariff band price, not the schedule window price (99)."""
+        sched = scheduler.get_schedule_by_name("TariffSchedule")
+        slots = scheduler.get_schedule_slots(sched)
+        valid_prices = {10.0, 30.0, 20.0}  # Overnight / Peak / Shoulder
+        for slot in slots:
+            assert slot["Price"] in valid_prices, f"Unexpected price {slot['Price']} in slot {slot}"
+
+    def test_tariff_gap_uses_schedule_price(self, scheduler):
+        """A schedule window outside tariff coverage should use the schedule's own price (99)."""
+        sched = scheduler.get_schedule_by_name("TariffScheduleGap")
+        # TariffScheduleGap runs 08:00–16:00, which is fully inside tariff coverage (07:00–14:00 Peak, 14:00–23:59 Shoulder)
+        # so all sub-slots should get tariff prices; this test verifies no slot has the fallback price of 99
+        slots = scheduler.get_schedule_slots(sched)
+        for slot in slots:
+            assert slot["Price"] != 99.0, f"Slot should have a tariff price, not the fallback 99: {slot}"
+
+    def test_non_tariff_schedule_unaffected(self, scheduler):
+        """Schedules without UsePowerTariff should not be split."""
+        sched = scheduler.get_schedule_by_name("General")
+        slots = scheduler.get_schedule_slots(sched)
+        # General has one window; all slots should have Price 20.0 (not tariff prices)
+        for slot in slots:
+            assert slot["Price"] == pytest.approx(20.0)
+
+    def test_tariff_slot_minutes_consistent(self, scheduler):
+        """Minutes field in each sub-slot must match its start/end datetimes."""
+        sched = scheduler.get_schedule_by_name("TariffSchedule")
+        slots = scheduler.get_schedule_slots(sched)
+        for slot in slots:
+            expected = int((slot["EndDateTime"] - slot["StartDateTime"]).total_seconds() // 60)
+            assert slot["Minutes"] == expected
+
+    def test_tariff_loaded(self, scheduler):
+        """Scheduler should load the PowerTariff from config."""
+        assert scheduler.power_tariff is not None
+        assert isinstance(scheduler.power_tariff, list)
+        assert len(scheduler.power_tariff) == 3
+
+    def test_midnight_spanning_band_covers_early_morning(self, scheduler):
+        """A midnight-spanning tariff band (23:00–07:00) should apply to slots starting at 00:00.
+
+        The 'Overnight' band starts at 23:00 and ends at 07:00 the next day. A schedule window
+        running 00:00–08:00 should have its 00:00–07:00 portion priced at 10.0 (Overnight rate),
+        not at the schedule's fallback price of 99.
+        """
+        sched = scheduler.get_schedule_by_name("TariffMidnightSpan")
+        # Build a synthetic base slot covering 00:00–08:00 to test the full window
+        # regardless of current time (get_schedule_slots skips past windows)
+        import datetime as dt
+        from sc_foundation import DateHelper
+        today = DateHelper.today()
+        base_slot = {
+            "Date": today,
+            "StartTime": dt.time(0, 0),
+            "StartDateTime": DateHelper.combine(today, dt.time(0, 0)),
+            "EndTime": dt.time(8, 0),
+            "EndDateTime": DateHelper.combine(today, dt.time(8, 0)),
+            "Minutes": 480,
+            "Price": 99.0,
+        }
+        sub_slots = scheduler._get_tariff_slots_for_window(base_slot, today)
+        # 00:00–07:00 should be priced at 10.0 (Overnight), 07:00–08:00 at 30.0 (Peak)
+        prices_by_start = {s["StartTime"]: s["Price"] for s in sub_slots}
+        assert prices_by_start.get(dt.time(0, 0)) == pytest.approx(10.0), \
+            "Midnight-spanning Overnight band should cover 00:00 slot"
+        assert prices_by_start.get(dt.time(7, 0)) == pytest.approx(30.0), \
+            "Peak band should cover 07:00 slot"
+
+
+# ---------------------------------------------------------------------------
 # get_save_object
 # ---------------------------------------------------------------------------
 

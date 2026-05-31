@@ -942,9 +942,9 @@ class PricingManager:
             result (bool): True if the usage data was saved, False if not.
         """
         file_name = self.config.get("AmberAPI", "UsageDataFile")
-        if not file_name:
+        if not file_name or self.mode == AmberAPIMode.DISABLED: # Issue 99
             return False    # No file configured, nothing to do
-
+        
         file_path = SCCommon.select_file_location(file_name)  # pyright: ignore[reportArgumentType]
         if not file_path:
             self.logger.log_message(f"No valid path for Amber usage data file {file_name}.", "error")
@@ -1046,6 +1046,9 @@ class PricingManager:
                 # No aggregation needed for today or yesterday
                 aggregated_data.append(row)
                 i += 1
+
+        if not aggregated_data:
+            return True  # No data to save
 
         # Write the updated CSV data back to file, overwriting the existing file
         try:

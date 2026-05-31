@@ -1,6 +1,27 @@
-"""General helper functions for debugging."""
+"""General helper functions"""
 import csv
 from pathlib import Path
+
+from sc_foundation import SCConfigManager
+
+from local_enumerations import (
+    DEFAULT_CURRENCY_SYMBOL,
+    DEFAULT_CURRENCY_SUBUNIT_SYMBOL,
+)
+
+def get_currency_symbols(config: SCConfigManager) -> tuple[str, str]:
+    """Get the major and minor currency symbols from the config file or failing that use the defaults.
+
+    Args:
+        config (SCConfigManager): The configuration manager for the system.
+
+    Returns:
+        tuple[str, str]: A tuple containing the major and minor currency symbols.
+    """
+    major = config.get("General", "CurrencySymbol", default=DEFAULT_CURRENCY_SYMBOL) or DEFAULT_CURRENCY_SYMBOL
+    minor = config.get("General", "CurrencySubunitSymbol", default=DEFAULT_CURRENCY_SUBUNIT_SYMBOL) or DEFAULT_CURRENCY_SUBUNIT_SYMBOL
+    
+    return major, minor  # pyright: ignore[reportReturnType]
 
 
 class DebugSupport:

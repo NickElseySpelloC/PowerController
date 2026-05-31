@@ -50,6 +50,8 @@ class ConfigSchema:
                     "PrintToConsole": {"type": "boolean", "required": False, "nullable": True},
                     "DefaultPrice": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 1000},
                     "TestingMode": {"type": "boolean", "required": False, "nullable": True},
+                    "CurrencySymbol": {"type": "string", "required": False, "nullable": True},
+                    "SubunitSymbol": {"type": "string", "required": False, "nullable": True},
                 },
             },
             "Website": {
@@ -119,6 +121,7 @@ class ConfigSchema:
                     "type": "dict",
                     "schema": {
                         "Name": {"type": "string", "required": True},
+                        "UsePowerTariff": {"type": "boolean", "required": False, "nullable": True},
                         "Windows": {
                             "type": "list",
                             "required": True,
@@ -135,6 +138,22 @@ class ConfigSchema:
                     },
                 },
             },
+
+            "PowerTariff": {
+                "type": "list",
+                "required": True,
+                "nullable": False,
+                "schema": {
+                    "type": "dict",
+                    "schema": {
+                        "Name": {"type": "string", "required": True},
+                        "StartTime": {"type": "string", "required": True},
+                        "EndTime": {"type": "string", "required": True},
+                        "Price": {"type": "number", "required": False, "nullable": True},
+                        "DaysOfWeek": {"type": "string", "required": False, "nullable": True},
+                    },
+                },
+            },            
             "Outputs": {
                 "type": "list",
                 "required": True,

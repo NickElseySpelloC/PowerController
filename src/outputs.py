@@ -39,6 +39,7 @@ from pricing import PricingManager
 from run_history import RunHistory
 from run_plan import RunPlanner
 from scheduler import Scheduler
+from helpers import get_currency_symbols
 from ups_integration import UPSIntegration
 
 
@@ -91,6 +92,7 @@ class OutputManager:  # noqa: PLR0904
         self.constaint_schedule = None
         self.amber_channel = AmberChannel.GENERAL
         self.max_best_price = self.max_priority_price = 0
+        self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(config)
 
         # Smart Device components
         self.device_id = 0   # The Smart Device  ID for the output's device
@@ -269,6 +271,7 @@ class OutputManager:  # noqa: PLR0904
             self.max_priority_price = output_config.get("MaxPriorityPrice")
             if (not self.max_best_price or not self.max_priority_price):
                 _validation_error(f"MaxBestPrice and MaxPriorityPrice must be properly set for output {self.name}.")
+            self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(self.config)
 
             # DeviceMeter
             self.device_meter_name = output_config.get("DeviceMeter")
@@ -423,10 +426,10 @@ class OutputManager:  # noqa: PLR0904
             "required_hours": f"{(self.run_plan.get("RequiredHours", 0) if self.run_plan else 0):.1f}",
             "planned_hours": f"{(self.run_plan.get("PlannedHours", 0) if self.run_plan else 0):.1f}",
             "actual_energy_used": f"{actual_energy_used / 1000:.3f}kWh",
-            "actual_cost": f"${actual_cost:.2f}",
+            "actual_cost": f"{self.currency_major_symbol}{actual_cost:.2f}",
             "forecast_energy_used": f"{forecast_energy_used / 1000:.3f}kWh",
-            "forecast_cost": f"${forecast_cost:.2f}",
-            "forecast_price": f"{forecast_price:.2f} c/kWh" if forecast_price > 0 else "N/A",
+            "forecast_cost": f"{self.currency_major_symbol}{forecast_cost:.2f}",
+            "forecast_price": f"{forecast_price:.2f} {self.currency_minor_symbol}/kWh" if forecast_price > 0 else "N/A",
 
             # These are calculated below
             "total_energy_used": 0,
@@ -438,14 +441,14 @@ class OutputManager:  # noqa: PLR0904
             "stopping_at": stopping_at,
             "reason": reason_text,
             "power_draw": f"{power_draw:.0f}W" if power_draw else "None",
-            "current_price": f"{self._get_current_price():.1f} c/kWh",
+            "current_price": f"{self._get_current_price():.1f} {self.currency_minor_symbol}/kWh" if self._get_current_price() > 0 else "N/A",
         }
         total_cost = actual_cost + forecast_cost
-        data["total_cost"] = f"${total_cost:.2f}"
+        data["total_cost"] = f"{self.currency_major_symbol}{total_cost:.2f}"
         total_energy_used = actual_energy_used + forecast_energy_used
         data["total_energy_used"] = f"{total_energy_used / 1000:.3f}kWh"
         average_price = RunHistory.calc_price(total_energy_used, total_cost)
-        data["average_price"] = f"{average_price:.2f} c/kWh" if average_price > 0 else "N/A"
+        data["average_price"] = f"{average_price:.2f} {self.currency_minor_symbol}/kWh" if average_price > 0 else "N/A"
         return data
 
     def tell_device_status_updated(self, view: SmartDeviceView):
@@ -925,7 +928,7 @@ class OutputManager:  # noqa: PLR0904
 
             current_run = self.run_history.get_current_run()
             if current_run:
-                self.print_to_console(f"Output {self.name} ON - {action.reason}. Started at {current_run['StartTime'].strftime('%H:%M:%S')} Energy Used: {current_run['EnergyUsed']:.2f}Wh Average Price: ${current_run['AveragePrice']:.2f}c/kWh Total Cost: ${current_run['TotalCost']:.4f}")
+                self.print_to_console(f"Output {self.name} ON - {action.reason}. Started at {current_run['StartTime'].strftime('%H:%M:%S')} Energy Used: {current_run['EnergyUsed']:.2f}Wh Average Price: {current_run['AveragePrice']:.2f}{self.currency_minor_symbol}/kWh Total Cost: {self.currency_major_symbol}{current_run['TotalCost']:.4f}")
 
         if action.type == OutputActionType.TURN_OFF:
             self.last_turned_off = DateHelper.now()
@@ -969,13 +972,13 @@ class OutputManager:  # noqa: PLR0904
         return_str += f"   - Schedule: {self.schedule_name}\n"
         return_str += f"   - Amber Channel: {self.amber_channel}\n"
         return_str += f"   - Min Hours: {self.min_hours}, Max Hours: {self.max_hours}, Target Hours: {self._get_target_hours()}\n"
-        return_str += f"   - Max Best Price: {self.max_best_price}c/kWh, Max Priority Price: {self.max_priority_price}c/kWh\n"
+        return_str += f"   - Max Best Price: {self.max_best_price}{self.currency_minor_symbol}/kWh, Max Priority Price: {self.max_priority_price}{self.currency_minor_symbol}/kWh\n"
         return_str += f"   - Actual hours today: {self.run_history.get_actual_hours():.2f}\n"
         if self.run_plan:
             return_str += f"   - Today's run plan requires {self.run_plan.get('RequiredHours', 0):.2f} hours:\n"
             for entry in self.run_plan.get("RunPlan", []):
-                return_str += f"      - From {entry['StartTime'].strftime('%H:%M')} to {entry['EndTime'].strftime('%H:%M')}. Price: {entry['Price']:.2f}c/kWh), Cost: ${entry['EstimatedCost']:.2f}\n"
-            return_str += f"      - Planned Hours: {self.run_plan.get('PlannedHours', 0):.2f}, Estimated Cost: ${self.run_plan.get('EstimatedCost', 0):.2f}\n"
+                return_str += f"      - From {entry['StartTime'].strftime('%H:%M')} to {entry['EndTime'].strftime('%H:%M')}. Price: {entry['Price']:.2f}{self.currency_minor_symbol}/kWh, Cost: {self.currency_major_symbol}{entry['EstimatedCost']:.2f}\n"
+            return_str += f"      - Planned Hours: {self.run_plan.get('PlannedHours', 0):.2f}, Estimated Cost: {self.currency_major_symbol}{self.run_plan.get('EstimatedCost', 0):.2f}\n"
         if self.dates_off:
             return_str += "   - Dates off:\n"
             for date_range in self.dates_off:

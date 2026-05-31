@@ -6,7 +6,8 @@ General:
   # persist before we send an email notification. Leave blank to disable.
   ReportCriticalErrorsDelay: 30
   DefaultPrice: 32.0      # A default price to use if the Amber API is not available and there is no schedule price defined  
-
+  CurrencySymbol: $       # The character to use for the "major" denomination of your currency
+  SubunitSymbol: ¢        # The character to use for the "minor" denomination of your currency (i.e. 1/100th of the major unit)
 
 # Settings for various log and state files
 Files:

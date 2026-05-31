@@ -19,6 +19,7 @@ from org_enums import AppMode, RunPlanMode, StateReasonOff, StateReasonOn, Syste
 from sc_foundation import DateHelper
 
 from local_enumerations import DEFAULT_PRICE, AmberChannel, OutputStatusData
+from helpers import get_currency_symbols
 from run_history import RunHistory
 
 if TYPE_CHECKING:
@@ -60,6 +61,7 @@ class MeterOutput:
         self.schedule_name: str | None = None
         self.schedule: dict | None = None
         self.default_price: float = self.config.get("General", "DefaultPrice", default=DEFAULT_PRICE) or DEFAULT_PRICE  # pyright: ignore[reportAttributeAccessIssue]
+        self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(config)
 
         # Meter config
         self.device_meter_name: str | None = None
@@ -143,6 +145,7 @@ class MeterOutput:
             self.device_mode = mode
             if self.device_mode not in RunPlanMode:
                 _validation_error(f"A valid Mode has not been set for meter output {self.name}.")
+            self.currency_major_symbol, self.currency_minor_symbol = get_currency_symbols(self.config)
 
             # Amber channel
             self.amber_channel = output_config.get("AmberChannel", AmberChannel.GENERAL) or AmberChannel.GENERAL
@@ -293,6 +296,8 @@ class MeterOutput:
 
         reason_text = self.reason.value if self.reason is not None else "Monitoring"
 
+        
+
         return {
             "id": self.id,
             "allow_actions": False,
@@ -307,18 +312,18 @@ class MeterOutput:
             "required_hours": "0.0",
             "planned_hours": "0.0",
             "actual_energy_used": f"{actual_energy_used / 1000.0:.3f}kWh",
-            "actual_cost": f"${actual_cost:.2f}",
+            "actual_cost": f"{self.currency_major_symbol}{actual_cost:.2f}",
             "forecast_energy_used": "0.000kWh",
-            "forecast_cost": "$0.00",
+            "forecast_cost": f"{self.currency_major_symbol}0.00",
             "forecast_price": "N/A",
             "total_energy_used": f"{actual_energy_used / 1000.0:.3f}kWh",
-            "total_cost": f"${actual_cost:.2f}",
+            "total_cost": f"{self.currency_major_symbol}{actual_cost:.2f}",
             "average_price": "N/A",
             "next_start_time": None,
             "stopping_at": None,
             "reason": reason_text,
             "power_draw": f"{power_draw:.0f}W" if power_draw else "None",
-            "current_price": f"{current_price:.1f} c/kWh" if current_price > 0 else "N/A",
+            "current_price": f"{current_price:.1f} {self.currency_minor_symbol}/kWh" if current_price > 0 else "N/A",
         }
 
     def get_schedule(self) -> dict | None:

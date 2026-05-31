@@ -24,6 +24,8 @@ FAILED_RUNPLAN_CHECK_INTERVAL = 10  # Minutes between checking if we need to reg
 USAGE_AGGREGATION_INTERVAL = 60  # Minutes between aggregating usage data
 DUMP_SMART_DEVICE_SNAPSHOT = False  # Save the JSON snapshot to a file for debugging
 DELAY_AFTER_STATE_CHANGE = 10  # Seconds to delay after changing state before refreshing status (to give Smart Device time to update)
+DEFAULT_CURRENCY_SYMBOL = "$"   # The character to use for the "major" denomination
+DEFAULT_CURRENCY_SUBUNIT_SYMBOL = "¢"   # The character to use for the "minor" denomination 
 
 
 # Amber API enumerations ======================================================
