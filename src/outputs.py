@@ -1316,6 +1316,10 @@ class OutputManager:  # noqa: PLR0904
         if not view.get_device_online(self.device_id):
             return False
 
+        # Issue 102: Check to see if output is disabled
+        if self.output_config.get("Disable", False):
+            return False
+
         is_device_output_on = view.get_output_state(self.device_output_id)
 
         # If some other task has already invalidated the run plan, we need to regenerate it.
