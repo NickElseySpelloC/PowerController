@@ -166,6 +166,7 @@ class ConfigSchema:
                         "CarID": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 1000000},
                         "DeviceOutput": {"type": "string", "required": False, "nullable": True},
                         "Mode": {"type": "string", "required": False, "nullable": True, "allowed": ["Schedule", "BestPrice"]},
+                        "Disable": {"type": "boolean", "required": False, "nullable": True},
                         "Schedule": {"type": "string", "required": False, "nullable": True},
                         "ConstraintSchedule": {"type": "string", "required": False, "nullable": True},
                         "AmberChannel": {"type": "string", "required": False, "nullable": True, "allowed": ["general", "controlledLoad"]},

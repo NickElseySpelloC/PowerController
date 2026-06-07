@@ -615,6 +615,12 @@ class OutputManager:  # noqa: PLR0904
                     new_system_state = SystemState.INPUT_OVERRIDE
                     reason_off = StateReasonOff.INPUT_SWITCH_OFF
 
+        # Issue 102: Check to see if output is disabled
+        if new_output_state is None and self.output_config.get("Disable", False):
+            new_output_state = False
+            new_system_state = SystemState.DISABLED
+            reason_off = StateReasonOff.DISABLED
+
         # Issue 66: See if the UPS health status has overridden our state. Only allow changes if the device is online
         if new_output_state is None and is_device_online:
             ups_mode: UPSMode = self._get_ups_health_status()

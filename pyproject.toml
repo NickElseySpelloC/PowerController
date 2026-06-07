@@ -1,6 +1,6 @@
 [project]
 name = "powercontroller"
-version = "2.0.6"
+version = "2.0.7"
 description = "App to control and monitor devices via Shelly and/or Tasmota smart switches"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -10,7 +10,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "flask>=3.1.2",
     "jinja2>=3.1.0",
-    "org-enums>=1.0.7",
+    "org-enums",
     "pre-commit>=4.3.0",
     "python-dateutil>=2.9.0.post0",
     "uvicorn[standard]>=0.32.0",
@@ -41,7 +41,7 @@ all = [
 ]
 
 [tool.uv.sources]
-org-enums = { git = "https://github.com/NickElseySpelloC/org_enums", tag = "v1.0.7" }
+org-enums = { git = "https://github.com/NickElseySpelloC/org_enums", rev = "main" }
 
 [tool.setuptools]
 package-dir = {"" = "src"}

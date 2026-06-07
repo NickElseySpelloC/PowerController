@@ -19,6 +19,7 @@ There's a lot of keys in this section, but not all are applicable to all types:
 | HideFromTempProbesSummary | ✓ |   |   |
 | DeviceOutput | ✓ | ✓ |  |
 | Mode | ✓ | ✓ | ✓ |
+| Disable | ✓ |  |  |
 | Schedule | ✓ | ✓ | ✓ |
 | ConstraintSchedule | ✓ |   |   |
 | AmberChannel | ✓ | ✓ | ✓ |
@@ -64,6 +65,7 @@ Note: Required keys are shown in **bold**.
 | HideFromTempProbesSummary | If included and set to True, this output will be hidden from the "Smart Devices" section of the TempProbes page in the PowerControllerViewer app. |
 | DeviceOutput | Specify the device output that controls this device - must match a Name in the SCSmartDevices: Devices: Outputs section. |
 | Mode | Operating mode:<br>**BestPrice**: Run for target hours at best price<br>**Schedule**: Run according to schedule only. |
+| Disable | If True, this output will be disabled and won't run, even if all other criteria are met. |
 | Schedule | The operating schedule to use when in Schedule mode - must match a Name in the OperatingSchedules section. |
 | ConstraintSchedule | An constraint schedule that limits when the output can run, even in BestPrice mode. |
 | AmberChannel | The Amber pricing channel to use for this device, typically either **general** or **controlledLoad**. |
