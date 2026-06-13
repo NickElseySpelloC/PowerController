@@ -40,6 +40,7 @@ from run_history import RunHistory
 from run_plan import RunPlanner
 from scheduler import Scheduler
 from helpers import get_currency_symbols
+from output_constraint import OutputConstraint
 from ups_integration import UPSIntegration
 
 
@@ -119,15 +120,11 @@ class OutputManager:  # noqa: PLR0904
         self.min_hours = 0
         self.max_hours = 0
         self.run_plan_target_mode = RunPlanTargetHours.ALL_HOURS if output_config.get("TargetHours") == -1 else RunPlanTargetHours.NORMAL
-        self.dates_off = []
 
         # Minimum runtime configuration
         self.min_on_time = 0  # minutes
         self.min_off_time = 0  # minutes
         self.max_off_time = 0  # minutes
-
-        # Temp probe constraints
-        self.temp_probe_constraints: list[dict[str, str | int | float]] = []
 
         # UPS integration
         self.ups_integration = ups_integration
@@ -149,6 +146,7 @@ class OutputManager:  # noqa: PLR0904
         self.last_changed = None
         self.reason = None
 
+        self.output_constraint: OutputConstraint | None = None
         self.initialise(output_config, view)
         self.logger.log_message(f"Output {self.name} initialised.", "debug")
 
@@ -255,17 +253,6 @@ class OutputManager:  # noqa: PLR0904
             self.app_mode_max_on_time = self.output_config.get("MaxAppOnTime", 0)
             self.app_mode_max_off_time = self.output_config.get("MaxAppOffTime", 0)
 
-            # DatesOff
-            dates_off_list = output_config.get("DatesOff", [])
-            if len(dates_off_list) > 0:
-                for date_range in dates_off_list:
-                    start_date = date_range.get("StartDate")
-                    end_date = date_range.get("EndDate")
-                    if not start_date or not end_date:
-                        _validation_error(f"Invalid date range in DatesOff for output {self.name}.")
-                    else:
-                        self.dates_off.append({"StartDate": start_date, "EndDate": end_date})
-
             # Prices
             self.max_best_price = output_config.get("MaxBestPrice")
             self.max_priority_price = output_config.get("MaxPriorityPrice")
@@ -292,28 +279,15 @@ class OutputManager:  # noqa: PLR0904
             if self.device_input_mode not in InputMode:
                 _validation_error(f"Invalid DeviceInputMode {self.device_input_mode} for output {self.name}. Must be one of {', '.join([m.value for m in InputMode])}.")
 
-            # TempProbeConstraints
-            temp_probe_constraints = output_config.get("TempProbeConstraints", [])
-            for constraint in temp_probe_constraints:
-                temp_probe_name = constraint.get("TempProbe")
-                condition = constraint.get("Condition")
-                temperature = constraint.get("Temperature")
-                fall_back_temp = constraint.get("FallBackTemp")
-                if not temp_probe_name or condition not in {"GreaterThan", "LessThan"} or not isinstance(temperature, (int, float)):
-                    _validation_error(f"Invalid TempProbeConstraint in output {self.name}.")
-                else:
-                    temp_probe_id = view.get_temp_probe_id(temp_probe_name)
-                    if not temp_probe_id:
-                        _validation_error(f"TempProbe {temp_probe_name} not found for output {self.name}.")
-                    elif condition == "GreaterThan" and fall_back_temp and fall_back_temp >= temperature:
-                        _validation_error(f"Invalid FallBackTemp for TempProbeConstraint in output {self.name}. For a GreaterThan constraint, FallBackTemp must be less than the main Temperature.")
-                    elif condition == "LessThan" and fall_back_temp and fall_back_temp <= temperature:
-                        _validation_error(f"Invalid FallBackTemp for TempProbeConstraint in output {self.name}. For a LessThan constraint, FallBackTemp must be greater than the main Temperature.")
-                    else:
-                        # Add the TempProbeID to the constraint
-                        constraint["ProbeID"] = temp_probe_id
-                        # Store the constraint for later use
-                        self.temp_probe_constraints.append(constraint)
+            # TempProbeConstraints and DatesOff are parsed and validated inside OutputConstraint
+            self.output_constraint = OutputConstraint(
+                output_config=output_config,
+                name=self.name,
+                logger=self.logger,
+                ups_integration=self.ups_integration,
+                device_output_id=self.device_output_id,
+                view=view,
+            )
 
             # ParentDeviceOutput
             self.parent_output_name = output_config.get("ParentOutput")
@@ -364,7 +338,7 @@ class OutputManager:  # noqa: PLR0904
             "MinOnTime": self.min_on_time,
             "MinOffTime": self.min_off_time,
             "MaxOffTime": self.max_off_time,
-            "DatesOff": self.dates_off,
+            "DatesOff": self.output_constraint.get_dates_off() if self.output_constraint else [],
             "RunPlan": self.run_plan,
             "RunHistory": self.run_history.history,
         }
@@ -623,7 +597,7 @@ class OutputManager:  # noqa: PLR0904
 
         # Issue 66: See if the UPS health status has overridden our state. Only allow changes if the device is online
         if new_output_state is None and is_device_online:
-            ups_mode: UPSMode = self._get_ups_health_status()
+            ups_mode: UPSMode = self.output_constraint.get_ups_health_status()  # type: ignore[union-attr]
             if ups_mode == UPSMode.TURN_ON:
                 new_output_state = True
                 new_system_state = SystemState.UPS_OVERRIDE
@@ -635,7 +609,7 @@ class OutputManager:  # noqa: PLR0904
             # if ups_mode == UPSMode.AUTO then we just fall through to the other checks as UPS is not currently dictating the state
 
         # No overrides set, now see if no run today
-        if new_output_state is None and self._is_today_excluded():
+        if new_output_state is None and self.output_constraint.is_today_excluded():  # type: ignore[union-attr]
             new_output_state = False
             new_system_state = SystemState.DATE_OFF
             reason_off = StateReasonOff.DATE_OFF
@@ -698,7 +672,7 @@ class OutputManager:  # noqa: PLR0904
 
         # If the system_state is AUTO, then make sure we don't have any temp probe constraints
         if new_system_state == SystemState.AUTO:
-            is_constraint, override_state = self._are_there_temp_probe_constraints(view, new_output_state)
+            is_constraint, override_state = self.output_constraint.are_there_temp_probe_constraints(view, new_output_state)  # type: ignore[union-attr]
             if is_constraint:
                 if override_state:  # A temp probes requires us to stay on even though we would otherwise be off
                     new_output_state = True
@@ -985,9 +959,10 @@ class OutputManager:  # noqa: PLR0904
             for entry in self.run_plan.get("RunPlan", []):
                 return_str += f"      - From {entry['StartTime'].strftime('%H:%M')} to {entry['EndTime'].strftime('%H:%M')}. Price: {entry['Price']:.2f}{self.currency_minor_symbol}/kWh, Cost: {self.currency_major_symbol}{entry['EstimatedCost']:.2f}\n"
             return_str += f"      - Planned Hours: {self.run_plan.get('PlannedHours', 0):.2f}, Estimated Cost: {self.currency_major_symbol}{self.run_plan.get('EstimatedCost', 0):.2f}\n"
-        if self.dates_off:
+        dates_off = self.output_constraint.get_dates_off() if self.output_constraint else []
+        if dates_off:
             return_str += "   - Dates off:\n"
-            for date_range in self.dates_off:
+            for date_range in dates_off:
                 return_str += f"      - From {date_range.get('StartDate')} to {date_range.get('EndDate')}\n"
         return_str += f"   - Device Meter: {self.device_meter_name}, Energy Used today: {current_day['EnergyUsed'] if current_day else 0:.2f} kWh\n"
         return_str += f"   - Device Input: {self.device_input_name} (mode: {self.device_input_mode})\n"
@@ -1209,94 +1184,6 @@ class OutputManager:  # noqa: PLR0904
 
         return False
 
-    def _is_today_excluded(self) -> bool:
-        """Check if today falls within any specified DatesOff range which states that the output should be off.
-
-        Returns:
-            result(bool): True if today is excluded, False otherwise.
-        """
-        today = DateHelper.today()
-        for rng in self.dates_off:
-            if rng["StartDate"] <= today <= rng["EndDate"]:
-                return True
-        return False
-
-    def _are_there_temp_probe_constraints(self, view: SmartDeviceView, new_output_state: bool) -> tuple[bool, bool | None]:  # noqa: ARG002, PLR0912
-        """Evaluate the temperature probe constraints to see if they require the output to be off.
-
-        Args:
-            view (SmartDeviceView): The current view of the smart devices.
-            new_output_state (bool): The proposed new state of the output (True for ON, False for OFF).
-
-        Returns:
-            tuple: A tuple containing two booleans. The first boolean is True if a temperature constraint applied, False otherwise.
-                   The second boolean indicates the state to override to if a constraint is applied (True for ON, False for OFF). None if no constraint applied.
-        """
-        current_output_state = view.get_output_state(self.device_output_id)
-        for constraint in self.temp_probe_constraints:
-            probe_name = constraint.get("TempProbe", "Unknown Probe")
-            probe_id = constraint.get("ProbeID")
-            condition = constraint.get("Condition")
-            set_temp = constraint.get("Temperature")
-            fall_back_temp = constraint.get("FallBackTemp")
-
-            if not probe_id or not isinstance(probe_id, int) or not set_temp or not isinstance(set_temp, int | float) or condition not in {"GreaterThan", "LessThan"}:
-                continue
-
-            probe_temp = view.get_temp_probe_temperature(probe_id)
-
-            self.logger.log_message(f"Checking constraint: output {self.name}; probe: {probe_name}; condition: {condition}; set temp: {set_temp}°C; fall back temp: {fall_back_temp}°C; probe reads: {probe_temp}", "all")
-
-            if condition == "GreaterThan":
-                if probe_temp is None:
-                    # Issue 45: If temp probe = N/A for greater than condition, constaint exists
-                    self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} reading is not available.", "all")
-                    return True, False
-                if probe_temp >= set_temp:
-                    continue  # No constaint for this condition
-                if fall_back_temp is None:  # No fall back range set for this condition
-                    if probe_temp < set_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C less than a minimum temperature of {set_temp}°C.", "all")
-                        return True, False  # Less than set temp and fall back doesn't apply, must stay off
-                else:   # Fall back range has been set
-                    fall_back_temp = float(fall_back_temp)
-                    if probe_temp >= fall_back_temp and probe_temp < set_temp:  # pyright: ignore[reportOperatorIssue]
-                        if current_output_state:   # In the range and output currently on
-                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "all")
-                            continue  # No constaint for this condition
-                        else:   # In the range and output currently off  # noqa: RET507
-                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "all")
-                            return True, False  # Less than set temp and fall back doesn't apply, must stay off
-                    if probe_temp < fall_back_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, less than the minimum temperature of {fall_back_temp}°C.", "all")
-                        return True, False  # Less than set temp and fall back doesn't apply, must stay off
-
-            if condition == "LessThan":
-                if probe_temp is None:
-                    # Issue 45: Ignore temp probe = N/A for less than condition
-                    self.logger.log_message(f"Temperature probe {probe_name} not available for output {self.name}.", "all")
-                    continue
-                if probe_temp <= set_temp:
-                    continue  # No constaint for this condition
-                if fall_back_temp is None:  # No fall back range set for this condition
-                    if probe_temp > set_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C more than a minimum temperature of {set_temp}°C.", "all")
-                        return True, False  # more than set temp and fall back doesn't apply, must stay off
-                else:
-                    fall_back_temp = float(fall_back_temp)
-                    if probe_temp <= fall_back_temp and probe_temp > set_temp:  # pyright: ignore[reportOperatorIssue]
-                        if current_output_state:  # In the range and output currently on
-                            self.logger.log_message(f"Output {self.name} is ON and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. No constraint.", "all")
-                            continue  # No constaint for this condition
-                        else:   # In the range and output currently off  # noqa: RET507
-                            self.logger.log_message(f"Output {self.name} is OFF and temperature probe {probe_name} is reading {probe_temp:.1f}°C which is within range of {fall_back_temp}°C to {set_temp}°C. Output must remain off.", "all")
-                            return True, False  # Less than set temp and fall back doesn't apply, must stay off
-                    if probe_temp > fall_back_temp:
-                        self.logger.log_message(f"Output {self.name} cannot turn on because temperature probe {probe_name} is reading {probe_temp:.1f}°C, more than the maximum temperature of {fall_back_temp}°C.", "all")
-                        return True, False  # Less than set temp and fall back doesn't apply, must stay off
-
-        return False, None
-
     @staticmethod
     def _get_current_thread_name() -> str:
         """Get the name of the current thread.
@@ -1424,40 +1311,3 @@ class OutputManager:  # noqa: PLR0904
         )
 
         return status_data
-
-    def _get_ups_health_status(self) -> UPSMode:
-        """Get the current UPS health status.
-
-        Returns:
-            UPSMode: The current UPS health status.
-        """
-        # If the ups_integration module isn't available, we should default to AUTO mode
-        if not self.ups_integration:
-            return UPSMode.AUTO
-
-        # Lookup the UPS configuration (if any) for this output and see if we need to adjust our behavior based on UPS status
-        ups_config = self.output_config.get("UPSIntegration", {})
-        if not ups_config:
-            return UPSMode.AUTO  # If we don't have UPS data, we should default to AUTO mode
-
-        ups_name = ups_config.get("UPS")
-        ups_action = ups_config.get("ActionIfUnhealthy")
-        if not ups_name or not ups_action or ups_action not in {"TurnOff", "TurnOn"}:
-            self.logger.log_message(f"Output {self.name} has an invalid UPSIntegration configuration. UPS and ActionIfUnhealthy are required. Defaulting to AUTO mode.", "error")
-            return UPSMode.AUTO
-
-        try:
-            ups_status = self.ups_integration.is_ups_healthy(ups_name)
-        except RuntimeError as e:
-            self.logger.log_message(f"Error checking UPS status for {self.name}: {e}", "error")
-            return UPSMode.AUTO
-        else:
-            # If the UPS is unhealthy....
-            if not ups_status and ups_action == "TurnOff":
-                self.logger.log_message(f"UPS {ups_name} is unhealthy. Output {self.name} will turn OFF based on UPSIntegration configuration.", "debug")
-                return UPSMode.TURN_OFF
-            if not ups_status and ups_action == "TurnOn":
-                self.logger.log_message(f"UPS {ups_name} is unhealthy. Output {self.name} will turn ON based on UPSIntegration configuration.", "debug")
-                return UPSMode.TURN_ON
-
-        return UPSMode.AUTO   # By default, not actio required based on UPS status
