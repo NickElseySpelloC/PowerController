@@ -8,13 +8,9 @@
       
       
       
-        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/configuration/sections/location/">
+        <link rel="canonical" href="https://github.com/NickElseySpelloC/PowerController/configuration/sections/weather_client/">
       
       
-        <link rel="prev" href="../ups_integration/">
-      
-      
-        <link rel="next" href="../teslamate/">
       
       
         
@@ -25,7 +21,7 @@
     
     
       
-        <title>Location - PowerController Utility</title>
+        <title>Configuration file - WeatherCLient section - PowerController Utility</title>
       
     
     
@@ -70,7 +66,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configuration-file-location-section" class="md-skip">
+        <a href="#configuration-file-weatherclient-section" class="md-skip">
           Skip to content
         </a>
       
@@ -106,7 +102,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Location
+              Configuration file - WeatherCLient section
             
           </span>
         </div>
@@ -394,20 +390,20 @@
       
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -428,7 +424,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -499,20 +495,20 @@
                 
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
           <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
@@ -533,7 +529,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -940,37 +936,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Location
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../location/" class="md-nav__link">
         
   
   
@@ -986,48 +955,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#google-maps-url" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Google Maps URL
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#manual" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manual
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1205,36 +1132,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#google-maps-url" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Google Maps URL
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#manual" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manual
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -1250,22 +1147,32 @@
 
 
 
-<h1 id="configuration-file-location-section">Configuration file - Location section</h1>
-<p>Specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for schedules that use this feature. </p>
-<p>You can specify your location in one of three ways - device location (IP goecoding); Google Maps URL or manual. All three options also require your timezone (see <a href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones">this page</a> for a list ). </p>
-<h2 id="google-maps-url">Google Maps URL</h2>
-<p>Use a Google Maps URL to extract the location - specify the GoogleMapsURL field and the Timezone field.</p>
-<pre><code class="language-yaml">Location:
-    Timezone: Europe/London
-    GoogleMapsURL: https://www.google.com/maps/place/Buckingham+Palace/@51.4993124,-0.1353157,14.92z
-</code></pre>
-<h2 id="manual">Manual</h2>
-<p>Manually specify the latitude and longitude - specify the Timezone, Latitude and Longitude fields.</p>
-<pre><code class="language-yaml">Location:
-    Timezone: Europe/London
-    Latitude: 51.4993124
-    Longitude: -0.1353157
-</code></pre>
+<h1 id="configuration-file-weatherclient-section">Configuration file - WeatherCLient section</h1>
+<p>This configures the <a href="https://nickelseyspelloc.github.io/sc-weather/">weather client library</a> so that the app can download currently forecast data from OpenWeatherMap or Open Meteo. OpenWeatherMap requires an API key - if one isn't provdied, the weather client will fall back to the free Open Meteo.</p>
+<p>The weather client will use the lat/long as configured in the <a href="../location/">Location section</a> to determine the location to get the weather forecast for.</p>
+<p>This weather data is used by the optional WeatherConstraint key in an Output configuration. See <a href="../outputs/">Outputs</a> for more information. </p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">RefreshIntervalMin</td>
+<td style="text-align: left;">How often to refresh the weather data (in minutes).</td>
+</tr>
+<tr>
+<td style="text-align: left;">PreferredProvider</td>
+<td style="text-align: left;">Preferred weather data provider. One of "owm" (OpenWeatherMap) or "open_meteo" (Open Meteo). The app will fall back to Open-Meteo if OWM is selected but no valid API key is provided.</td>
+</tr>
+<tr>
+<td style="text-align: left;">OWMAPIKey</td>
+<td style="text-align: left;">OpenWeatherMap API key (optional — falls back to Open-Meteo if blank). Can also be set in the OWM_API_KEY environment variable.</td>
+</tr>
+</tbody>
+</table>
 
 
 

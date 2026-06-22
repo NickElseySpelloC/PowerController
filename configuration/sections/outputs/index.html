@@ -728,6 +728,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outputs
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -744,6 +762,36 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#weatherconstraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WeatherConstraint
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1146,6 +1194,25 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#weatherconstraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WeatherConstraint
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1356,8 +1423,8 @@
 <td style="text-align: left;"></td>
 </tr>
 <tr>
-<td style="text-align: left;">TurnOffSequence  ✓</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">TurnOffSequence</td>
+<td style="text-align: left;">✓</td>
 <td style="text-align: left;"></td>
 <td style="text-align: left;"></td>
 </tr>
@@ -1411,6 +1478,12 @@
 </tr>
 <tr>
 <td style="text-align: left;">TempProbeConstraints</td>
+<td style="text-align: left;">✓</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;">WeatherConstraint</td>
 <td style="text-align: left;">✓</td>
 <td style="text-align: left;"></td>
 <td style="text-align: left;"></td>
@@ -1587,9 +1660,34 @@
 <td style="text-align: left;">TempProbeConstraints</td>
 <td style="text-align: left;">List of temperature probe constraints that must be met for the output to run. Each entry must include:<br><strong>TempProbe</strong>: The name of the temperature probe that constrains this output. Must be defined in the SCSmartDevices: Devices: TempProbes section.<br><strong>Condition</strong>: Either <em>GreaterThan</em> or <em>LessThan</em><br><strong>Temperature</strong>: The threshold temperature on degress C.<br><strong>FallBackTemp</strong>: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C.</td>
 </tr>
+<tr>
+<td style="text-align: left;">WeatherConstraint</td>
+<td style="text-align: left;">See below.</td>
+</tr>
 </tbody>
 </table>
 <p>Take a look at the <a href="../../example_config/">example configuration file</a> for some real world examples.</p>
+<h2 id="weatherconstraint">WeatherConstraint</h2>
+<p>One or more weather conditions can be specified that if true, will override the output to be either on or off. To use this feature, you must first configure the <a href="../location/">Location</a> and <a href="../weather_client/">WeatherClient</a> sections of the config file.</p>
+<p>The WeatherConstraint key can define the weather conditions in any combination of sky conditions; preciptation and temperature. If any of these are true, the constaint to come into effect:</p>
+<pre><code class="language-yaml">Outputs:
+  - Name: Test Output
+    WeatherConstraint:
+      SkyCondition: overcast, drizzle, rain, snow, thunderstorm
+      TemperatureBelow: 20.0
+      PrecipitationProbabilityAbove: 0.5
+      ActionIfMatch: TurnOff
+</code></pre>
+<p>These keys define one or more weather criteria for the constraint to become in effect:
+*  SkyCondition: A list of sky condition enumeration names, as defined in the <code>WeatherCondition</code> enum in the sc-weather-client library. If any of these match the current sky condition, we have a match.
+*  TemperatureBelow: We have a match if the current temperature reading is below this number.
+*  TemperatureAbove: We have a match if the current temperature reading is above this number.
+*  PrecipitationProbabilityAbove: We have a match if the precip_probability key in the WeatherReading dataclass is greater than this number. 
+*  PrecipitationProbabilityBelow: We have a match if the precip_probability key in the WeatherReading dataclass is less than this number. </p>
+<p>If multiple keys are provided (as in the example above), then we have a match if any of them match (i.e. OR combination).</p>
+<p>The <code>ActionIfMatch</code> key defines what happens when we have a match:
+* TurnOff: The output runplan is overridden and turned off
+* TurnOn: The output runplan is overridden and turned on</p>
 
 
 
