@@ -1,19 +1,22 @@
 """Helper class for evaluating output constraints."""
 from sc_foundation import DateHelper, SCLogger
 from sc_smart_device import SmartDeviceView
+from sc_weather.models import WeatherCondition
 
-from local_enumerations import UPSMode
+from local_enumerations import UPSMode, WeatherMode
 from ups_integration import UPSIntegration
+from weather_integration import WeatherIntegration
 
 
 class OutputConstraint:
     """Evaluates constraint conditions for an output device."""
 
-    def __init__(self, output_config: dict, name: str, logger: SCLogger, ups_integration: UPSIntegration, device_output_id: int, view: SmartDeviceView):
+    def __init__(self, output_config: dict, name: str, logger: SCLogger, ups_integration: UPSIntegration, weather_integration: WeatherIntegration, device_output_id: int, view: SmartDeviceView):
         self.output_config = output_config
         self.name = name
         self.logger = logger
         self.ups_integration = ups_integration
+        self.weather_integration = weather_integration
         self.device_output_id = device_output_id
 
         self.dates_off: list[dict] = []
@@ -42,6 +45,54 @@ class OutputConstraint:
                 raise RuntimeError(f"Invalid FallBackTemp for TempProbeConstraint in output {name}. For a LessThan constraint, FallBackTemp must be greater than the main Temperature.")
             constraint["ProbeID"] = temp_probe_id
             self.temp_probe_constraints.append(constraint)
+
+        # Parse the optional WeatherConstraint
+        self.weather_constraint: dict | None = None
+        weather_config = output_config.get("WeatherConstraint")
+        if weather_config:
+            action = weather_config.get("ActionIfMatch")
+            if action not in {"TurnOn", "TurnOff"}:
+                raise RuntimeError(f"Invalid or missing ActionIfMatch in WeatherConstraint for output {name}. Must be TurnOn or TurnOff.")
+
+            sky_conditions: set[WeatherCondition] = set()
+            sky_condition_str = weather_config.get("SkyCondition")
+            if sky_condition_str:
+                for token in sky_condition_str.split(","):
+                    if not token.strip():
+                        continue
+                    condition = self._parse_sky_condition(token)
+                    if condition is None:
+                        raise RuntimeError(f"Invalid SkyCondition '{token.strip()}' in WeatherConstraint for output {name}. Must be one of: {', '.join(c.name for c in WeatherCondition)}.")
+                    sky_conditions.add(condition)
+
+            self.weather_constraint = {
+                "sky_conditions": sky_conditions,
+                "temperature_below": weather_config.get("TemperatureBelow"),
+                "temperature_above": weather_config.get("TemperatureAbove"),
+                "precip_above": weather_config.get("PrecipitationProbabilityAbove"),
+                "precip_below": weather_config.get("PrecipitationProbabilityBelow"),
+                "action": action,
+            }
+
+    @staticmethod
+    def _parse_sky_condition(token: str) -> WeatherCondition | None:
+        """Resolve a configured sky condition token to a WeatherCondition, matching by enum name or value (case-insensitive).
+
+        Args:
+            token (str): The configured sky condition token (e.g. "overcast" or "OVERCAST").
+
+        Returns:
+            WeatherCondition | None: The matching WeatherCondition, or None if the token is invalid.
+        """
+        cleaned = token.strip()
+        if not cleaned:
+            return None
+        if cleaned.upper() in WeatherCondition.__members__:
+            return WeatherCondition[cleaned.upper()]
+        for condition in WeatherCondition:
+            if condition.value == cleaned.lower():
+                return condition
+        return None
 
     def get_dates_off(self) -> list[dict]:
         """Return the parsed DatesOff list."""
@@ -92,6 +143,54 @@ class OutputConstraint:
                 return UPSMode.TURN_ON
 
         return UPSMode.AUTO
+
+    def get_weather_constraint_status(self) -> WeatherMode:
+        """Evaluate the weather constraint against the current weather reading.
+
+        Criteria (sky condition, temperature, precipitation probability) are combined with OR logic:
+        if any configured criterion matches, the constraint is in effect and the configured ActionIfMatch applies.
+
+        Returns:
+            WeatherMode: TURN_ON or TURN_OFF if the constraint is in effect, otherwise AUTO.
+        """
+        if not self.weather_integration or not self.weather_constraint:
+            return WeatherMode.AUTO
+
+        reading = self.weather_integration.get_current_reading()
+        if reading is None:
+            # No weather data available yet, so the constraint cannot apply.
+            return WeatherMode.AUTO
+
+        constraint = self.weather_constraint
+        matched_reason: str | None = None
+
+        current_condition = reading.sky.icon_info.condition_key
+        if constraint["sky_conditions"] and current_condition in constraint["sky_conditions"]:
+            matched_reason = f"sky condition '{current_condition.value}' matches"
+
+        temperature = reading.temperature.reading
+        if matched_reason is None and temperature is not None:
+            if constraint["temperature_below"] is not None and temperature < constraint["temperature_below"]:
+                matched_reason = f"temperature {temperature}°C is below {constraint['temperature_below']}°C"
+            elif constraint["temperature_above"] is not None and temperature > constraint["temperature_above"]:
+                matched_reason = f"temperature {temperature}°C is above {constraint['temperature_above']}°C"
+
+        precip = reading.precip_probability
+        if matched_reason is None and precip is not None:
+            if constraint["precip_above"] is not None and precip > constraint["precip_above"]:
+                matched_reason = f"precipitation probability {precip} is above {constraint['precip_above']}"
+            elif constraint["precip_below"] is not None and precip < constraint["precip_below"]:
+                matched_reason = f"precipitation probability {precip} is below {constraint['precip_below']}"
+
+        if matched_reason is None:
+            return WeatherMode.AUTO
+
+        if constraint["action"] == "TurnOff":
+            self.logger.log_message(f"Weather constraint for output {self.name} matched ({matched_reason}). Output will turn OFF.", "debug")
+            return WeatherMode.TURN_OFF
+
+        self.logger.log_message(f"Weather constraint for output {self.name} matched ({matched_reason}). Output will turn ON.", "debug")
+        return WeatherMode.TURN_ON
 
     def are_there_temp_probe_constraints(self, view: SmartDeviceView, new_output_state: bool) -> tuple[bool, bool | None]:  # noqa: ARG002, PLR0912
         """Evaluate the temperature probe constraints to see if they require the output to be off.

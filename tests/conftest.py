@@ -19,6 +19,7 @@ from config_schemas import ConfigSchema
 from sc_foundation import SCConfigManager, SCLogger
 from scheduler import Scheduler
 from ups_integration import UPSIntegration
+from weather_integration import WeatherIntegration
 
 from sc_smart_device import SCSmartDevice, SmartDeviceStatus, SmartDeviceView, SmartDeviceWorker, smart_devices_validator
 
@@ -75,6 +76,12 @@ def scheduler(config, logger):
 def ups_integration(config, logger):
     """Return an UPSIntegration built from the test config (disabled)."""
     return UPSIntegration(config, logger)
+
+
+@pytest.fixture(scope="session")
+def weather_integration(config, logger):
+    """Return a WeatherIntegration built from the test config (disabled unless WeatherClient configured)."""
+    return WeatherIntegration(config, logger)
 
 
 @pytest.fixture(scope="session")

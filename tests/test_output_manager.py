@@ -102,7 +102,7 @@ def _future_slot_plan() -> dict:
 
 
 @pytest.fixture(scope="module")
-def output_manager(config, logger, scheduler, ups_integration, smart_device_workers):
+def output_manager(config, logger, scheduler, ups_integration, weather_integration, smart_device_workers):
     """Build a real OutputManager using the simulated SmartDeviceWorker snapshot."""
     view = smart_device_workers.get_latest_status()
     pricing = PricingManager(config, logger)
@@ -126,6 +126,7 @@ def output_manager(config, logger, scheduler, ups_integration, smart_device_work
         pricing=pricing,
         view=view,
         ups_integration=ups_integration,
+        weather_integration=weather_integration,
         saved_state=None,
     )
     return om
@@ -189,7 +190,7 @@ class TestInitialisation:
     def test_ups_integration_set(self, output_manager, ups_integration):
         assert output_manager.ups_integration is ups_integration
 
-    def test_invalid_device_output_raises(self, config, logger, scheduler, ups_integration, smart_device_workers):
+    def test_invalid_device_output_raises(self, config, logger, scheduler, ups_integration, weather_integration, smart_device_workers):
         view = smart_device_workers.get_latest_status()
         pricing = PricingManager(config, logger)
         bad_config = {
@@ -203,7 +204,7 @@ class TestInitialisation:
             "MaxPriorityPrice": 100.0,
         }
         with pytest.raises(RuntimeError):
-            OutputManager(bad_config, config, logger, scheduler, pricing, view, ups_integration)
+            OutputManager(bad_config, config, logger, scheduler, pricing, view, ups_integration, weather_integration)
 
 
 # ---------------------------------------------------------------------------

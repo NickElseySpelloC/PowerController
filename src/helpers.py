@@ -1,5 +1,6 @@
 """General helper functions"""
 import csv
+import re
 from pathlib import Path
 
 from sc_foundation import SCConfigManager
@@ -20,8 +21,39 @@ def get_currency_symbols(config: SCConfigManager) -> tuple[str, str]:
     """
     major = config.get("General", "CurrencySymbol", default=DEFAULT_CURRENCY_SYMBOL) or DEFAULT_CURRENCY_SYMBOL
     minor = config.get("General", "CurrencySubunitSymbol", default=DEFAULT_CURRENCY_SUBUNIT_SYMBOL) or DEFAULT_CURRENCY_SUBUNIT_SYMBOL
-    
+
     return major, minor  # pyright: ignore[reportReturnType]
+
+
+def get_location_coordinates(config: SCConfigManager) -> tuple[float | None, float | None]:
+    """Resolve the configured latitude and longitude from the Location config section.
+
+    Coordinates are taken from the GoogleMapsURL if present, otherwise from the explicit
+    Latitude/Longitude config values. The Shelly-device location source (used by the
+    scheduler for dawn/dusk) is not consulted here as it requires runtime device data.
+
+    Args:
+        config (SCConfigManager): The configuration manager for the system.
+
+    Returns:
+        tuple[float | None, float | None]: The (latitude, longitude) pair, or (None, None) if unavailable.
+    """
+    loc_conf = config.get("Location", default={}) or {}
+    if not isinstance(loc_conf, dict):
+        return None, None
+
+    google_maps_url = loc_conf.get("GoogleMapsURL")
+    if google_maps_url:
+        match = re.search(r"@?([-]?\d+\.\d+),([-]?\d+\.\d+)", google_maps_url)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+
+    lat = loc_conf.get("Latitude")
+    lon = loc_conf.get("Longitude")
+    if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+        return float(lat), float(lon)
+
+    return None, None
 
 
 class DebugSupport:

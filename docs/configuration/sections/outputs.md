@@ -43,7 +43,7 @@ There's a lot of keys in this section, but not all are applicable to all types:
 | MinOffTime | ✓ |   |   |
 | ParentOutput | ✓ |   |   |
 | TurnOnSequence | ✓ |   |   |
-| TurnOffSequence  ✓ |   |   |
+| TurnOffSequence | ✓ |   |   |
 | MaxAppOnTime | ✓ |   |   |
 | MaxAppOffTime | ✓ |   |   |
 | UPSIntegration | ✓ |   |   |
@@ -53,6 +53,7 @@ There's a lot of keys in this section, but not all are applicable to all types:
 | HideFromWebApp | ✓ | ✓ | ✓ |
 | HideFromViewerApp | ✓ | ✓ | ✓ |
 | TempProbeConstraints | ✓ |   |   |
+| WeatherConstraint | ✓ |   |   |
 
 The complete list of keys applicable in this section are as follows:
 
@@ -100,5 +101,35 @@ Note: Required keys are shown in **bold**.
 | HideFromWebApp | If True, this output will not be shown in the built-in web app. |
 | HideFromViewerApp | If True, this output will not be shown in the PowerControllerViewer app. |
 | TempProbeConstraints | List of temperature probe constraints that must be met for the output to run. Each entry must include:<br>**TempProbe**: The name of the temperature probe that constrains this output. Must be defined in the SCSmartDevices: Devices: TempProbes section.<br>**Condition**: Either _GreaterThan_ or _LessThan_<br>**Temperature**: The threshold temperature on degress C.<br>**FallBackTemp**: Optionally the temperature fall back limit that prevents hysteresis. For example, if Condition = GreaterThan and Temperature = 30 amd FallBackTemp = 25, then the output won't turn on until the probe temperature reaches 30c, but once on won't turn off until the temperature falls below 25C. |
+| WeatherConstraint | See below. |
 
 Take a look at the [example configuration file](../example_config.md) for some real world examples.
+
+## WeatherConstraint
+
+One or more weather conditions can be specified that if true, will override the output to be either on or off. To use this feature, you must first configure the [Location](location.md) and [WeatherClient](weather_client.md) sections of the config file.
+
+The WeatherConstraint key can define the weather conditions in any combination of sky conditions; preciptation and temperature. If any of these are true, the constaint to come into effect:
+ 
+```yaml
+Outputs:
+  - Name: Test Output
+    WeatherConstraint:
+      SkyCondition: overcast, drizzle, rain, snow, thunderstorm
+      TemperatureBelow: 20.0
+      PrecipitationProbabilityAbove: 0.5
+      ActionIfMatch: TurnOff
+```
+ 
+These keys define one or more weather criteria for the constraint to become in effect:
+*  SkyCondition: A list of sky condition enumeration names, as defined in the `WeatherCondition` enum in the sc-weather-client library. If any of these match the current sky condition, we have a match.
+*  TemperatureBelow: We have a match if the current temperature reading is below this number.
+*  TemperatureAbove: We have a match if the current temperature reading is above this number.
+*  PrecipitationProbabilityAbove: We have a match if the precip_probability key in the WeatherReading dataclass is greater than this number. 
+*  PrecipitationProbabilityBelow: We have a match if the precip_probability key in the WeatherReading dataclass is less than this number. 
+
+If multiple keys are provided (as in the example above), then we have a match if any of them match (i.e. OR combination).
+
+The `ActionIfMatch` key defines what happens when we have a match:
+* TurnOff: The output runplan is overridden and turned off
+* TurnOn: The output runplan is overridden and turned on

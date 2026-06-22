@@ -62,6 +62,7 @@ except ImportError:
     class TeslaMateOutput:  # type: ignore[no-redef]
         """Stub used when the teslamate optional dependency is not installed."""
 from ups_integration import UPSIntegration
+from weather_integration import WeatherIntegration
 
 
 class LookupMode(StrEnum):
@@ -128,6 +129,9 @@ class PowerController:
 
         # UPS Integration
         self.ups_integration = UPSIntegration(config, logger)
+
+        # Weather Integration
+        self.weather_integration = WeatherIntegration(config, logger)
 
         # DataAPI related
         self.data_api_data: dict = {}   # Safe copy of the latest data
@@ -462,7 +466,7 @@ class PowerController:
                 # Create a new output manager
                 output_manager = None
                 if output_type == "smart_device":
-                    output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, self.ups_integration, output_state)
+                    output_manager = OutputManager(output_cfg, self.config, self.logger, self.scheduler, self.pricing, view, self.ups_integration, self.weather_integration, output_state)
                 if output_type == "teslamate":
                     output_manager = TeslaMateOutput(output_cfg, self.config, self.logger, self.scheduler, self.pricing, self.tesla_charge_data, output_state) # pyright: ignore[reportCallIssue]
                 if output_type == "meter":
@@ -531,6 +535,9 @@ class PowerController:
         # Reinitialise the UPS integration
         self.ups_integration.initialise()
 
+        # Reinitialise the weather integration
+        self.weather_integration.initialise()
+
         # Load DataAPI data if enabled
         self._data_api_config = self.config.get("DataAPI", default={}) or {}
         self._initialise_data_api_cache()
@@ -565,6 +572,9 @@ class PowerController:
 
         # Get the latest UPS data and update the UPSIntegration object
         self.ups_integration.read_ups_data()
+
+        # Get the latest weather data and update the WeatherIntegration object
+        self.weather_integration.read_weather_data()
 
         # Get the location data for all devices and save it to each OutputManager if needed
         self._save_device_location_data()

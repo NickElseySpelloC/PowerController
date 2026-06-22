@@ -225,6 +225,15 @@ wheels = [
 ]
 
 [[package]]
+name = "geojson"
+version = "3.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/13/a9/bd61eee2c7904947094b74866b569f3fd5a8d6ac907ecdfecef74b19d459/geojson-3.3.0.tar.gz", hash = "sha256:92e83b9cb378a450b42f1207bb9b2a031f9fc89185f335153c44369b8b8b71fd", size = 25141, upload-time = "2026-05-28T21:48:08.214Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/aa/5e/fdd72167b57158d743353f71d453200719744d1e75f18b1c8230508db370/geojson-3.3.0-py3-none-any.whl", hash = "sha256:a2d885187eeaa8b357600b3fcc9d963cb4300d1694196636dbd7eddc82fd0825", size = 15181, upload-time = "2026-05-28T21:48:06.648Z" },
+]
+
+[[package]]
 name = "ghp-import"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -571,8 +580,8 @@ wheels = [
 
 [[package]]
 name = "org-enums"
-version = "1.0.8"
-source = { git = "https://github.com/NickElseySpelloC/org_enums?rev=main#c9cf191aadee267ff0ed4a82f6b0831f6e65bf06" }
+version = "1.0.9"
+source = { git = "https://github.com/NickElseySpelloC/org_enums?rev=main#e3f1181ce612176ecb8d72112dc9179e39cc1f16" }
 dependencies = [
     { name = "pytest" },
 ]
@@ -639,7 +648,7 @@ wheels = [
 
 [[package]]
 name = "powercontroller"
-version = "2.0.8"
+version = "2.0.9"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
@@ -651,6 +660,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "sc-foundation-services" },
     { name = "sc-smart-device" },
+    { name = "sc-weather" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "werkzeug" },
 ]
@@ -708,6 +718,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "sc-foundation-services", specifier = ">=3.2.0" },
     { name = "sc-smart-device", specifier = ">=3.2.0" },
+    { name = "sc-weather", specifier = ">=3.0.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
@@ -866,6 +877,29 @@ wheels = [
 ]
 
 [[package]]
+name = "pyowm"
+version = "3.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "geojson" },
+    { name = "pysocks" },
+    { name = "requests", extra = ["socks"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3f/bc/4afbc60995ba757b0f6c4d200daa4b544a5100154ffcf169b848d5ef0392/pyowm-3.5.0.tar.gz", hash = "sha256:9a44d6d43941419a73fd9dbe16066ad8a25204ea906774fd5bf5b0ec52d2a1a4", size = 4516427, upload-time = "2025-08-26T22:35:05.292Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/41/f1cf7e715a90dd3ba3d1c5a20ba3703529a41a27ce6fd5a6700acc78a8fe/pyowm-3.5.0-py3-none-any.whl", hash = "sha256:6f71bdec738af809b7a43c0725094756f04dbf78bf48eb0f72efbfc6f11ddd8f", size = 4546678, upload-time = "2025-08-26T22:35:03.635Z" },
+]
+
+[[package]]
+name = "pysocks"
+version = "1.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/11/293dd436aea955d45fc4e8a35b6ae7270f5b8e00b53cf6c024c83b657a11/PySocks-1.7.1.tar.gz", hash = "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0", size = 284429, upload-time = "2019-09-20T02:07:35.714Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/59/b4572118e098ac8e46e399a1dd0f2d85403ce8bbaad9ec79373ed6badaf9/PySocks-1.7.1-py3-none-any.whl", hash = "sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5", size = 16725, upload-time = "2019-09-20T02:06:22.938Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "8.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -999,6 +1033,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
 ]
 
+[package.optional-dependencies]
+socks = [
+    { name = "pysocks" },
+]
+
 [[package]]
 name = "sc-foundation-services"
 version = "3.2.0"
@@ -1032,6 +1071,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ff/f7/e67d21fd23e9014a15c86a5d9ab26f9371b3a6cb915a90b04db243eea4c8/sc_smart_device-3.2.0.tar.gz", hash = "sha256:fd05f87a2ef964f15915fae9fd262819b48ac17de7513d9210df7b4a5efc3b84", size = 46450, upload-time = "2026-04-24T08:35:29.369Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/23/16/0aa84454d950c5165f792f7ff3d07cdd6ef9000541a33a799bd746a7e257/sc_smart_device-3.2.0-py3-none-any.whl", hash = "sha256:5902d5e18695d08774ce08bf81e8f9460a3bdee4ffba395a8e1fa3902323db5c", size = 44423, upload-time = "2026-04-24T08:35:28.017Z" },
+]
+
+[[package]]
+name = "sc-weather"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyowm" },
+    { name = "sc-foundation-services" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f3/ea/9b2cfb281f9672109eaa6a8e3a8ed6b6932fd609cce696fbdb6491bacc15/sc_weather-3.0.1.tar.gz", hash = "sha256:48bacd099ddb41eff8ff2d9680dec33dcd40e6305da3cfd638138b29a6262839", size = 1015198, upload-time = "2026-04-21T01:46:54.298Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a9/ca/054d1a0f5c3fa3a60a61aa1554ec8041fa17ae431bd3844dd004c7afee55/sc_weather-3.0.1-py3-none-any.whl", hash = "sha256:178070a3951b0c14110645b528e9236c0780ec8b895ccd0b2ff50ebe72ebaa75", size = 3931341, upload-time = "2026-04-21T01:46:52.155Z" },
 ]
 
 [[package]]

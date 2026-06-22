@@ -102,3 +102,10 @@ class UPSMode(StrEnum):
     TURN_ON = "on"       # UPS health requires the output to turn on
     TURN_OFF = "off"     # UPS health requires the output to turn off
     AUTO = "auto"   # UPS health allows the output to operate automatically
+
+
+class WeatherMode(StrEnum):
+    """Possible outcomes of a weather constraint evaluation."""
+    TURN_ON = "on"       # Weather conditions require the output to turn on
+    TURN_OFF = "off"     # Weather conditions require the output to turn off
+    AUTO = "auto"   # Weather conditions allow the output to operate automatically

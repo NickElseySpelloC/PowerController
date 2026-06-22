@@ -232,6 +232,19 @@ class ConfigSchema:
                                 "ActionIfUnhealthy": {"type": "string", "required": True, "allowed": ["TurnOn", "TurnOff"]},
                             },
                         },
+                        "WeatherConstraint": {
+                            "type": "dict",
+                            "required": False,
+                            "nullable": True,
+                            "schema": {
+                                "SkyCondition": {"type": "string", "required": False, "nullable": True},
+                                "TemperatureBelow": {"type": "number", "required": False, "nullable": True, "min": -50.0, "max": 100.0},
+                                "TemperatureAbove": {"type": "number", "required": False, "nullable": True, "min": -50.0, "max": 100.0},
+                                "PrecipitationProbabilityBelow": {"type": "number", "required": False, "nullable": True, "min": 0.0, "max": 1.0},
+                                "PrecipitationProbabilityAbove": {"type": "number", "required": False, "nullable": True, "min": 0.0, "max": 1.0},
+                                "ActionIfMatch": {"type": "string", "required": True, "allowed": ["TurnOn", "TurnOff"]},
+                            },
+                        },
                     },
                 },
             },
@@ -262,6 +275,16 @@ class ConfigSchema:
                             },
                         },
                     },
+                },
+            },
+
+            "WeatherClient": {
+                "type": "dict",
+                "required": False,
+                "schema": {
+                    "RefreshIntervalMin": {"type": "number", "required": False, "nullable": True, "min": 1, "max": 1440},
+                    "PreferredProvider": {"type": "string", "required": False, "nullable": True, "allowed": ["OpenWeatherMap", "open_meteo"]},
+                    "OWMAPIKey": {"type": "string", "required": False, "nullable": True},
                 },
             },
             "TempProbeLogging": {

@@ -34,6 +34,7 @@ from local_enumerations import (
     OutputActionType,
     OutputStatusData,
     UPSMode,
+    WeatherMode,
 )
 from pricing import PricingManager
 from run_history import RunHistory
@@ -42,13 +43,14 @@ from scheduler import Scheduler
 from helpers import get_currency_symbols
 from output_constraint import OutputConstraint
 from ups_integration import UPSIntegration
+from weather_integration import WeatherIntegration
 
 
 class OutputManager:  # noqa: PLR0904
     """Manages the state of a single Smart Device output device and associated resources."""
 
     # Public Functions ============================================================================
-    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, view: SmartDeviceView, ups_integration: UPSIntegration, saved_state: dict | None = None):  # noqa: PLR0915
+    def __init__(self, output_config: dict, config: SCConfigManager, logger: SCLogger, scheduler: Scheduler, pricing: PricingManager, view: SmartDeviceView, ups_integration: UPSIntegration, weather_integration: WeatherIntegration, saved_state: dict | None = None):  # noqa: PLR0915
         """Manages the state of a single Smart Device output device.
 
         Args:
@@ -59,6 +61,7 @@ class OutputManager:  # noqa: PLR0904
             pricing (PricingManager): The pricing manager for handling pricing-related tasks.
             view (SmartDeviceView): The current view of the Smart Device devices.
             ups_integration (UPSIntegration): The UPS integration manager for handling UPS-related tasks.
+            weather_integration (WeatherIntegration): The weather integration manager for handling weather-related constraints.
             saved_state (dict | None): The previously saved state of the output manager, if any.
         """
         self.output_config = output_config
@@ -128,6 +131,7 @@ class OutputManager:  # noqa: PLR0904
 
         # UPS integration
         self.ups_integration = ups_integration
+        self.weather_integration = weather_integration
 
         # Track state changes
         self._output_action_request: OutputAction | None = None
@@ -291,6 +295,7 @@ class OutputManager:  # noqa: PLR0904
                 name=self.name, # pyright: ignore[reportArgumentType]
                 logger=self.logger,
                 ups_integration=self.ups_integration,
+                weather_integration=self.weather_integration,
                 device_output_id=self.device_output_id,
                 view=view,
             )
@@ -619,6 +624,19 @@ class OutputManager:  # noqa: PLR0904
             new_output_state = False
             new_system_state = SystemState.DATE_OFF
             reason_off = StateReasonOff.DATE_OFF
+
+        # Issue 103: See if a weather constraint has overridden our state. Only allow changes if the device is online
+        if new_output_state is None and is_device_online:
+            weather_mode: WeatherMode = self.output_constraint.get_weather_constraint_status()  # type: ignore[union-attr]
+            if weather_mode == WeatherMode.TURN_ON:
+                new_output_state = True
+                new_system_state = SystemState.WEATHER_OVERRIDE
+                reason_on = StateReasonOn.WEATHER_OVERRIDE
+            if weather_mode == WeatherMode.TURN_OFF:
+                new_output_state = False
+                new_system_state = SystemState.WEATHER_OVERRIDE
+                reason_off = StateReasonOff.WEATHER_OVERRIDE
+            # if weather_mode == WeatherMode.AUTO then we just fall through to the other checks as weather is not currently dictating the state
 
         # If new_output_state hasn't been set at this point, we're in auto mode
         if new_output_state is None:
