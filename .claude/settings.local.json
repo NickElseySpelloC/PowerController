@@ -1,21 +1,20 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.venv/bin/python -m pytest *)",
-      "Bash(python -m pytest *)",
-      "Bash(gh issue *)",
-      "WebFetch(domain:github.com)",
-      "Bash(curl -s \"https://api.github.com/repos/NickElseySpelloC/PowerController/issues/103/comments\")",
-      "Bash(curl -s \"https://api.github.com/repos/NickElseySpelloC/PowerController/issues/103\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('TITLE:',d['title']\\); print\\('STATE:',d['state']\\); print\\('CREATED:',d['created_at']\\); print\\('---BODY---'\\); print\\(d['body']\\)\")",
-      "Bash(python3 -c \"import sys; print\\([p for p in sys.path]\\)\")",
-      "Bash(pip show *)",
-      "Bash(uv pip *)",
-      "Bash(python3 -c \"import org_enums, inspect; print\\(inspect.getfile\\(org_enums\\)\\)\")",
-      "Bash(uv run *)",
-      "Bash(grep -rn -iA8 \"WeatherClient\" config/dev_constraints.yaml)",
-      "Bash(sed -n '90,110p' configs/dev_constraints.yaml)",
-      "Bash(grep -n -iB2 -A8 \"WeatherConstraint\" configs/dev_constraints.yaml)"
+      "Read(//Users/nick/dev/finance_tools/*/*)",
+      "Skill(claude-api:*)",
+      "Bash(unzip:*)",
+      "Read(//private/tmp/*/**)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(uv:*)",
+      "Bash(mkdir:*)",
+      "Bash(echo:*)",
+      "Bash(break)",
+      "Bash(cd:*)",
+      "Bash(grep:*)",
+      "Read(//Users/nick/Library/LaunchAgents/**)",
+      "Bash(launchctl list *)",
     ]
   }
 }
