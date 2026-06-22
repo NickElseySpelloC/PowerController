@@ -448,16 +448,16 @@ class PowerController:
             for output_cfg in outputs_config:
                 output_type = (output_cfg.get("Type") or "smart_device").strip().lower() if isinstance(output_cfg.get("Type"), str) else (output_cfg.get("Type") or "smart_device")
 
-                # Search for an existing output with the same name and update it if found
-                if any(o.name == output_cfg.get("Name") for o in self.outputs):
-                    existing_output = next(o for o in self.outputs if o.name == output_cfg.get("Name"))
-                    existing_output.initialise(output_cfg, view)
-                    continue
-
                 # See if we can find saved state for this output
                 output_state = None
                 if saved_state and "Outputs" in saved_state:
                     output_state = next((o for o in saved_state["Outputs"] if o.get("Name") == output_cfg.get("Name")), None)
+
+                # Search for an existing output with the same name and update it if found
+                if any(o.name == output_cfg.get("Name") for o in self.outputs):
+                    existing_output = next(o for o in self.outputs if o.name == output_cfg.get("Name"))
+                    existing_output.initialise(output_config = output_cfg, view = view, saved_state = output_state)
+                    continue
 
                 # Create a new output manager
                 output_manager = None

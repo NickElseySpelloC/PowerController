@@ -512,39 +512,8 @@ class Scheduler:
         """
         loc_conf = self.config.get("Location", default={})
         assert isinstance(loc_conf, dict), "Location configuration must be a dictionary"
-        tz = lat = lon = None
 
-        # See if we have a Shelly device specified to get the location from
-        device_name = loc_conf.get("UseShellyDevice")
-        if device_name:
-            # Get the tz, lat and long from the specified device
-            loc = loc_info.get(device_name, {}) if loc_info else None
-            if loc:
-                tz = loc.get("tz")
-                lat = loc.get("lat")
-                lon = loc.get("lon")
-
-        # If we were unable to get the location from the device, see if we can extract it from the Google Maps url (if supplied)
-        if tz is None:
-            tz = loc_conf.get("Timezone")
-            # Extract coordinates
-            if "GoogleMapsURL" in loc_conf and loc_conf["GoogleMapsURL"] is not None:
-                url = loc_conf["GoogleMapsURL"]
-                match = re.search(r"@?([-]?\d+\.\d+),([-]?\d+\.\d+)", url)
-                if match:
-                    lat = float(match.group(1))
-                    lon = float(match.group(2))
-            else:   # Last resort, try the config values
-                lat = loc_conf.get("Latitude")
-                lon = loc_conf.get("Longitude")
-
-        if lat is None or lon is None:
-            self.logger.log_message("Latitude and longitude could not be determined, using defaults for 0°00'00\"N 0°00'00.0\"E.", "warning")
-            tz = tz or "UTC"
-            lat = 0.0
-            lon = 0.0
-
-        astral_info = DateHelper.get_dawn_dusk_times(latitude=lat, longitude=lon, timezone=tz)   # Issue 80
+        astral_info = DateHelper.dawn_dusk_times(location_config=loc_conf)
 
         return_obj = {
             "dawn": astral_info["dawn"].time(),

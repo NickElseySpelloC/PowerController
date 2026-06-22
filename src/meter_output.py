@@ -88,7 +88,7 @@ class MeterOutput:
             self.logger.log_fatal_error(f"Error initializing RunHistory for output {self.name}: {e}")
             self.run_history = RunHistory(self.logger, self._effective_history_config(output_config), None)
 
-        self.initialise(output_config, view)
+        self.initialise(output_config, view, saved_state)
         self.logger.log_message(f"Output {self.name} initialised.", "debug")
 
     @staticmethod
@@ -106,7 +106,7 @@ class MeterOutput:
     def set_parent_output(self, parent: Any) -> None:
         self.parent_output = parent
 
-    def initialise(self, output_config: dict[str, Any], view: Any) -> None:
+    def initialise(self, output_config: dict[str, Any], view: Any, _saved_state: Any) -> None:
         def _validation_error(msg):
             raise RuntimeError(msg)
 

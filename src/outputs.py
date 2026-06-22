@@ -147,7 +147,7 @@ class OutputManager:  # noqa: PLR0904
         self.reason = None
 
         self.output_constraint: OutputConstraint | None = None
-        self.initialise(output_config, view)
+        self.initialise(output_config, view, saved_state)
         self.logger.log_message(f"Output {self.name} initialised.", "debug")
 
         # Only access this in tell_device_status_updated()
@@ -158,7 +158,7 @@ class OutputManager:  # noqa: PLR0904
         if saved_state and view.get_device_online(self.device_id) and view.get_output_state(self.device_output_id) != device_output_saved_state:
             self.logger.log_message(f"Output {self.name} saved state does not match actual device state. Saved: {'On' if device_output_saved_state else 'Off'}, Actual: {'On' if view.get_device_online(self.device_id) else 'Off'}. Output relay may have been changed by another application.", "warning")
 
-    def initialise(self, output_config: dict, view: SmartDeviceView):  # noqa: PLR0912, PLR0915
+    def initialise(self, output_config: dict, view: SmartDeviceView, saved_state: dict | None):  # noqa: PLR0912, PLR0915
         """Initializes the output manager with the given configuration.
 
         Args:
@@ -200,6 +200,12 @@ class OutputManager:  # noqa: PLR0904
                 _validation_error(f"A valid mode has not been set for output {self.name}.")
             else:
                 self.system_state = SystemState.AUTO
+
+            # App Mode (issue 106)
+            if saved_state and saved_state.get("AppMode"):
+                self.app_mode = saved_state.get("AppMode")
+                if saved_state.get("AppModeRevertTime"):
+                    self.app_mode_revert_time = saved_state.get("AppModeRevertTime")
 
             # Schedule
             self.schedule_name = output_config.get("Schedule")
@@ -282,7 +288,7 @@ class OutputManager:  # noqa: PLR0904
             # TempProbeConstraints and DatesOff are parsed and validated inside OutputConstraint
             self.output_constraint = OutputConstraint(
                 output_config=output_config,
-                name=self.name,
+                name=self.name, # pyright: ignore[reportArgumentType]
                 logger=self.logger,
                 ups_integration=self.ups_integration,
                 device_output_id=self.device_output_id,

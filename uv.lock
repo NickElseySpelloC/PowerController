@@ -639,7 +639,7 @@ wheels = [
 
 [[package]]
 name = "powercontroller"
-version = "2.0.6"
+version = "2.0.8"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
@@ -706,7 +706,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.15.1" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
-    { name = "sc-foundation-services", specifier = ">=3.1.3" },
+    { name = "sc-foundation-services", specifier = ">=3.2.0" },
     { name = "sc-smart-device", specifier = ">=3.2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
     { name = "werkzeug", specifier = ">=3.1.3" },
@@ -986,7 +986,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.32.5"
+version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -994,14 +994,14 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
 ]
 
 [[package]]
 name = "sc-foundation-services"
-version = "3.1.3"
+version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "astral" },
@@ -1011,13 +1011,14 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "pytz" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "tzdata" },
     { name = "tzfpy" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/a4/7abab1ee9c7fe1af31c0bc32e7675585d1b6362aeb393df71b6edd08281f/sc_foundation_services-3.1.3.tar.gz", hash = "sha256:bbf084f12d63d1822228c0e8e1cb54df1411faf8110ee67464ae3d178d539fe9", size = 40692, upload-time = "2026-05-27T15:00:09.774Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/67/a4/69842f57c44a40db432671ed0428d0866cfbfade2b9e04174ce5996dcb46/sc_foundation_services-3.2.0.tar.gz", hash = "sha256:b97803c16143ce22cd86498a3e8c16b79fa74c2a3f3d35844b02a13fcac28c94", size = 44278, upload-time = "2026-06-22T07:07:14.083Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/d7/c5fd2006fd9964991d4aa40d77862e1acd42f97c227e7ae5d5d71dfa4a66/sc_foundation_services-3.1.3-py3-none-any.whl", hash = "sha256:10a6d07fbfb82a3ee2ddbad9ee269922acd3b23e2facbf5571dd31ca8e36a121", size = 34211, upload-time = "2026-05-27T15:00:08.307Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/4f/a4a333d3495f7cb344011027f01b161930a8ceee056458c35c42c118d079/sc_foundation_services-3.2.0-py3-none-any.whl", hash = "sha256:7180518b58978baa12a706b682235316313e70013667cdf147a2b52b922725ce", size = 36394, upload-time = "2026-06-22T07:07:12.985Z" },
 ]
 
 [[package]]

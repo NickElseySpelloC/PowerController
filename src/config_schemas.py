@@ -106,7 +106,6 @@ class ConfigSchema:
                 "required": False,
                 "nullable": True,
                 "schema": {
-                    "UseShellyDevice": {"type": "string", "required": False, "nullable": True},
                     "GoogleMapsURL": {"type": "string", "required": False, "nullable": True},
                     "Timezone": {"type": "string", "required": False, "nullable": True},
                     "Latitude": {"type": "number", "required": False, "nullable": True},

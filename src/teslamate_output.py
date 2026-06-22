@@ -148,7 +148,7 @@ class TeslaMateOutput:
             self.run_history = self._create_empty_history()
 
         self._last_rebuild: dt.datetime | None = None
-        self.initialise(output_config, None)
+        self.initialise(output_config, None, saved_state)
         self.logger.log_message(f"Output {self.name} initialised.", "debug")
 
     def set_parent_output(self, parent: Any) -> None:
@@ -163,7 +163,7 @@ class TeslaMateOutput:
         self.parent_output = parent
 
     # --- Compatibility methods used by PowerController loops ---
-    def initialise(self, output_config: dict[str, Any], _view: Any) -> None:
+    def initialise(self, output_config: dict[str, Any], _view: Any, _saved_state: Any) -> None:
         """Reinitialise this output from config.
 
         Args:

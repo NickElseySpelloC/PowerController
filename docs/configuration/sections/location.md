@@ -4,16 +4,6 @@ Specify the geographic location and timezone of your installation. This is used 
 
 You can specify your location in one of three ways - device location (IP goecoding); Google Maps URL or manual. All three options also require your timezone (see [this page](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for a list ). 
 
-## Shelly Device Location
-
-Use a Shelly device's location (using IP lookup) by specifing the device name in the UseShellyDevice field.
-
-```yaml
-Location:
-    Timezone: Europe/London
-    UseShellyDevice: Shelly Pool 1
-```
-
 ## Google Maps URL
 
 Use a Google Maps URL to extract the location - specify the GoogleMapsURL field and the Timezone field.

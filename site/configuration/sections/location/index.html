@@ -1003,17 +1003,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#shelly-device-location" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shelly Device Location
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#google-maps-url" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1223,17 +1212,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#shelly-device-location" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shelly Device Location
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#google-maps-url" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1275,12 +1253,6 @@
 <h1 id="configuration-file-location-section">Configuration file - Location section</h1>
 <p>Specify the geographic location and timezone of your installation. This is used to determine the dawn and dusk times for schedules that use this feature. </p>
 <p>You can specify your location in one of three ways - device location (IP goecoding); Google Maps URL or manual. All three options also require your timezone (see <a href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones">this page</a> for a list ). </p>
-<h2 id="shelly-device-location">Shelly Device Location</h2>
-<p>Use a Shelly device's location (using IP lookup) by specifing the device name in the UseShellyDevice field.</p>
-<pre><code class="language-yaml">Location:
-    Timezone: Europe/London
-    UseShellyDevice: Shelly Pool 1
-</code></pre>
 <h2 id="google-maps-url">Google Maps URL</h2>
 <p>Use a Google Maps URL to extract the location - specify the GoogleMapsURL field and the Timezone field.</p>
 <pre><code class="language-yaml">Location:
