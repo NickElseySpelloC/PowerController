@@ -195,6 +195,7 @@ class ConfigSchema:
                         "PowerOffThresholdWatts": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 20000},
                         "MinEnergyToLog": {"type": "number", "required": False, "nullable": True, "min": 0, "max": 10000},
                         "MaxDailyEnergyUse": {"type": "number", "required": False, "nullable": True, "min": 100, "max": 50000},
+                        "MinDailyEnergyUse": {"type": "number", "required": False, "nullable": True, "min": 10, "max": 50000},
                         "DeviceInput": {"type": "string", "required": False, "nullable": True},
                         "DeviceInputMode": {"type": "string", "required": False, "nullable": True, "allowed": ["Ignore", "TurnOn", "TurnOff"]},
                         "ParentOutput": {"type": "string", "required": False, "nullable": True},

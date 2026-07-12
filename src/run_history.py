@@ -622,16 +622,23 @@ class RunHistory:
     def _check_yesterday_energy_usage(self):
         """Check if the energy used yesterday was more than expected."""
         prior_energy_used = self.history["DailyData"][-1]["EnergyUsed"] if self.history["DailyData"] else 0
-        threashold = self.output_config.get("MaxDailyEnergyUse", 0) or 0
-        if prior_energy_used == 0 or threashold == 0:
-            return  # No data to check
+        upper_threashold = self.output_config.get("MaxDailyEnergyUse", 0) or 0
+        lower_threashold = self.output_config.get("MinDailyEnergyUse", 0) or 0
 
-        if prior_energy_used > threashold:
-            warning_msg = f"{self.output_config.get('Name')} output used on {prior_energy_used:.0f}W, which exceeded the expected limit of {threashold}W."
+        if upper_threashold > 0 and prior_energy_used > upper_threashold:
+            warning_msg = f"{self.output_config.get('Name')} output used on {prior_energy_used:.0f}W, which exceeded the expected upper limit of {upper_threashold}W."
             self.logger.log_message(warning_msg, "warning")
 
             # Send an email notification if configured
             self.logger.send_email("Energy Usage Alert", warning_msg)
+
+        # Issue 34: Add support for MinDailyEnergyUse
+        if lower_threashold > 0 and prior_energy_used < lower_threashold:
+            warning_msg = f"{self.output_config.get('Name')} output used on {prior_energy_used:.0f}W, which was less than the expected lower limit of {lower_threashold}W."
+            self.logger.log_message(warning_msg, "warning")
+
+            # Send an email notification if configured
+            self.logger.send_email("Energy Usage Alert", warning_msg)            
 
     def _estimate_meter_read_at_midnight(
         self,

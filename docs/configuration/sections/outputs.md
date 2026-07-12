@@ -36,6 +36,7 @@ There's a lot of keys in this section, but not all are applicable to all types:
 | DatesOff | ✓ |   |   |
 | DeviceMeter | ✓ | ✓ |   |
 | MaxDailyEnergyUse | ✓ | ✓ |   |
+| MinDailyEnergyUse | ✓ | ✓ |   |
 | DeviceInput | ✓ |   |   |
 | DeviceInputMode | ✓ |   |   |
 | StopOnExit | ✓ |   |   |
@@ -83,6 +84,7 @@ Note: Required keys are shown in **bold**.
 | DatesOff | Optional list of date ranges when the output should not run. A list of StartDate and EndDate pairs. Dates are in the format yyyy-mm-dd |
 | DeviceMeter | The device meter to use to track energy usage - must match a Name in the SCSmartDevices: Devices: Meters section |
 | MaxDailyEnergyUse | Maximum energy use expected in Wh per day. An email warning will be sent if this is exceeded. |
+| MinDailyEnergyUse | Minimum energy use expected in Wh per day. An email warning will be sent if this is not met. |
 | DeviceInput | The Shelly device input to used override the state of the output - must match a Name in the SCSmartDevices: Devices: Inputs section |
 | DeviceInputMode | If a DeviceInput is specified, this controls how is is used. <br>**Ignore**: Ignore the state of the inputs.<br>**TurnOn**: Turn output on if input is off. <br>**TurnOff**: Turn output off if input is on. |
 | StopOnExit | If True, attempt to turn off the outputs when the application exits |
